@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib
 
 matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-
 
 def background_correct(Sc, x_sample, y_bg):
     background_corrected_spectrum = np.zeros((Sc.shape[0], Sc.shape[1] - 1))
