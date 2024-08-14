@@ -26,8 +26,8 @@ if not os.path.exists(save_path):
     os.makedirs(save_path)
 
 # 光谱预处理
-threshold1 = 800  # 过滤掉小于800nm的噪声
-threshold2 = 3600  # 过滤掉大于3600nm的噪声
+threshold1 = 900  # 过滤掉小于threshold1的噪声
+threshold2 = 1800  # 过滤掉大于threshold2的噪声
 order = 2  # 多项式阶数
 frame_len = 13  # 窗口长度（帧长度）
 
