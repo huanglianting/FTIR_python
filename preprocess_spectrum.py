@@ -1,7 +1,6 @@
 from SG_smooth import SG_smooth
 from derivative import derivative
 from filter_threshold import filter_threshold
-from flatten_region import flatten_region
 from vector_normalized import vector_normalized
 
 
