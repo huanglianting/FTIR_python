@@ -22,6 +22,7 @@ def plot_spectrum_with_mean_std(x_1, spectrum_1, spectrum_2, save_path):
     plt.ylabel('Absorbance')
     plt.title('Spectrum (mean ± SD)')
     plt.legend()
+    plt.gca().invert_xaxis()    # 反转x轴方向
 
     # 保存图像
     plt.savefig(os.path.join(save_path, 'Spectrum_result.png'))

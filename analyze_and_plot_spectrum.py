@@ -42,5 +42,6 @@ def analyze_and_plot_spectrum(x_1, spectrum_1, spectrum_2, save_path, significan
     plt.ylabel('Absorbance')
     plt.title('Spectrum (mean ± SD) with Significant Peaks')
     plt.legend()
+    plt.gca().invert_xaxis()    # 反转x轴方向
     plt.savefig(os.path.join(save_path, 'Spectrum_with_Significant_Peaks.png'))
     plt.show()

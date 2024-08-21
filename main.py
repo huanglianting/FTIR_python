@@ -1,7 +1,6 @@
 import scipy.io as sio
 import matplotlib
 import scipy.stats as stats
-
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import os
@@ -13,6 +12,7 @@ from preprocess_spectrum import preprocess_spectrum
 from perform_pca_analysis import perform_pca_analysis
 from analyze_and_plot_spectrum import analyze_and_plot_spectrum
 from plot_spectrum_with_mean_std import plot_spectrum_with_mean_std
+from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
 
 # 设置Matplotlib使用的字体为SimHei（黑体）
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
@@ -42,6 +42,11 @@ x_2, spectrum_2 = preprocess_spectrum(x_2, AB_2, threshold1, threshold2, order, 
 plot_spectrum_with_mean_std(x_1, spectrum_1, spectrum_2, save_path)
 # 绘制出spectrum_1、spectrum_2的最终光谱图，把p<0.001的波数段都标注出来
 analyze_and_plot_spectrum(x_1, spectrum_1, spectrum_2, save_path, 0.001)
+
+# 指定需要标注的波数点
+peak_wavenumbers = [1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]
+# 调用函数
+plot_spectrum_with_marked_peaks(x_1, spectrum_1, spectrum_2, save_path, peak_wavenumbers)
 
 # 以下是PCA和K-means聚类分析
 # 确保 spectrum_1234 的大小一致
