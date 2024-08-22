@@ -44,16 +44,16 @@ plot_spectrum_with_mean_std(x_1, spectrum_1, spectrum_2, save_path)
 analyze_and_plot_spectrum(x_1, spectrum_1, spectrum_2, save_path, 0.001)
 
 # 指定需要标注的波数点
-peak_wavenumbers = [1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]
+peak_wavenumbers = [1030, 1080, 1239, 1313, 1407, 1451, 1550, 1577, 1656]
 # 调用函数
 plot_spectrum_with_marked_peaks(x_1, spectrum_1, spectrum_2, save_path, peak_wavenumbers)
 
 # 以下是PCA和K-means聚类分析
 # 确保 spectrum_1234 的大小一致
-min_length = min(spectrum_1.shape[0], spectrum_2.shape[0])
-spectrum_1 = spectrum_1[:min_length, :]
-spectrum_2 = spectrum_2[:min_length, :]
-x_1 = x_1[:min_length]
+# min_length = min(spectrum_1.shape[0], spectrum_2.shape[0])
+# spectrum_1 = spectrum_1[:min_length, :]
+# spectrum_2 = spectrum_2[:min_length, :]
+# x_1 = x_1[:min_length]
 
 # 主成分分析
 perform_pca_analysis(spectrum_1, spectrum_2, x_1, save_path)
