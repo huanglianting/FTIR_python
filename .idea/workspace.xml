@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="新增函数plot_spectrum_with_marked_peaks：能够把最终的光谱图画出来，并标注出指定需要标注的波数点。&#10;并修改了plot_spectrum_with_mean_std 和 analyze_and_plot_spectrum 两个函数，把x轴给翻转了过来">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="更新波数点">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -19,6 +20,11 @@
   </component>
   <component name="Git.Settings">
     <option name="PUSH_AUTO_UPDATE" value="true" />
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="MarkdownSettingsMigration">
@@ -73,7 +79,7 @@
       <workItem from="1720787786721" duration="9185000" />
       <workItem from="1720854298695" duration="2380000" />
       <workItem from="1723179289231" duration="9554000" />
-      <workItem from="1723441247996" duration="37309000" />
+      <workItem from="1723441247996" duration="40884000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -152,7 +158,14 @@
       <option name="project" value="LOCAL" />
       <updated>1724249033873</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="更新波数点">
+      <created>1724315842059</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1724315842059</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -178,9 +191,10 @@
     <MESSAGE value="该版本为绘制cancer和benign处理后的最终光谱" />
     <MESSAGE value="新增两个函数。plot_spectrum_with_mean_std：绘制出spectrum_1、spectrum_2的最终光谱图（未标注显著差异波数段）。analyze_and_plot_spectrum：绘制出spectrum_1、spectrum_2的最终光谱图，把p&lt;0.001的波数段都标注出来，用于筛选出特征峰。" />
     <MESSAGE value="新增函数plot_spectrum_with_marked_peaks：能够把最终的光谱图画出来，并标注出指定需要标注的波数点。&#10;并修改了plot_spectrum_with_mean_std 和 analyze_and_plot_spectrum 两个函数，把x轴给翻转了过来" />
-    <option name="LAST_COMMIT_MESSAGE" value="新增函数plot_spectrum_with_marked_peaks：能够把最终的光谱图画出来，并标注出指定需要标注的波数点。&#10;并修改了plot_spectrum_with_mean_std 和 analyze_and_plot_spectrum 两个函数，把x轴给翻转了过来" />
+    <MESSAGE value="更新波数点" />
+    <option name="LAST_COMMIT_MESSAGE" value="更新波数点" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1724314619420" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1724323026126" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
