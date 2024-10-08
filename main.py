@@ -12,8 +12,8 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from load_data import load_data
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
 from preprocess_spectrum import preprocess_spectrum
-from perform_pca_analysis import perform_pca_analysis
-from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
+from perform_pca_lda_analysis import perform_pca_lda_analysis
+from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
 
 # 设置Matplotlib使用的字体为SimHei（黑体）
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
@@ -62,11 +62,22 @@ x_1299, spectrum_1299 = load_and_preprocess(cancer_1299_data, threshold1, thresh
 
 # 指定需要标注的波数点
 peak_wavenumbers = [1030, 1080, 1243, 1310, 1403, 1455, 1555, 1652]
-# 调用函数
-plot_spectrum_with_marked_peaks(x_benign, spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, save_path,
-                                peak_wavenumbers)
+# 分别绘制四组数据的光谱图
+plot_individual_spectrum_with_marked_peaks(x_benign, spectrum_benign, 'benign', 'green', save_path, peak_wavenumbers)
+plot_individual_spectrum_with_marked_peaks(x_441, spectrum_441, '441', 'orange', save_path, peak_wavenumbers)
+plot_individual_spectrum_with_marked_peaks(x_520, spectrum_520, '520', 'red', save_path, peak_wavenumbers)
+plot_individual_spectrum_with_marked_peaks(x_1299, spectrum_1299, '1299', 'blue', save_path, peak_wavenumbers)
 
-# 主成分分析
-# perform_pca_analysis(spectrum_1, spectrum_2, x_1, save_path)
+# 进行PCA-LDA分析
+perform_pca_lda_analysis(
+    spectrum_benign=spectrum_benign,
+    spectrum_441=spectrum_441,
+    spectrum_520=spectrum_520,
+    spectrum_1299=spectrum_1299,
+    x_1=x_benign,  # 假设x轴数据相同，可以使用任意一组的x轴数据
+    save_path=save_path
+)
+
+
 # K-means聚类分析
 # kmeans_clustering_and_plot(spectrum_1, spectrum_2, x_1, save_path, n_clusters=7)

@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="NSCLC光谱初步处理">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="这个是四个光谱图都作为子图，绘制一张大图的">
+      <change afterPath="$PROJECT_DIR$/perform_pca_lda_analysis.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/plot_individual_spectrum_with_marked_peaks.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/shelf/_2024_9_30_16_33____.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/shelf/_2024_9_30_16_33____.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -124,7 +126,7 @@
       <workItem from="1725417584875" duration="28372000" />
       <workItem from="1727594440180" duration="6524000" />
       <workItem from="1728370305028" duration="466000" />
-      <workItem from="1728371605818" duration="2061000" />
+      <workItem from="1728371605818" duration="6019000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -224,7 +226,21 @@
       <option name="project" value="LOCAL" />
       <updated>1725352254312</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="这个是四个光谱图都作为子图，绘制一张大图的">
+      <created>1728373788015</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1728373788015</updated>
+    </task>
+    <task id="LOCAL-00016" summary="这个是四个光谱图都作为子图，绘制一张大图的">
+      <created>1728373855848</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1728373855848</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -289,9 +305,10 @@
     <MESSAGE value="新增函数plot_spectrum_with_marked_peaks：能够把最终的光谱图画出来，并标注出指定需要标注的波数点。&#10;并修改了plot_spectrum_with_mean_std 和 analyze_and_plot_spectrum 两个函数，把x轴给翻转了过来" />
     <MESSAGE value="更新波数点" />
     <MESSAGE value="这次更新的concentration版本是几个重复一起处理的了，是正确的了" />
-    <option name="LAST_COMMIT_MESSAGE" value="这次更新的concentration版本是几个重复一起处理的了，是正确的了" />
+    <MESSAGE value="这个是四个光谱图都作为子图，绘制一张大图的" />
+    <option name="LAST_COMMIT_MESSAGE" value="这个是四个光谱图都作为子图，绘制一张大图的" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1728373543298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1728376619799" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
