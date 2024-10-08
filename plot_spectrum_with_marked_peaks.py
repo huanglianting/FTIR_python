@@ -16,42 +16,48 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, spectrum_3, spect
     mean_4 = np.mean(spectrum_4, axis=1)
     std_4 = np.std(spectrum_4, axis=1)
 
-    # 创建绘图
-    plt.figure(figsize=(12, 6))
-    plt.plot(x, mean_1, label='benign', color='green')
-    plt.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
-    plt.plot(x, mean_2, label='441', color='orange')
-    plt.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='orange', alpha=0.2)
-    plt.plot(x, mean_3, label='520', color='red')
-    plt.fill_between(x, mean_3 - std_3, mean_3 + std_3, color='red', alpha=0.2)
-    plt.plot(x, mean_4, label='1299', color='blue')
-    plt.fill_between(x, mean_4 - std_4, mean_4 + std_4, color='blue', alpha=0.2)
+    # 创建包含四个子图的图形
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10))
+    axs = axs.flatten()  # 将2x2的子图数组展平，方便迭代
 
-    # 在指定的波数点处标注短虚线
-    for peak in peak_wavenumbers:
-        # 获取该波数对应的y值
-        idx = np.argmin(np.abs(x - peak))
-        peak_height = (mean_1[idx] + mean_2[idx] + mean_3[idx] + mean_4[idx]) / 4  # 使用四条曲线的平均值作为峰的高度
-        # 绘制短虚线
-        plt.plot([peak, peak], [peak_height - 0.02, peak_height + 0.02], color='black', linestyle='--', linewidth=1)
-        # 在峰旁边标注波数值
-        plt.text(peak, peak_height + 0.02, str(peak), fontsize=9, ha='center')
+    # 定义每个子图的数据和标签
+    spectra = [
+        (mean_1, std_1, 'Benign', 'green'),
+        (mean_2, std_2, '441', 'orange'),
+        (mean_3, std_3, '520', 'red'),
+        (mean_4, std_4, '1299', 'blue')
+    ]
 
-    # 设置图表标签和标题
-    plt.xlabel('Wavenumber (cm^-1)')
-    plt.ylabel('Absorbance')
-    plt.title('Spectrum (Mean ± SD) with Marked Peaks')
-    plt.legend()
-    plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+    for ax, (mean, std, label, color) in zip(axs, spectra):
+        # 绘制均值曲线
+        ax.plot(x, mean, label=label, color=color)
+        # 填充均值±标准差区域
+        ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.2)
 
-    # 反转x轴方向
-    plt.gca().invert_xaxis()
+        # 在指定的波数点处标注短虚线
+        for peak in peak_wavenumbers:
+            # 获取该波数对应的y值
+            idx = np.argmin(np.abs(x - peak))
+            peak_height = mean[idx]
+            # 绘制短虚线
+            ax.plot([peak, peak], [peak_height - 0.02, peak_height + 0.02], color='black', linestyle='--', linewidth=1)
+            # 在峰旁边标注波数值
+            ax.text(peak, peak_height + 0.02, str(peak), fontsize=9, ha='center')
 
-    # 调整布局
+        # 设置子图标签和标题
+        ax.set_xlabel('Wavenumber (cm$^{-1}$)')
+        ax.set_ylabel('Absorbance')
+        ax.set_title(f'Spectrum: {label}')
+        ax.legend()
+        ax.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+        ax.invert_xaxis()  # 反转x轴方向
+
+    # 调整整体布局
     plt.tight_layout()
 
     # 保存并显示图像
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    plt.savefig(os.path.join(save_path, 'Spectrum_with_Peaks.png'), dpi=300)
+    plt.savefig(os.path.join(save_path, 'Spectrum_with_Peaks_Subplots.png'), dpi=300)
     plt.show()
+

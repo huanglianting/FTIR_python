@@ -61,7 +61,7 @@ x_520, spectrum_520 = load_and_preprocess(cancer_520_data, threshold1, threshold
 x_1299, spectrum_1299 = load_and_preprocess(cancer_1299_data, threshold1, threshold2, order, frame_len, save_path)
 
 # 指定需要标注的波数点
-peak_wavenumbers = [1030, 1080, 1239, 1313, 1407, 1451, 1550, 1577, 1656]
+peak_wavenumbers = [1030, 1080, 1243, 1310, 1403, 1455, 1555, 1652]
 # 调用函数
 plot_spectrum_with_marked_peaks(x_benign, spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, save_path,
                                 peak_wavenumbers)
