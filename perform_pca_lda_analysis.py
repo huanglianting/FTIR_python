@@ -56,8 +56,8 @@ def perform_pca_lda_analysis(spectrum_benign, spectrum_441, spectrum_520, spectr
     cm = confusion_matrix(y_test, y_pred)  # 混淆矩阵作图出来，更直观，在图片上标注出数值
     # 将混淆矩阵转换为百分比
     cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
-    # 绘制混淆矩阵热力图
-    save_confusion_matrix_heatmap(cm_percent, save_path, image_filename='PCA-LDA_confusion_matrix_heatmap.png')
+    # 绘制混淆矩阵热力图，传递 method_name
+    save_confusion_matrix_heatmap(cm_percent, save_path, method_name='PCA-LDA', show_plot=False)
     # 计算评价指标，保存到excel中
     classification_metrics(cm, y_test, y_pred, save_path, excel_filename='PCA-LDA_metrics.xlsx')
 

@@ -6,10 +6,9 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 from load_data import load_data
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
+from perform_rf_analysis import perform_pca_rf_analysis
 from preprocess_spectrum import preprocess_spectrum
 from perform_pca_lda_analysis import perform_pca_lda_analysis
-from perform_pca_lda_3d_analysis import perform_pca_lda_3d_analysis
-from perform_pca_analysis import perform_pca_analysis
 from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
 
 # 确保使用正确的Matplotlib后端
@@ -78,6 +77,20 @@ perform_pca_lda_analysis(
     spectrum_1299=spectrum_1299,
     save_path=save_path,
     n_pca_components=20, test_size=0.3, random_state=42
+)
+
+# 进行PCA-RF分析
+perform_pca_rf_analysis(
+    spectrum_benign=spectrum_benign,
+    spectrum_441=spectrum_441,
+    spectrum_520=spectrum_520,
+    spectrum_1299=spectrum_1299,
+    save_path=save_path,
+    n_pca_components=20,
+    test_size=0.3,
+    random_state=42,
+    n_estimators=200,  # 例如，使用200棵树
+    max_depth=10        # 例如，设置最大深度为10
 )
 
 # K-means聚类分析

@@ -3,7 +3,18 @@ import matplotlib.pyplot as plt
 import os
 
 
-def save_confusion_matrix_heatmap(cm_percent, save_path, image_filename='confusion_matrix_heatmap.png'):
+def save_confusion_matrix_heatmap(cm_percent, save_path, method_name='method_name', show_plot=True):
+    """
+    保存混淆矩阵的热力图。
+    参数:
+    - cm_percent: 混淆矩阵的百分比形式 (numpy.ndarray)
+    - save_path: 保存路径 (str)
+    - method_name: 方法名称，用于生成标题和图像文件名 (str)
+    """
+    # 生成标题和图像文件名
+    title = f'{method_name} Confusion Matrix Heatmap (%)'
+    image_filename = f'{method_name}_confusion_matrix_heatmap.png'
+
     plt.figure(figsize=(8, 6))
     # 创建热力图
     ax = sns.heatmap(
@@ -38,12 +49,15 @@ def save_confusion_matrix_heatmap(cm_percent, save_path, image_filename='confusi
     # 添加轴标签和标题
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
-    plt.title('PCA-LDA Confusion Matrix Heatmap (%)')
+    plt.title(title)
 
     # 保存并显示热力图
     plt.tight_layout()
     image_path = os.path.join(save_path, image_filename)
     plt.savefig(image_path, dpi=300)
-    plt.show()
+
+    if show_plot:
+        plt.show()
+    plt.close()
 
     print(f"Heatmap has been saved to {image_path}")
