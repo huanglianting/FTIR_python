@@ -76,8 +76,8 @@ perform_pca_lda_analysis(
     spectrum_441=spectrum_441,
     spectrum_520=spectrum_520,
     spectrum_1299=spectrum_1299,
-    x_1=x_benign,  # 假设x轴数据相同，可以使用任意一组的x轴数据
-    save_path=save_path
+    save_path=save_path,
+    n_pca_components=20, test_size=0.3, random_state=42
 )
 
 # K-means聚类分析

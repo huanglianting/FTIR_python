@@ -10,8 +10,8 @@ from classification_metrics import classification_metrics
 from save_confusion_matrix_heatmap import save_confusion_matrix_heatmap
 
 
-def perform_pca_lda_analysis(spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, x_1, save_path,
-                             n_pca_components=20):
+def perform_pca_lda_analysis(spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, save_path,
+                             n_pca_components=20, test_size=0.3, random_state=42):
     # n_pca_components: PCA降维后的主成分数量
     # 合并所有光谱数据
     combined_spectrum = np.hstack((spectrum_benign, spectrum_441, spectrum_520, spectrum_1299))
@@ -30,7 +30,7 @@ def perform_pca_lda_analysis(spectrum_benign, spectrum_441, spectrum_520, spectr
 
     # 划分训练集和测试集
     X_train_spectrum, X_test_spectrum, y_train, y_test = train_test_split(
-        combined_spectrum.T, y, test_size=0.3, random_state=42, stratify=y
+        combined_spectrum.T, y, test_size=test_size, random_state=random_state, stratify=y
     )
 
     # 数据标准化
@@ -44,7 +44,9 @@ def perform_pca_lda_analysis(spectrum_benign, spectrum_441, spectrum_520, spectr
     X_test_pca = pca.transform(X_test_scaled)  # 使用相同的PCA模型转换测试集
 
     # 训练LDA分类器
-    lda = LDA(n_components=3)  # 最多 classes - 1 维
+    num_classes = len(np.unique(y_train))
+    lda = LDA(n_components=min(num_classes - 1, 3))  # 最多 classes - 1 维
+    # lda = LDA(n_components=3)
     lda.fit(X_train_pca, y_train)
 
     # 预测
