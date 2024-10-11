@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="PCA-LDA的作图已经做好了，3D的PCA-LDA的作图也有">
-      <change afterPath="$PROJECT_DIR$/calculate_per_class_accuracy.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/calculate_specificity.py" afterDir="false" />
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="新增计算每类及总共的Accuracy, Precision, Recall, Specificity (Macro Averages)，并将结果输出到表格中">
+      <change afterPath="$PROJECT_DIR$/classification_metrics.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/save_confusion_matrix_heatmap.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/flatten_region.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/perform_pca_lda_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_pca_lda_analysis.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/plot_spectrum_with_mean_std.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -126,7 +128,7 @@
       <workItem from="1725417584875" duration="28372000" />
       <workItem from="1727594440180" duration="6524000" />
       <workItem from="1728370305028" duration="466000" />
-      <workItem from="1728371605818" duration="31685000" />
+      <workItem from="1728371605818" duration="38377000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -254,7 +256,14 @@
       <option name="project" value="LOCAL" />
       <updated>1728537599503</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="新增计算每类及总共的Accuracy, Precision, Recall, Specificity (Macro Averages)，并将结果输出到表格中">
+      <created>1728550276429</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1728550276429</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -322,9 +331,10 @@
     <MESSAGE value="这个是四个光谱图都作为子图，绘制一张大图的" />
     <MESSAGE value="还是改成每个光谱一个自己的图了，新增函数PCA-LDA" />
     <MESSAGE value="PCA-LDA的作图已经做好了，3D的PCA-LDA的作图也有" />
-    <option name="LAST_COMMIT_MESSAGE" value="PCA-LDA的作图已经做好了，3D的PCA-LDA的作图也有" />
+    <MESSAGE value="新增计算每类及总共的Accuracy, Precision, Recall, Specificity (Macro Averages)，并将结果输出到表格中" />
+    <option name="LAST_COMMIT_MESSAGE" value="新增计算每类及总共的Accuracy, Precision, Recall, Specificity (Macro Averages)，并将结果输出到表格中" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1728549979460" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1728626719265" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
