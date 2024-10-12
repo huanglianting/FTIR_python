@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from load_data import load_data
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
 from perform_pca_rf_analysis import perform_pca_rf_analysis
+from perform_svm_analysis import perform_svm_analysis
 from preprocess_spectrum import preprocess_spectrum
 from perform_pca_lda_analysis import perform_pca_lda_analysis
 from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
@@ -91,6 +92,19 @@ perform_pca_rf_analysis(
     random_state=42,
     n_estimators=200,  # 例如，使用200棵树
     max_depth=10        # 例如，设置最大深度为10
+)
+
+perform_svm_analysis(
+    spectrum_benign=spectrum_benign,
+    spectrum_441=spectrum_441,
+    spectrum_520=spectrum_520,
+    spectrum_1299=spectrum_1299,
+    save_path=save_path,
+    test_size=0.3,                   # 可根据需要调整
+    random_state=42,           # 数据划分的随机种子
+    kernel='rbf',                    # 可选择 'linear', 'rbf', 'poly' 等
+    C=1.0,                           # 正则化参数，默认1.0
+    gamma='scale'                    # 核函数系数，默认 'scale'
 )
 
 # K-means聚类分析
