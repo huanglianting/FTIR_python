@@ -34,6 +34,6 @@ def perform_svm_analysis(spectrum_benign, spectrum_441, spectrum_520, spectrum_1
     # 计算混淆矩阵
     cm = confusion_matrix(y_test, y_pred)
     # 绘制混淆矩阵热力图，传递 method_name
-    save_confusion_matrix_heatmap(cm, save_path, method_name='SVM', show_plot=True)
+    save_confusion_matrix_heatmap(cm, save_path, method_name='SVM', show_plot=False)
     # 计算评价指标，保存到excel中
     classification_metrics(cm, y_test, y_pred, save_path, excel_filename='SVM_metrics.xlsx')

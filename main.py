@@ -1,10 +1,10 @@
 import os
-import numpy as np
 import scipy.io as sio
 import matplotlib
 import matplotlib.pyplot as plt
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
 from load_and_preprocess import load_and_preprocess
+from perform_cnn_analysis import perform_cnn_analysis
 from perform_pca_rf_analysis import perform_pca_rf_analysis
 from perform_svm_analysis import perform_svm_analysis
 from perform_pca_lda_analysis import perform_pca_lda_analysis
@@ -52,6 +52,7 @@ plot_individual_spectrum_with_marked_peaks(x_520, spectrum_520, '520', 'red', sa
 plot_individual_spectrum_with_marked_peaks(x_1299, spectrum_1299, '1299', 'blue', save_path, peak_wavenumbers)
 '''
 
+"""
 perform_pca_lda_analysis(
     spectrum_benign=spectrum_benign,
     spectrum_441=spectrum_441,
@@ -87,6 +88,20 @@ perform_svm_analysis(
     kernel='rbf',                    # 可选择 'linear', 'rbf', 'poly' 等
     C=1.0,                           # 正则化参数，默认1.0
     gamma='scale'                    # 核函数系数，默认 'scale'
+)
+    """
+
+# 执行CNN分析
+perform_cnn_analysis(
+    spectrum_benign=spectrum_benign,
+    spectrum_441=spectrum_441,
+    spectrum_520=spectrum_520,
+    spectrum_1299=spectrum_1299,
+    save_path=save_path,
+    test_size=0.3,                   # 可根据需要调整
+    random_state=42,           # 数据划分的随机种子
+    epochs=100,                 # 训练轮数，可根据需要调整
+    batch_size=32               # 批量大小，可根据需要调整
 )
 
 # K-means聚类分析
