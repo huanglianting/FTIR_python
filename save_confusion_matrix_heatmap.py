@@ -1,9 +1,10 @@
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 
 
-def save_confusion_matrix_heatmap(cm_percent, save_path, method_name='method_name', show_plot=True):
+def save_confusion_matrix_heatmap(cm, save_path, method_name='method_name', show_plot=True):
     """
     保存混淆矩阵的热力图。
     参数:
@@ -11,6 +12,10 @@ def save_confusion_matrix_heatmap(cm_percent, save_path, method_name='method_nam
     - save_path: 保存路径 (str)
     - method_name: 方法名称，用于生成标题和图像文件名 (str)
     """
+
+    # 将混淆矩阵转换为百分比
+    cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
+
     # 生成标题和图像文件名
     title = f'{method_name} Confusion Matrix Heatmap (%)'
     image_filename = f'{method_name}_confusion_matrix_heatmap.png'

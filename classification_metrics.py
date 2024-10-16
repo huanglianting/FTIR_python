@@ -19,7 +19,7 @@ def classification_metrics(cm, y_test, y_pred, save_path, excel_filename='classi
     overall_recall = recall_score(y_test, y_pred, average='macro', zero_division=0)
     overall_specificity = np.mean(specificity)
 
-    # 组织数据到DataFrame
+    # 组织数据到DataFrameA
     metrics = {
         'Accuracy': per_class_acc + [overall_accuracy],
         'Precision': list(precision) + [overall_precision],

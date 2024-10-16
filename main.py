@@ -2,13 +2,11 @@ import os
 import numpy as np
 import scipy.io as sio
 import matplotlib
-import scipy.stats as stats
 import matplotlib.pyplot as plt
-from load_data import load_data
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
+from load_and_preprocess import load_and_preprocess
 from perform_pca_rf_analysis import perform_pca_rf_analysis
 from perform_svm_analysis import perform_svm_analysis
-from preprocess_spectrum import preprocess_spectrum
 from perform_pca_lda_analysis import perform_pca_lda_analysis
 from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
 
@@ -28,26 +26,10 @@ benign_data = [sio.loadmat(file) for file in benign_data_files]
 cancer_441_data = [sio.loadmat(file) for file in cancer_441_data_files]
 cancer_520_data = [sio.loadmat(file) for file in cancer_520_data_files]
 cancer_1299_data = [sio.loadmat(file) for file in cancer_1299_data_files]
-save_path = 'N:\\hlt\\FTIR\\result\\benign-441-520-1299'  # 保存图片的路径
 
-# Ensure the save_path directory exists
+save_path = 'N:\\hlt\\FTIR\\result\\benign-441-520-1299'  # 保存图片的路径
 if not os.path.exists(save_path):
     os.makedirs(save_path)
-
-
-# Load and preprocess data for each concentration and replicate
-def load_and_preprocess(data_files, threshold1, threshold2, order, frame_len, save_path):
-    x_all, spectrum_all = [], []
-    for data_file in data_files:
-        x, AB = load_data(data_file)
-        x, spectrum = preprocess_spectrum(x, AB, threshold1, threshold2, order, frame_len, save_path)
-        x_all.append(x)
-        spectrum_all.append(spectrum)
-    # Combine replicates by concatenating along the column axis (axis=1)
-    x_combined = x_all[0]
-    spectrum_combined = np.concatenate(spectrum_all, axis=1)
-    return x_combined, spectrum_combined
-
 
 # 光谱预处理
 threshold1 = 900  # 过滤掉小于threshold1的噪声
@@ -70,26 +52,26 @@ plot_individual_spectrum_with_marked_peaks(x_520, spectrum_520, '520', 'red', sa
 plot_individual_spectrum_with_marked_peaks(x_1299, spectrum_1299, '1299', 'blue', save_path, peak_wavenumbers)
 '''
 
-# 进行PCA-LDA分析
 perform_pca_lda_analysis(
     spectrum_benign=spectrum_benign,
     spectrum_441=spectrum_441,
     spectrum_520=spectrum_520,
     spectrum_1299=spectrum_1299,
     save_path=save_path,
-    n_pca_components=20, test_size=0.3, random_state=42
+    test_size=0.3,
+    random_state=42,
+    n_pca_components=20
 )
 
-# 进行PCA-RF分析
 perform_pca_rf_analysis(
     spectrum_benign=spectrum_benign,
     spectrum_441=spectrum_441,
     spectrum_520=spectrum_520,
     spectrum_1299=spectrum_1299,
     save_path=save_path,
-    n_pca_components=20,
     test_size=0.3,
     random_state=42,
+    n_pca_components=20,
     n_estimators=200,  # 例如，使用200棵树
     max_depth=10        # 例如，设置最大深度为10
 )
