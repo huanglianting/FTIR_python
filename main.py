@@ -9,6 +9,8 @@ from perform_pca_rf_analysis import perform_pca_rf_analysis
 from perform_svm_analysis import perform_svm_analysis
 from perform_pca_lda_analysis import perform_pca_lda_analysis
 from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
+from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
+
 
 # 确保使用正确的Matplotlib后端
 matplotlib.use('TkAgg')
@@ -44,13 +46,14 @@ x_1299, spectrum_1299 = load_and_preprocess(cancer_1299_data, threshold1, thresh
 
 # 指定需要标注的波数点
 peak_wavenumbers = [1030, 1080, 1243, 1310, 1403, 1455, 1555, 1652]
+"""
+plot_spectrum_with_marked_peaks(x_benign, spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, save_path, peak_wavenumbers)
 # 分别绘制四组数据的光谱图
-'''
 plot_individual_spectrum_with_marked_peaks(x_benign, spectrum_benign, 'benign', 'green', save_path, peak_wavenumbers)
 plot_individual_spectrum_with_marked_peaks(x_441, spectrum_441, '441', 'orange', save_path, peak_wavenumbers)
 plot_individual_spectrum_with_marked_peaks(x_520, spectrum_520, '520', 'red', save_path, peak_wavenumbers)
 plot_individual_spectrum_with_marked_peaks(x_1299, spectrum_1299, '1299', 'blue', save_path, peak_wavenumbers)
-'''
+"""
 
 """
 perform_pca_lda_analysis(
@@ -89,8 +92,8 @@ perform_svm_analysis(
     C=1.0,                           # 正则化参数，默认1.0
     gamma='scale'                    # 核函数系数，默认 'scale'
 )
-    """
-
+"""
+"""
 # 执行CNN分析
 perform_cnn_analysis(
     spectrum_benign=spectrum_benign,
@@ -103,6 +106,6 @@ perform_cnn_analysis(
     epochs=100,                 # 训练轮数，可根据需要调整
     batch_size=32               # 批量大小，可根据需要调整
 )
-
+"""
 # K-means聚类分析
 # kmeans_clustering_and_plot(spectrum_1, spectrum_2, x_1, save_path, n_clusters=7)
