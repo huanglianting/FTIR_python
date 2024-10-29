@@ -1,10 +1,12 @@
 import os
+import numpy as np
 import scipy.io as sio
 import matplotlib
 import matplotlib.pyplot as plt
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
 from load_and_preprocess import load_and_preprocess
-from perform_cnn_analysis import perform_cnn_analysis
+from split_dataset import split_dataset
+from perform_cnn_analysis import train_cnn_model, test_cnn_model
 from perform_pca_rf_analysis import perform_pca_rf_analysis
 from perform_svm_analysis import perform_svm_analysis
 from perform_pca_lda_analysis import perform_pca_lda_analysis
@@ -94,18 +96,16 @@ perform_svm_analysis(
 )
 """
 
-# 执行CNN分析
-perform_cnn_analysis(
-    spectrum_benign=spectrum_benign,
-    spectrum_441=spectrum_441,
-    spectrum_520=spectrum_520,
-    spectrum_1299=spectrum_1299,
-    save_path=save_path,
-    test_size=0.3,                   # 可根据需要调整
-    random_state=42,           # 数据划分的随机种子
-    epochs=100,                 # 训练轮数，可根据需要调整
-    batch_size=32               # 批量大小，可根据需要调整
-)
+# split_dataset(spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, save_path, test_size=0.3, random_state=42)
+X_train_scaled = np.load(f"{save_path}/X_train_scaled.npy")
+X_test_scaled = np.load(f"{save_path}/X_test_scaled.npy")
+y_train = np.load(f"{save_path}/y_train.npy")
+y_test = np.load(f"{save_path}/y_test.npy")
+
+# train_cnn_model(X_train_scaled, y_train, save_path, epochs=100, batch_size=32, lr=0.001)
+test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32)
+
+
 """
 """
 # K-means聚类分析

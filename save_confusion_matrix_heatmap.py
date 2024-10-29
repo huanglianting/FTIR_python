@@ -21,6 +21,7 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='method_name', show
     image_filename = f'{method_name}_confusion_matrix_heatmap.png'
 
     plt.figure(figsize=(8, 6))
+
     # 创建热力图
     ax = sns.heatmap(
         cm_percent,
@@ -41,15 +42,11 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='method_name', show
         spine.set_linewidth(0.8)
         spine.set_color('black')
 
-    # 为颜色图例添加外部黑色边框
-    current_axes = plt.gca()
-    for ax_obj in current_axes.figure.axes:
-        if ax_obj != ax:
-            # 这是颜色图例的轴对象
-            for _, spine in ax_obj.spines.items():
-                spine.set_visible(True)
-                spine.set_linewidth(0.8)
-                spine.set_color('black')
+    # 添加 colorbar 并设置边框
+    colorbar = ax.collections[0].colorbar
+    colorbar.outline.set_visible(True)
+    colorbar.outline.set_linewidth(0.8)
+    colorbar.outline.set_edgecolor('black')
 
     # 添加轴标签和标题
     plt.xlabel('Predicted Label')
