@@ -93,7 +93,7 @@ perform_svm_analysis(
     gamma='scale'                    # 核函数系数，默认 'scale'
 )
 """
-"""
+
 # 执行CNN分析
 perform_cnn_analysis(
     spectrum_benign=spectrum_benign,
@@ -106,6 +106,7 @@ perform_cnn_analysis(
     epochs=100,                 # 训练轮数，可根据需要调整
     batch_size=32               # 批量大小，可根据需要调整
 )
+"""
 """
 # K-means聚类分析
 # kmeans_clustering_and_plot(spectrum_1, spectrum_2, x_1, save_path, n_clusters=7)

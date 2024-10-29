@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="新增CNN函数，还未调参、优化网络、训练测试验证集占比">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="存档">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/perform_cnn_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_cnn_analysis.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -69,7 +70,7 @@
   "keyToString": {
     "WebServerToolWindowFactoryState": "true",
     "last_opened_file_path": "N:/hlt/FTIR/code",
-    "settings.editor.selected.configurable": "preferences.keymap"
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   },
   "keyToStringList": {
     "DatabaseDriversLRU": [
@@ -127,7 +128,7 @@
       <workItem from="1725417584875" duration="28372000" />
       <workItem from="1727594440180" duration="6524000" />
       <workItem from="1728370305028" duration="466000" />
-      <workItem from="1728371605818" duration="70023000" />
+      <workItem from="1728371605818" duration="77280000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -318,7 +319,14 @@
       <option name="project" value="LOCAL" />
       <updated>1729061789438</updated>
     </task>
-    <option name="localTasksCounter" value="28" />
+    <task id="LOCAL-00028" summary="存档">
+      <created>1730174511573</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1730174511573</updated>
+    </task>
+    <option name="localTasksCounter" value="29" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -394,9 +402,10 @@
     <MESSAGE value="新增SVM方法函数" />
     <MESSAGE value="进一步模块化了代码，把一些重复的部分封装、删除，不用的函数删除" />
     <MESSAGE value="新增CNN函数，还未调参、优化网络、训练测试验证集占比" />
-    <option name="LAST_COMMIT_MESSAGE" value="新增CNN函数，还未调参、优化网络、训练测试验证集占比" />
+    <MESSAGE value="存档" />
+    <option name="LAST_COMMIT_MESSAGE" value="存档" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1730174092127" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1730187792091" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
