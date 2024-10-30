@@ -5,14 +5,13 @@ import matplotlib
 import matplotlib.pyplot as plt
 from kmeans_clustering_and_plot import kmeans_clustering_and_plot
 from load_and_preprocess import load_and_preprocess
-from split_dataset import split_dataset
-from perform_cnn_analysis import train_cnn_model, test_cnn_model
-from perform_pca_rf_analysis import perform_pca_rf_analysis
-from perform_svm_analysis import perform_svm_analysis
-from perform_pca_lda_analysis import perform_pca_lda_analysis
 from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
 from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
-
+from split_dataset import split_dataset
+from perform_pca_lda_analysis import train_pca_lda_model, test_pca_lda_model
+from perform_pca_rf_analysis import train_pca_rf_model, test_pca_rf_model
+from perform_svm_analysis import train_svm_model, test_svm_model
+from perform_cnn_analysis import train_cnn_model, test_cnn_model
 
 # 确保使用正确的Matplotlib后端
 matplotlib.use('TkAgg')
@@ -57,56 +56,29 @@ plot_individual_spectrum_with_marked_peaks(x_520, spectrum_520, '520', 'red', sa
 plot_individual_spectrum_with_marked_peaks(x_1299, spectrum_1299, '1299', 'blue', save_path, peak_wavenumbers)
 """
 
-"""
-perform_pca_lda_analysis(
-    spectrum_benign=spectrum_benign,
-    spectrum_441=spectrum_441,
-    spectrum_520=spectrum_520,
-    spectrum_1299=spectrum_1299,
-    save_path=save_path,
-    test_size=0.3,
-    random_state=42,
-    n_pca_components=20
-)
-
-perform_pca_rf_analysis(
-    spectrum_benign=spectrum_benign,
-    spectrum_441=spectrum_441,
-    spectrum_520=spectrum_520,
-    spectrum_1299=spectrum_1299,
-    save_path=save_path,
-    test_size=0.3,
-    random_state=42,
-    n_pca_components=20,
-    n_estimators=200,  # 例如，使用200棵树
-    max_depth=10        # 例如，设置最大深度为10
-)
-
-perform_svm_analysis(
-    spectrum_benign=spectrum_benign,
-    spectrum_441=spectrum_441,
-    spectrum_520=spectrum_520,
-    spectrum_1299=spectrum_1299,
-    save_path=save_path,
-    test_size=0.3,                   # 可根据需要调整
-    random_state=42,           # 数据划分的随机种子
-    kernel='rbf',                    # 可选择 'linear', 'rbf', 'poly' 等
-    C=1.0,                           # 正则化参数，默认1.0
-    gamma='scale'                    # 核函数系数，默认 'scale'
-)
-"""
-
+# 划分训练集和测试集，只需run一次，就保存到save_path里储存为npy了
 # split_dataset(spectrum_benign, spectrum_441, spectrum_520, spectrum_1299, save_path, test_size=0.3, random_state=42)
+# 读取训练集和测试集
 X_train_scaled = np.load(f"{save_path}/X_train_scaled.npy")
 X_test_scaled = np.load(f"{save_path}/X_test_scaled.npy")
 y_train = np.load(f"{save_path}/y_train.npy")
 y_test = np.load(f"{save_path}/y_test.npy")
 
+"""
+# 训练 PCA-LDA 模型并保存模型参数，只需run一次，后续测试会自己读取train保存的参数
+# train_pca_lda_model(X_train_scaled, y_train, save_path, n_pca_components=20)
+# 测试 PCA-LDA 模型
+test_pca_lda_model(X_test_scaled, y_test, save_path, show_plot=True)
+
+# train_pca_rf_model(X_train_scaled, y_train, save_path, random_state=42, n_pca_components=20, n_estimators=200, max_depth=10)
+test_pca_rf_model(X_test_scaled, y_test, save_path, show_plot=True)
+
+# train_svm_model(X_train_scaled, y_train, save_path, kernel='rbf', C=1.0, gamma='scale')
+test_svm_model(X_test_scaled, y_test, save_path, show_plot=False)
+
 # train_cnn_model(X_train_scaled, y_train, save_path, epochs=100, batch_size=32, lr=0.001)
-test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32)
-
-
+test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32, show_plot=False)
 """
-"""
+
 # K-means聚类分析
 # kmeans_clustering_and_plot(spectrum_1, spectrum_2, x_1, save_path, n_clusters=7)

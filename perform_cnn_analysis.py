@@ -60,10 +60,10 @@ def train_cnn_model(X_train_scaled, y_train, save_path, epochs=100, batch_size=3
         print(f"Epoch [{epoch + 1}/{epochs}], Loss: {running_loss / len(train_loader):.4f}")
     # 保存训练好的模型
     torch.save(model.state_dict(), os.path.join(save_path, "cnn_model.pth"))
-    print("Model saved successfully.")
+    print("CNN Model saved successfully.")
 
 
-def test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32):
+def test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32, show_plot=True):
     # 获取输入长度
     input_length = X_test_scaled.shape[1]
     # 将数据转换为 torch 张量并调整形状
@@ -83,6 +83,6 @@ def test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32):
             y_pred.extend(predicted.cpu().numpy())  # 转换为numpy数组
     # 计算评价指标并保存
     cm = confusion_matrix(y_test.numpy(), y_pred)
-    save_confusion_matrix_heatmap(cm, save_path, method_name='CNN', show_plot=True)
+    save_confusion_matrix_heatmap(cm, save_path, method_name='CNN', show_plot=show_plot)
     classification_metrics(cm, y_test.numpy(), y_pred, save_path, excel_filename='CNN_metrics.xlsx')
     print("Testing completed.")
