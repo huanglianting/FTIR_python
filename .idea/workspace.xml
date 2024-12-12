@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="将cnn的训练与测试函数分开，训练集测试集划分结果保存，不再每次都重新划分，优化热力图绘制">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="将PCA-LDA、PCA-RF、SVM、CNN的训练与测试函数都分开了，训练集测试集划分结果保存，不再每次都重新划分">
+      <change beforePath="$PROJECT_DIR$/.idea/dataSources/96a30fb3-52ad-4bf1-9c83-1fd36b91a90f.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/96a30fb3-52ad-4bf1-9c83-1fd36b91a90f.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/perform_cnn_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_cnn_analysis.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/perform_pca_lda_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_pca_lda_analysis.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/perform_pca_rf_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_pca_rf_analysis.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/perform_svm_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_svm_analysis.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -69,18 +66,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "WebServerToolWindowFactoryState": "true",
-    "last_opened_file_path": "N:/hlt/FTIR/code",
-    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;N:/hlt/FTIR/code&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "mysql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;mysql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="N:\hlt\FTIR\code" />
@@ -131,7 +128,11 @@
       <workItem from="1725417584875" duration="28372000" />
       <workItem from="1727594440180" duration="6524000" />
       <workItem from="1728370305028" duration="466000" />
-      <workItem from="1728371605818" duration="93613000" />
+      <workItem from="1728371605818" duration="97043000" />
+      <workItem from="1731488847617" duration="593000" />
+      <workItem from="1731987739062" duration="588000" />
+      <workItem from="1733721386935" duration="2468000" />
+      <workItem from="1733726867687" duration="19007000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -350,7 +351,14 @@
       <option name="project" value="LOCAL" />
       <updated>1730200533397</updated>
     </task>
-    <option name="localTasksCounter" value="32" />
+    <task id="LOCAL-00032" summary="将PCA-LDA、PCA-RF、SVM、CNN的训练与测试函数都分开了，训练集测试集划分结果保存，不再每次都重新划分">
+      <created>1730275820449</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1730275820449</updated>
+    </task>
+    <option name="localTasksCounter" value="33" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -405,7 +413,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="更新为在900-1800cm-1指纹区域进行处理" />
     <MESSAGE value="该版本优化了得到AB光谱的方法，删掉了原来繁琐的背景校正，而是直接在load_data直接获取AB，同时去掉了求二阶导数这一步，结果更好了" />
     <MESSAGE value="更正回退后的bug，修正为在900-1800指纹区处理，同时删去应用拉平2200-2400波数段的函数这段暂时无用的代码" />
     <MESSAGE value="存档一下目前比较好的结果对应的代码" />
@@ -430,9 +437,10 @@
     <MESSAGE value="存档“CNN换成pytorch，还没debug" />
     <MESSAGE value="将cnn的训练与测试函数分开" />
     <MESSAGE value="将cnn的训练与测试函数分开，训练集测试集划分结果保存，不再每次都重新划分，优化热力图绘制" />
-    <option name="LAST_COMMIT_MESSAGE" value="将cnn的训练与测试函数分开，训练集测试集划分结果保存，不再每次都重新划分，优化热力图绘制" />
+    <MESSAGE value="将PCA-LDA、PCA-RF、SVM、CNN的训练与测试函数都分开了，训练集测试集划分结果保存，不再每次都重新划分" />
+    <option name="LAST_COMMIT_MESSAGE" value="将PCA-LDA、PCA-RF、SVM、CNN的训练与测试函数都分开了，训练集测试集划分结果保存，不再每次都重新划分" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1730275599448" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1733814765045" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
