@@ -22,7 +22,8 @@ plt.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显�
 
 # 读取数据
 benign_data_files = [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\control1_{i}.0.mat' for i in range(1, 4)] + \
-                    [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\control2_1.0.mat'] + [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\control2_3.0.mat']
+                    [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\control2_1.0.mat'] + [
+                        f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\control2_3.0.mat']
 cancer_data_files = [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\cancer1_{i}.0.mat' for i in range(1, 4)] + \
                     [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\cancer2_1.0.mat'] + [f'N:\\hlt\\FTIR\\FNA预实验\\上清液\\cancer2_3.0.mat']
 benign_data = [sio.loadmat(file) for file in benign_data_files]
@@ -38,6 +39,7 @@ threshold2 = 1800  # 过滤掉大于threshold2的噪声
 order = 2  # 多项式阶数
 frame_len = 13  # 窗口长度（帧长度）
 
+'''
 x_benign, spectrum_benign = load_and_preprocess(benign_data, threshold1, threshold2, order, frame_len, save_path)
 x_cancer, spectrum_cancer = load_and_preprocess(cancer_data, threshold1, threshold2, order, frame_len, save_path)
 
@@ -50,28 +52,26 @@ plot_individual_spectrum_with_marked_peaks(x_cancer, spectrum_cancer, 'cancer', 
 
 # 划分训练集和测试集，只需run一次，就保存到save_path里储存为npy了
 split_dataset(spectrum_benign, spectrum_cancer, save_path, test_size=0.3, random_state=42)
+'''
 # 读取训练集和测试集
-X_train_scaled = np.load(f"{save_path}/X_train_scaled.npy")
-X_test_scaled = np.load(f"{save_path}/X_test_scaled.npy")
-y_train = np.load(f"{save_path}/y_train.npy")
-y_test = np.load(f"{save_path}/y_test.npy")
+X_train_ftir = np.load(f"{save_path}/X_train_ftir.npy")
+X_test_ftir = np.load(f"{save_path}/X_test_ftir.npy")
+y_train_ftir = np.load(f"{save_path}/y_train_ftir.npy")
+y_test_ftir = np.load(f"{save_path}/y_test_ftir.npy")
+
+
 
 
 
 '''
-# 训练 PCA-LDA 模型并保存模型参数，只需run一次，后续测试会自己读取train保存的参数
-# train_pca_lda_model(X_train_scaled, y_train, save_path, n_pca_components=20)
-# 测试 PCA-LDA 模型
-test_pca_lda_model(X_test_scaled, y_test, save_path, show_plot=True)
-
-# train_pca_rf_model(X_train_scaled, y_train, save_path, random_state=42, n_pca_components=20, n_estimators=200, max_depth=10)
-test_pca_rf_model(X_test_scaled, y_test, save_path, show_plot=True)
-
-# train_svm_model(X_train_scaled, y_train, save_path, kernel='rbf', C=1.0, gamma='scale')
-test_svm_model(X_test_scaled, y_test, save_path, show_plot=False)
-
-# train_cnn_model(X_train_scaled, y_train, save_path, epochs=100, batch_size=32, lr=0.001)
-test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32, show_plot=False)
+# train_pca_lda_model(X_train_ftir, y_train_ftir, save_path, n_pca_components=20) # 训练模型并保存模型参数，只需run一次，后续测试会读取train保存的参数
+test_pca_lda_model(X_test_ftir, y_test_ftir, save_path, show_plot=True)
+# train_pca_rf_model(X_train_ftir, y_train_ftir, save_path, random_state=42, n_pca_components=20, n_estimators=200, max_depth=10)
+test_pca_rf_model(X_test_ftir, y_test_ftir, save_path, show_plot=True)
+# train_svm_model(X_train_ftir, y_train_ftir, save_path, kernel='rbf', C=1.0, gamma='scale')
+test_svm_model(X_test_ftir, y_test_ftir, save_path, show_plot=False)
+# train_cnn_model(X_train_ftir, y_train_ftir, save_path, epochs=100, batch_size=32, lr=0.001)
+test_cnn_model(X_test_ftir, y_test_ftir, save_path, batch_size=32, show_plot=False)
 '''
 
 # K-means聚类分析

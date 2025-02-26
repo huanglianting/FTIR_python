@@ -17,8 +17,8 @@ def split_dataset(spectrum_benign, spectrum_cancer, save_path, test_size=0.3, ra
     X_test_scaled = scaler.transform(X_test)  # 使用相同的标准化器转换测试集
 
     # 保存数据
-    np.save(f"{save_path}/X_train_scaled.npy", X_train_scaled)
-    np.save(f"{save_path}/X_test_scaled.npy", X_test_scaled)
+    np.save(f"{save_path}/X_train.npy", X_train)
+    np.save(f"{save_path}/X_test.npy", X_test)
     np.save(f"{save_path}/y_train.npy", y_train)
     np.save(f"{save_path}/y_test.npy", y_test)
 
