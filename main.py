@@ -56,22 +56,23 @@ X_test_scaled = np.load(f"{save_path}/X_test_scaled.npy")
 y_train = np.load(f"{save_path}/y_train.npy")
 y_test = np.load(f"{save_path}/y_test.npy")
 
+
+
+'''
 # 训练 PCA-LDA 模型并保存模型参数，只需run一次，后续测试会自己读取train保存的参数
-train_pca_lda_model(X_train_scaled, y_train, save_path, n_pca_components=20)
+# train_pca_lda_model(X_train_scaled, y_train, save_path, n_pca_components=20)
 # 测试 PCA-LDA 模型
 test_pca_lda_model(X_test_scaled, y_test, save_path, show_plot=True)
 
-
-"""
-train_pca_rf_model(X_train_scaled, y_train, save_path, random_state=42, n_pca_components=20, n_estimators=200, max_depth=10)
+# train_pca_rf_model(X_train_scaled, y_train, save_path, random_state=42, n_pca_components=20, n_estimators=200, max_depth=10)
 test_pca_rf_model(X_test_scaled, y_test, save_path, show_plot=True)
 
-train_svm_model(X_train_scaled, y_train, save_path, kernel='rbf', C=1.0, gamma='scale')
+# train_svm_model(X_train_scaled, y_train, save_path, kernel='rbf', C=1.0, gamma='scale')
 test_svm_model(X_test_scaled, y_test, save_path, show_plot=False)
 
-train_cnn_model(X_train_scaled, y_train, save_path, epochs=100, batch_size=32, lr=0.001)
+# train_cnn_model(X_train_scaled, y_train, save_path, epochs=100, batch_size=32, lr=0.001)
 test_cnn_model(X_test_scaled, y_test, save_path, batch_size=32, show_plot=False)
-"""
+'''
 
 # K-means聚类分析
 # kmeans_clustering_and_plot(spectrum_1, spectrum_2, x_1, save_path, n_clusters=7)
