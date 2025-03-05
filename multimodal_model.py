@@ -1,3 +1,4 @@
+# multimodal_model.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -59,24 +60,32 @@ class CMACF(nn.Module):
         return F.softmax(output, dim=1)
 
 
-def train_model(model, X_train_mz, X_train_ftir, y_train, num_epochs=10, lr=0.001):
+def train_model(model, train_loader, num_epochs=10, lr=0.001):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     for epoch in range(num_epochs):
         model.train()
-        optimizer.zero_grad()
-        outputs = model(X_train_mz, X_train_ftir)
-        loss = criterion(outputs, y_train)
-        loss.backward()
-        optimizer.step()
-        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
+        total_loss = 0
+        for mz_data, ftir_data, labels in train_loader:
+            optimizer.zero_grad()
+            outputs = model(mz_data, ftir_data)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {total_loss / len(train_loader):.4f}')
 
 
-def test_model(model, X_test_mz, X_test_ftir, y_test):
+def test_model(model, test_loader):
     model.eval()
+    correct = 0
+    total = 0
     with torch.no_grad():
-        outputs = model(X_test_mz, X_test_ftir)
-        _, predicted = torch.max(outputs, 1)
-        accuracy = (predicted == y_test).sum().item() / y_test.size(0)
-        print(f'Test Accuracy: {accuracy * 100:.2f}%')
+        for mz_data, ftir_data, labels in test_loader:
+            outputs = model(mz_data, ftir_data)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    accuracy = 100 * correct / total
+    print(f'Test Accuracy: {accuracy:.2f}%')

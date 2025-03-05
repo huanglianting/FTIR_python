@@ -16,7 +16,7 @@ def load_and_preprocess(data_files, threshold1, threshold2, order, frame_len, sa
         print(f"Spectrum {i}: shape = {spec.shape}")
 
     # Combine replicates by concatenating along the column axis (axis=1)
-    x_combined = x_all[0]
+    x_combined = x_all[0]  # 所有x值相同，取第一个即可
     spectrum_combined = np.concatenate(spectrum_all, axis=1)
     return x_combined, spectrum_combined
 
@@ -30,3 +30,4 @@ def load_data(data):
         x = data['TR'][:, 0]
         AB = -np.log10(TR)
     return x, AB
+
