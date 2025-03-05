@@ -6,6 +6,7 @@ import scipy.io as sio
 from load_and_preprocess import load_and_preprocess
 from torch.utils.data import DataLoader, TensorDataset
 from multimodal_model import CMACF, train_model, test_model
+from sklearn.decomposition import PCA
 
 
 save_path = 'N:\\hlt\\FTIR\\result\\FNA_supernatant'  # 保存图片的路径
@@ -61,6 +62,26 @@ for col, values in normal_samples.items():  # 正常样本数据，每个样本�
 print("mz shape:", mz.shape)
 
 
+'''
+# 压缩到 N 维
+N = 128  # 压缩后的特征维度
+# 对 FTIR 数据进行 PCA 压缩
+pca_ftir = PCA(n_components=N)
+ftir_compressed = pca_ftir.fit_transform(ftir_data)  # 形状为 (batch, N)
+# 对 m/z 数据进行 PCA 压缩
+pca_mz = PCA(n_components=N)
+mz_compressed = pca_mz.fit_transform(mz_data)  # 形状为 (batch, N)
+# 打印结果
+print("Compressed FTIR data shape:", ftir_compressed.shape)
+print("Compressed m/z data shape:", mz_compressed.shape)
+# 在特征维度上拼接
+combined_data = np.hstack((ftir_compressed, mz_compressed))  # 形状为 (batch, 2N)
+# 打印结果
+print("Combined data shape:", combined_data.shape)
+
+# 接下来输入到MLP，构建网络进行训练
+'''
+
 
 
 '''
@@ -74,7 +95,6 @@ X_train_mz = np.load(f"{save_path}/X_train_mz.npy")
 X_test_mz = np.load(f"{save_path}/X_test_mz.npy")
 y_train_mz = np.load(f"{save_path}/y_train_mz.npy")
 y_test_mz = np.load(f"{save_path}/y_test_mz.npy")
-
 
 print("y_train_ftir shape:", y_train_ftir.shape)
 print("y_train_mz shape:", y_train_mz.shape)
