@@ -11,7 +11,6 @@ from load_and_preprocess import load_and_preprocess
 from torch.utils.data import DataLoader, TensorDataset
 from multimodal_model import CMACF, train_model, test_model
 
-
 # 定义基础路径
 ftir_file_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\'
 mz_file_path = r'N:\\hlt\\FTIR\\FNA预实验\\code_test\\compound measurements.xlsx'
@@ -68,10 +67,11 @@ for key in cancer_ftir_data.keys():
 # 打印每个样品的形状
 print("x_ftir shape:", x_ftir.shape)
 for key in control_ftir.keys():
-    print(f"spectrum_control{key[len('control'):]} shape:", control_ftir[key].shape)    # 形状均为(467, xxxx)。例如：(467, 1517) (467, 1716)
+    print(f"spectrum_control{key[len('control'):]} shape:",
+          control_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1517) (467, 1716)
 for key in cancer_ftir.keys():
-    print(f"spectrum_cancer{key[len('cancer'):]} shape:", cancer_ftir[key].shape)   # 形状均为(467, xxxx)。例如：(467, 1165) (467, 1260)
-
+    print(f"spectrum_cancer{key[len('cancer'):]} shape:",
+          cancer_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1165) (467, 1260)
 
 # 处理mz
 df = pd.read_excel(mz_file_path, header=1)  # 从第二行读取数据
@@ -87,7 +87,6 @@ for col, values in control_mz.items():  # 正常样本数据，每个样本形�
     print(f"{col} shape:", values.shape)
 print("mz shape:", mz.shape)
 
-
 # 特征压缩
 N = 128  # 设定压缩后的特征维度
 pca_ftir = PCA(n_components=N)
@@ -101,17 +100,17 @@ labels_list = []
 for i in range(1, 11):
     cancer_ftir_key = f'cancer{i}'
     cancer_mz_key = f'cancer_{i} [1]'
-    ftir_samples = cancer_ftir[cancer_ftir_key].T       # shape：(xxxx, 467)，如 (1421, 467)
-    mz_sample = cancer_mz[cancer_mz_key].reshape(1, -1)     # shape：(1, 12572)
+    ftir_samples = cancer_ftir[cancer_ftir_key].T  # shape：(xxxx, 467)，如 (1421, 467)
+    mz_sample = cancer_mz[cancer_mz_key].reshape(1, -1)  # shape：(1, 12572)
     # 将m/z从1补齐到xxxx（FTIR的采样点数），以使得二者对齐
-    mz_sample = np.repeat(mz_sample, ftir_samples.shape[0], axis=0)     # shape：(xxxx, 12572)，如 (1421, 12572)
+    mz_sample = np.repeat(mz_sample, ftir_samples.shape[0], axis=0)  # shape：(xxxx, 12572)，如 (1421, 12572)
     # 将特征都用pca压缩到128
-    ftir_reduced = pca_ftir.fit_transform(ftir_samples)     # shape：(xxxx, 128)，如 (1421, 128)
-    mz_reduced = pca_mz.fit_transform(mz_sample)        # shape：(xxxx, 128)，如 (1421, 128)
+    ftir_reduced = pca_ftir.fit_transform(ftir_samples)  # shape：(xxxx, 128)，如 (1421, 128)
+    mz_reduced = pca_mz.fit_transform(mz_sample)  # shape：(xxxx, 128)，如 (1421, 128)
     # 在特征维度上拼接FTIR及m/z
-    combined_features = np.hstack((ftir_reduced, mz_reduced))   # shape：(xxxx, 256)，如 (1421, 256)
+    combined_features = np.hstack((ftir_reduced, mz_reduced))  # shape：(xxxx, 256)，如 (1421, 256)
     combined_features_list.append(combined_features)
-    labels_list.extend([1] * ftir_samples.shape[0])     # 癌症的标签标记为1
+    labels_list.extend([1] * ftir_samples.shape[0])  # 癌症的标签标记为1
 
 # 处理正常样本
 for i in range(1, 11):
@@ -127,11 +126,11 @@ for i in range(1, 11):
     # 在特征维度上拼接FTIR及m/z
     combined_features = np.hstack((ftir_reduced, mz_reduced))
     combined_features_list.append(combined_features)
-    labels_list.extend([0] * ftir_samples.shape[0])     # 对照组（正常）的标签标记为0
+    labels_list.extend([0] * ftir_samples.shape[0])  # 对照组（正常）的标签标记为0
 
 # 合并所有样本的特征和标签
-combined_features = np.vstack(combined_features_list)   # combined_features shape after stacking: (29210, 256)
-labels = np.array(labels_list)      # labels shape after conversion: (29210,) ？
+combined_features = np.vstack(combined_features_list)  # combined_features shape after stacking: (29210, 256)
+labels = np.array(labels_list)  # labels shape after conversion: (29210,) ？
 
 # 划分训练集和测试集7:3，记得打乱一下random，不要 1111100000，要0110010001这样的
 X_train, X_test, y_train, y_test = train_test_split(combined_features, labels, test_size=0.3, random_state=41)
@@ -140,18 +139,26 @@ print("y_train shape:", y_train.shape)
 print("X_test shape:", X_test.shape)
 print("y_test shape:", y_test.shape)
 
+# 数据增强：对训练集添加高斯噪声。因为只有10个样本，很容易过拟合。
+noise_std = 0.1  # 噪声的标准差，可以根据需要调整
+noise = np.random.normal(0, noise_std, X_train.shape)
+X_train = X_train + noise
+
 # 保存训练集和测试集
 np.save(os.path.join(train_folder, 'X_train.npy'), X_train)
 np.save(os.path.join(train_folder, 'y_train.npy'), y_train)
 np.save(os.path.join(test_folder, 'X_test.npy'), X_test)
 np.save(os.path.join(test_folder, 'y_test.npy'), y_test)
 
-# 数据增强。因为只有10个样本，需要添加一点噪声，不然很容易过拟合。
 
-
+# 接下来把他们放进 MLP 里
 # 搭建 MLP 模型
 model = Sequential([
     Dense(128, activation='relu', input_shape=(2 * N,)),
     Dense(64, activation='relu'),
     Dense(1, activation='sigmoid')
 ])
+
+# 看那几篇论文，学习一下常用的多模态都有哪些网络框架，我们这里也搭建一下不同的常用网络框架，然后计算几个评价指标进行比较
+
+# softmax，例如输出：0.8（80%的概率）为是癌症，0.2为不是癌症
