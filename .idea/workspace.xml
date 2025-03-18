@@ -1,9 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="多模态之前的FNA预实验处理对于FTIR和m/z数据的pca特征压缩、在特征维度上的拼接均已实现">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="新增数据增强">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/analyze_and_plot_spectrum.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/calculate_per_class_accuracy.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/calculate_specificity.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/classification_metrics.py" beforeDir="false" afterPath="$PROJECT_DIR$/classification_metrics.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ftir_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/ftir_process.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/kmeans_clustering_and_plot.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/load_and_preprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/load_and_preprocess.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multimodal_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/multimodal_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mz_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/mz_process.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/perform_cnn_analysis.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/perform_pca_lda_analysis.py" beforeDir="false" afterPath="$PROJECT_DIR$/perform_individual_model_analysis.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/perform_pca_rf_analysis.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/perform_svm_analysis.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/plot_individual_spectrum_with_marked_peaks.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/preprocess_spectrum.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,9 +68,6 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="RESET_MODE" value="MIXED" />
-  </component>
-  <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/preprocess_spectrum.py" root0="SKIP_INSPECTION" />
   </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
@@ -165,7 +178,9 @@
       <workItem from="1736323846561" duration="4948000" />
       <workItem from="1740474704818" duration="1039000" />
       <workItem from="1740478176671" duration="19674000" />
-      <workItem from="1740917912247" duration="31247000" />
+      <workItem from="1740917912247" duration="34315000" />
+      <workItem from="1741830487560" duration="1231000" />
+      <workItem from="1742257179705" duration="10013000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -440,7 +455,14 @@
       <option name="project" value="LOCAL" />
       <updated>1741248816097</updated>
     </task>
-    <option name="localTasksCounter" value="40" />
+    <task id="LOCAL-00040" summary="新增数据增强">
+      <created>1741250260482</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1741250260482</updated>
+    </task>
+    <option name="localTasksCounter" value="41" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -495,7 +517,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="该版本为绘制cancer和benign处理后的最终光谱" />
     <MESSAGE value="新增两个函数。plot_spectrum_with_mean_std：绘制出spectrum_1、spectrum_2的最终光谱图（未标注显著差异波数段）。analyze_and_plot_spectrum：绘制出spectrum_1、spectrum_2的最终光谱图，把p&lt;0.001的波数段都标注出来，用于筛选出特征峰。" />
     <MESSAGE value="新增函数plot_spectrum_with_marked_peaks：能够把最终的光谱图画出来，并标注出指定需要标注的波数点。&#10;并修改了plot_spectrum_with_mean_std 和 analyze_and_plot_spectrum 两个函数，把x轴给翻转了过来" />
     <MESSAGE value="更新波数点" />
@@ -520,11 +541,12 @@
     <MESSAGE value="新的质谱作图" />
     <MESSAGE value="构建多模态之前的FNA预实验处理" />
     <MESSAGE value="多模态之前的FNA预实验处理对于FTIR和m/z数据的pca特征压缩、在特征维度上的拼接均已实现" />
-    <option name="LAST_COMMIT_MESSAGE" value="多模态之前的FNA预实验处理对于FTIR和m/z数据的pca特征压缩、在特征维度上的拼接均已实现" />
+    <MESSAGE value="新增数据增强" />
+    <option name="LAST_COMMIT_MESSAGE" value="新增数据增强" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1741244538109" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1742271708163" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1740545207402" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

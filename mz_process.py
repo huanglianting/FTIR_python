@@ -2,10 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from perform_cnn_analysis import train_cnn_model, test_cnn_model
-from perform_pca_lda_analysis import train_pca_lda_model, test_pca_lda_model
-from perform_pca_rf_analysis import train_pca_rf_model, test_pca_rf_model
-from perform_svm_analysis import train_svm_model, test_svm_model
+from perform_individual_model_analysis import train_pca_lda_model, test_pca_lda_model, train_pca_rf_model, \
+    test_pca_rf_model, train_svm_model, test_svm_model, train_cnn_model, test_cnn_model
 from split_dataset import split_dataset_mz
 
 

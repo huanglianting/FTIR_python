@@ -4,13 +4,11 @@ import scipy.io as sio
 import matplotlib
 import matplotlib.pyplot as plt
 from load_and_preprocess import load_and_preprocess
-from plot_individual_spectrum_with_marked_peaks import plot_individual_spectrum_with_marked_peaks
-from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
+from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks, plot_individual_spectrum_with_marked_peaks
 from split_dataset import split_dataset_ftir
-from perform_pca_lda_analysis import train_pca_lda_model, test_pca_lda_model
-from perform_pca_rf_analysis import train_pca_rf_model, test_pca_rf_model
-from perform_svm_analysis import train_svm_model, test_svm_model
-from perform_cnn_analysis import train_cnn_model, test_cnn_model
+from perform_individual_model_analysis import train_pca_lda_model, test_pca_lda_model, train_pca_rf_model, \
+    test_pca_rf_model, train_svm_model, test_svm_model, train_cnn_model, test_cnn_model
+
 
 # 确保使用正确的Matplotlib后端
 matplotlib.use('TkAgg')

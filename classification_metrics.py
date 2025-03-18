@@ -2,8 +2,43 @@ import os
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score
-from calculate_per_class_accuracy import calculate_per_class_accuracy
-from calculate_specificity import calculate_specificity
+
+
+def calculate_per_class_accuracy(conf_matrix):
+    """
+    计算每个类别的准确率
+    :param conf_matrix: 混淆矩阵
+    :return: 每个类别的准确率列表
+    """
+    per_class_accuracy = []
+    num_classes = conf_matrix.shape[0]
+    total = conf_matrix.sum()
+    for i in range(num_classes):
+        TP = conf_matrix[i, i]
+        FP = conf_matrix[:, i].sum() - TP
+        FN = conf_matrix[i, :].sum() - TP
+        TN = total - (TP + FP + FN)
+        acc = (TP + TN) / total
+        per_class_accuracy.append(acc)
+    return per_class_accuracy
+
+
+def calculate_specificity(conf_matrix):
+    """
+    计算每个类别的特异性
+    :param conf_matrix: 混淆矩阵
+    :return: 每个类别的特异性列表
+    """
+    specificity = []
+    num_classes = conf_matrix.shape[0]
+    for i in range(num_classes):
+        TP = conf_matrix[i, i]
+        FP = conf_matrix[:, i].sum() - TP
+        FN = conf_matrix[i, :].sum() - TP
+        TN = conf_matrix.sum() - (TP + FP + FN)
+        spec = TN / (TN + FP) if (TN + FP) > 0 else 0
+        specificity.append(spec)
+    return specificity
 
 
 def classification_metrics(cm, y_test, y_pred, save_path, excel_filename='classification_metrics.xlsx'):
