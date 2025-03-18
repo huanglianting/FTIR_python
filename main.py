@@ -5,9 +5,13 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from load_and_preprocess import load_and_preprocess
+
 
 # 定义基础路径
 ftir_file_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\'
@@ -205,24 +209,74 @@ class MZMLP(nn.Module):
         return x
 
 
+# 生成器
+class Generator(nn.Module):
+    def __init__(self, latent_dim, condition_dim, output_dim):
+        super(Generator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(latent_dim + condition_dim, 256),
+            nn.ReLU(True),
+            nn.Linear(256, 512),
+            nn.ReLU(True),
+            nn.Linear(512, output_dim),
+            nn.Tanh()
+        )
+
+    def forward(self, noise, condition):
+        combined = torch.cat([noise, condition], dim=1)
+        return self.model(combined)
+
+
+# 判别器
+class Discriminator(nn.Module):
+    def __init__(self, input_dim, condition_dim):
+        super(Discriminator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(input_dim + condition_dim, 512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, data, condition):
+        combined = torch.cat([data, condition], dim=1)
+        return self.model(combined)
+
+
 # 定义Co - Attention net
 class CoAttentionNet(nn.Module):
     def __init__(self, input_dim):
         super(CoAttentionNet, self).__init__()
-        self.W_q = nn.Linear(input_dim, input_dim)
-        self.W_k = nn.Linear(input_dim, input_dim)
-        self.W_v = nn.Linear(input_dim, input_dim)
+        self.W_qA = nn.Linear(input_dim, input_dim)
+        self.W_kA = nn.Linear(input_dim, input_dim)
+        self.W_vA = nn.Linear(input_dim, input_dim)
+        self.W_qB = nn.Linear(input_dim, input_dim)
+        self.W_kB = nn.Linear(input_dim, input_dim)
+        self.W_vB = nn.Linear(input_dim, input_dim)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x1, x2):
-        Q = self.W_q(x1)
-        K = self.W_k(x2)
-        V = self.W_v(x2)
-        attn_scores = torch.matmul(Q, K.transpose(-2, -1))
-        attn_probs = self.softmax(attn_scores)
-        attn_output = torch.matmul(attn_probs, V)
-        combined_features = attn_output + x1
-        return combined_features
+    def forward(self, X_A, X_B):
+        Q_A = self.W_qA(X_A)
+        K_A = self.W_kA(X_A)
+        V_A = self.W_vA(X_A)
+        Q_B = self.W_qB(X_B)
+        K_B = self.W_kB(X_B)
+        V_B = self.W_vB(X_B)
+
+        S_AB = torch.matmul(Q_A, K_B.transpose(-2, -1))
+        S_BA = torch.matmul(Q_B, K_A.transpose(-2, -1))
+
+        A_AB = self.softmax(S_AB)
+        A_BA = self.softmax(S_BA)
+
+        F_A = torch.matmul(A_AB, V_B)
+        F_B = torch.matmul(A_BA, V_A)
+
+        # 这里简单将两个融合特征拼接作为输出，可根据需求调整
+        output = torch.cat([F_A, F_B], dim=-1)
+        return output
 
 
 # 定义完整的模型
@@ -232,9 +286,9 @@ class MultiModalModel(nn.Module):
         self.ftir_mlp = FTIRMLP(ftir_input_dim)
         self.mz_mlp = MZMLP(mz_input_dim)
         self.co_attention = CoAttentionNet(64)
-        self.fc = nn.Linear(64, 1)
+        self.fc = nn.Linear(64 * 2, 1)
         self.bilstm = nn.LSTM(input_size=1, hidden_size=32, num_layers=1, bidirectional=True, batch_first=True)
-        self.fc_after_bilstm = nn.Linear(32 * 2, 2)     # 将 输出维度 (hidden_size * 2) 映射到2（因为是二分类问题）
+        self.fc_after_bilstm = nn.Linear(32 * 2, 2)     # 将输出维度 (hidden_size * 2) 映射到2（因为是二分类问题）
         self.softmax = nn.Softmax(dim=1)    # 将输出转换为概率分布，例如输出：0.8（80%的概率）为是癌症，0.2为不是癌症
 
     def forward(self, ftir, mz):
@@ -252,16 +306,77 @@ class MultiModalModel(nn.Module):
         return output
 
 
+# CGAN超参数
+latent_dim = 100  # 随机噪声维度
+epochs_cgan = 20  # CGAN训练轮次
+batch_size_cgan = 32  # CGAN训练批次大小
+lr_cgan = 0.0002  # CGAN学习率
+beta1_cgan = 0.5  # Adam优化器参数
+
 # 初始化模型
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
+
+# 定义损失函数和优化器
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # 转换为torch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
 mz_train = torch.tensor(mz_train, dtype=torch.float32)
 y_train = torch.tensor(y_train, dtype=torch.long)
+ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
+mz_test = torch.tensor(mz_test, dtype=torch.float32)
+y_test = torch.tensor(y_test, dtype=torch.long)
 
-# 前向传播
-output = model(ftir_train, mz_train)
-print("Output shape:", output.shape)
+# 训练模型
+num_epochs = 100
+train_losses = []
+
+for epoch in range(num_epochs):
+    model.train()
+    optimizer.zero_grad()
+    outputs = model(ftir_train, mz_train)
+    loss = criterion(outputs, y_train)
+    loss.backward()
+    optimizer.step()
+    train_losses.append(loss.item())
+    print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}')
+
+# 绘制训练损失曲线
+plt.figure(figsize=(10, 5))
+plt.plot(train_losses, label='Training Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss Curve')
+plt.legend()
+plt.savefig(os.path.join(save_path, 'training_loss_curve.png'))
+plt.show()
+
+# 评估模型
+model.eval()
+with torch.no_grad():
+    test_outputs = model(ftir_test, mz_test)
+    _, predicted = torch.max(test_outputs, 1)
+
+# 计算性能指标
+accuracy = accuracy_score(y_test, predicted)
+precision = precision_score(y_test, predicted)
+recall = recall_score(y_test, predicted)
+f1 = f1_score(y_test, predicted)
+
+print(f'Accuracy: {accuracy:.4f}')
+print(f'Precision: {precision:.4f}')
+print(f'Recall: {recall:.4f}')
+print(f'F1 Score: {f1:.4f}')
+
+# 绘制混淆矩阵
+cm = confusion_matrix(y_test, predicted)
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted Labels')
+plt.ylabel('True Labels')
+plt.title('Confusion Matrix')
+plt.savefig(os.path.join(save_path, 'confusion_matrix.png'))
+plt.show()
 
 
