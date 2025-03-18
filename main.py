@@ -233,14 +233,22 @@ class MultiModalModel(nn.Module):
         self.mz_mlp = MZMLP(mz_input_dim)
         self.co_attention = CoAttentionNet(64)
         self.fc = nn.Linear(64, 1)
-        self.sigmoid = nn.Sigmoid()
+        self.bilstm = nn.LSTM(input_size=1, hidden_size=32, num_layers=1, bidirectional=True, batch_first=True)
+        self.fc_after_bilstm = nn.Linear(32 * 2, 2)     # 将 输出维度 (hidden_size * 2) 映射到2（因为是二分类问题）
+        self.softmax = nn.Softmax(dim=1)    # 将输出转换为概率分布，例如输出：0.8（80%的概率）为是癌症，0.2为不是癌症
 
     def forward(self, ftir, mz):
         ftir_features = self.ftir_mlp(ftir)
         mz_features = self.mz_mlp(mz)
         combined_features = self.co_attention(ftir_features, mz_features)
         output = self.fc(combined_features)
-        output = self.sigmoid(output)
+        # 调整维度以适应 BiLSTM 的输入要求 [batch_size, seq_len, input_size]
+        output = output.unsqueeze(2)
+        lstm_output, _ = self.bilstm(output)
+        # 取最后一个时间步的输出
+        lstm_output = lstm_output[:, -1, :]
+        output = self.fc_after_bilstm(lstm_output)
+        output = self.softmax(output)
         return output
 
 
@@ -250,10 +258,10 @@ model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
 # 转换为torch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
 mz_train = torch.tensor(mz_train, dtype=torch.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
+y_train = torch.tensor(y_train, dtype=torch.long)
 
 # 前向传播
 output = model(ftir_train, mz_train)
 print("Output shape:", output.shape)
 
-# softmax，例如输出：0.8（80%的概率）为是癌症，0.2为不是癌症
+
