@@ -12,6 +12,7 @@ class AffineTransform(nn.Module):
     def forward(self, x):
         return x * self.scale + self.shift  # 广播机制会自动扩展维度
 
+
 class Generator(nn.Module):
     def __init__(self, latent_dim, condition_dim, output_dim):
         super(Generator, self).__init__()
@@ -58,10 +59,11 @@ def generate_enhanced_data(generator, num_samples, latent_dim):
     enhanced_data = []
     enhanced_labels = []
     for _ in range(num_samples):
-        noise = torch.randn((1, latent_dim))
-        label = torch.randint(0, 2, (1, 1)).float()
-        fake_data = generator(noise, label)
-        enhanced_data.append(fake_data)
+        with torch.no_grad():  # 关闭梯度计算
+            noise = torch.randn((1, latent_dim))
+            label = torch.randint(0, 2, (1, 1)).float()
+            fake_data = generator(noise, label)
+        enhanced_data.append(fake_data.detach())  # 分离计算图
         enhanced_labels.append(label.long())
     return torch.cat(enhanced_data, dim=0), torch.cat(enhanced_labels, dim=0).squeeze()
 
@@ -116,13 +118,5 @@ def train_cgan(generator, discriminator, real_data, labels, latent_dim, epochs, 
         epoch_g_loss /= (len(real_data) // batch_size)
         d_losses.append(epoch_d_loss)
         g_losses.append(epoch_g_loss)
-
-        # 打印仿射层参数（调试用）
-        print(f"[Scale] mean: {generator.affine.scale.mean().item():.2f} | "
-              f"[Shift] mean: {generator.affine.shift.mean().item():.2f}")
-
-        print(f'Epoch [{epoch + 1}/{epochs}], '
-              f'D Loss: {epoch_d_loss:.4f}, '
-              f'G Loss: {epoch_g_loss:.4f}')
 
     return generator, discriminator

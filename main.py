@@ -159,7 +159,9 @@ def read_data():
     y_test = np.load(os.path.join(test_folder, 'y_test.npy'))
     return ftir_train, mz_train, y_train, ftir_test, mz_test, y_test
 
+
 ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = read_data()
+
 
 # 数据标准化
 scaler_ftir = StandardScaler()
