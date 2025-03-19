@@ -13,12 +13,13 @@ from torch.utils.data import DataLoader, TensorDataset
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from load_and_preprocess import load_and_preprocess
+from cgan_utils import Generator, Discriminator, train_cgan, generate_enhanced_data  # 导入相关函数和类
 
 
 # 定义基础路径
 ftir_file_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\'
 mz_file_path = r'N:\\hlt\\FTIR\\FNA预实验\\code_test\\compound measurements.xlsx'
-save_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\resul'  # 保存图片的路径
+save_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\result'  # 保存图片的路径
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
@@ -177,97 +178,6 @@ mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
 
 
-# ==================CGAN的定义====================================
-# 生成器
-class Generator(nn.Module):
-    def __init__(self, latent_dim, condition_dim, output_dim):
-        super(Generator, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(latent_dim + condition_dim, 256),
-            nn.ReLU(True),
-            nn.Linear(256, 512),
-            nn.ReLU(True),
-            nn.Linear(512, output_dim),
-            nn.Tanh()
-        )
-
-    def forward(self, noise, condition):
-        print(f"Generator - noise shape: {noise.shape}")
-        print(f"Generator - condition shape: {condition.shape}")
-        combined = torch.cat([noise, condition], dim=1)
-        print(f"Generator - combined shape: {combined.shape}")
-        return self.model(combined)
-
-
-# 判别器
-class Discriminator(nn.Module):
-    def __init__(self, input_dim, condition_dim):
-        super(Discriminator, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input_dim + condition_dim, 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
-            nn.Sigmoid()
-        )
-
-    def forward(self, data, condition):
-        print(f"Discriminator - data shape: {data.shape}")
-        print(f"Discriminator - condition shape: {condition.shape}")
-        combined = torch.cat([data, condition], dim=1)
-        print(f"Discriminator - combined shape: {combined.shape}")
-        return self.model(combined)
-
-
-def generate_enhanced_data(generator, num_samples, latent_dim):
-    enhanced_data = []
-    enhanced_labels = []
-    for _ in range(num_samples):
-        noise = torch.randn((1, latent_dim))
-        label = torch.randint(0, 2, (1, 1)).float()
-        fake_data = generator(noise, label)
-        enhanced_data.append(fake_data)
-        enhanced_labels.append(label.long())
-    return torch.cat(enhanced_data, dim=0), torch.cat(enhanced_labels, dim=0).squeeze()
-
-
-# ==================CGAN训练====================================
-def train_cgan(generator, discriminator, real_data, labels, latent_dim, epochs, batch_size):
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
-    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
-    criterion = nn.BCELoss()
-
-    for epoch in range(epochs):
-        print(f"Epoch {epoch + 1}/{epochs}")
-        for i in range(0, len(real_data), batch_size):
-            print(f"Batch {i // batch_size + 1}")
-            # 真实数据
-            real_batch = real_data[i:i + batch_size]    # Real batch shape: torch.Size([32, 12572])
-            real_labels = labels[i:i + batch_size].unsqueeze(1).float()  # Real labels shape: torch.Size([32, 1])
-            # 训练判别器
-            optimizer_D.zero_grad()
-            real_validity = discriminator(real_batch, real_labels)
-            d_real_loss = criterion(real_validity, torch.ones_like(real_validity))
-            # 生成假数据
-            noise = torch.randn((real_batch.size(0), latent_dim))
-            fake_labels = torch.randint(0, 2, (real_batch.size(0), 1)).float()  # Fake labels shape: torch.size([32,1])
-            fake_data = generator(noise, fake_labels)   # Fake data shape: torch.size([32,12572])
-            # 假数据的损失
-            fake_validity = discriminator(fake_data.detach(), fake_labels)
-            d_fake_loss = criterion(fake_validity, torch.zeros_like(fake_validity))
-            d_loss = d_real_loss + d_fake_loss
-            d_loss.backward()
-            optimizer_D.step()
-            # 训练生成器
-            optimizer_G.zero_grad()
-            validity = discriminator(fake_data, fake_labels)
-            g_loss = criterion(validity, torch.ones_like(validity))
-            g_loss.backward()
-            optimizer_G.step()
-    return generator, discriminator
-
-
 # ==================主模型定义====================================
 # 定义模态特异性特征提取的MLP分支网络
 class FTIRMLP(nn.Module):
@@ -380,10 +290,13 @@ def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size):
         model.train()
         epoch_loss = 0
         for ftir_batch, mz_batch, label_batch in dataloader:
+            # 确保每次迭代开始时梯度清零
             optimizer.zero_grad()
             outputs = model(ftir_batch, mz_batch)
             loss = criterion(outputs, label_batch)
+            # 执行反向传播
             loss.backward()
+            # 更新模型参数
             optimizer.step()
             epoch_loss += loss.item()
         losses.append(epoch_loss / len(dataloader))
@@ -399,16 +312,14 @@ batch_size_cgan = 32
 
 # 检查输入维度和条件维度的值
 input_dim_ftir = ftir_train.shape[1]
-condition_dim_ftir = 1
-print(f"FTIR input_dim: {input_dim_ftir}, condition_dim: {condition_dim_ftir}")
-generator_ftir = Generator(latent_dim, condition_dim_ftir, ftir_train.shape[1])
-discriminator_ftir = Discriminator(input_dim_ftir, condition_dim_ftir)
-
+condition_dim = 1
+print(f"FTIR input_dim: {input_dim_ftir}, condition_dim: {condition_dim}")
+generator_ftir = Generator(latent_dim, condition_dim, ftir_train.shape[1])
+discriminator_ftir = Discriminator(input_dim_ftir, condition_dim)
 input_dim_mz = mz_train.shape[1]
-condition_dim_mz = 1
-print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim_mz}")
-generator_mz = Generator(latent_dim, condition_dim_mz, mz_train.shape[1])
-discriminator_mz = Discriminator(input_dim_mz, condition_dim_mz)
+print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
+generator_mz = Generator(latent_dim, condition_dim, mz_train.shape[1])
+discriminator_mz = Discriminator(input_dim_mz, condition_dim)
 
 # 检查是否已经保存了增强数据
 ftir_enhanced_path = os.path.join(save_path, 'ftir_enhanced.pt')
@@ -426,17 +337,14 @@ else:
     generator_mz, discriminator_mz = train_cgan(
         generator_mz, discriminator_mz, mz_train, y_train, latent_dim, epochs_cgan, batch_size_cgan
     )
-
     # 生成增强数据
-    num_enhanced_samples = 1000
+    num_enhanced_samples = 200
     enhanced_ftir, enhanced_ftir_labels = generate_enhanced_data(generator_ftir, num_enhanced_samples, latent_dim)
     enhanced_mz, enhanced_mz_labels = generate_enhanced_data(generator_mz, num_enhanced_samples, latent_dim)
-
     # 合并增强数据和原始数据
     ftir_combined = torch.cat([ftir_train, enhanced_ftir], dim=0)
     mz_combined = torch.cat([mz_train, enhanced_mz], dim=0)
     labels_combined = torch.cat([y_train, enhanced_ftir_labels], dim=0)
-
     # 保存增强数据
     torch.save(ftir_combined, ftir_enhanced_path)
     torch.save(mz_combined, mz_enhanced_path)
@@ -448,7 +356,7 @@ else:
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
 
 # 训练主模型
-train_losses = train_main_model(model, ftir_combined, mz_combined, labels_combined, num_epochs=100, batch_size=64)
+train_losses = train_main_model(model, ftir_combined, mz_combined, labels_combined, epochs=100, batch_size=64)
 
 # 绘制训练损失曲线
 plt.plot(train_losses)

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="网络初步实现">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="CGAN debug 备份">
+      <change afterPath="$PROJECT_DIR$/cgan_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
@@ -170,7 +171,7 @@
       <workItem from="1740917912247" duration="34315000" />
       <workItem from="1741830487560" duration="1231000" />
       <workItem from="1742257179705" duration="29788000" />
-      <workItem from="1742346257352" duration="3587000" />
+      <workItem from="1742346257352" duration="11392000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -473,7 +474,14 @@
       <option name="project" value="LOCAL" />
       <updated>1742286358284</updated>
     </task>
-    <option name="localTasksCounter" value="44" />
+    <task id="LOCAL-00044" summary="CGAN debug 备份">
+      <created>1742352443797</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1742352443797</updated>
+    </task>
+    <option name="localTasksCounter" value="45" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -528,7 +536,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="更新波数点" />
     <MESSAGE value="这次更新的concentration版本是几个重复一起处理的了，是正确的了" />
     <MESSAGE value="这个是四个光谱图都作为子图，绘制一张大图的" />
     <MESSAGE value="还是改成每个光谱一个自己的图了，新增函数PCA-LDA" />
@@ -553,11 +560,12 @@
     <MESSAGE value="新增数据增强" />
     <MESSAGE value="合并、删除一些非必要函数" />
     <MESSAGE value="网络初步实现" />
-    <option name="LAST_COMMIT_MESSAGE" value="网络初步实现" />
+    <MESSAGE value="CGAN debug 备份" />
+    <option name="LAST_COMMIT_MESSAGE" value="CGAN debug 备份" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1742350447615" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1742356390479" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1740545207402" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
