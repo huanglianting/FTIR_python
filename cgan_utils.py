@@ -78,6 +78,8 @@ def train_cgan(generator, discriminator, real_data, labels, latent_dim, epochs, 
     d_losses = []  # 用于存储判别器的损失
     g_losses = []  # 用于存储生成器的损失
     for epoch in range(epochs):
+        # 新增：打印当前训练轮数
+        print(f"CGAN Training Epoch {epoch + 1}/{epochs}...")
         epoch_d_loss = 0
         epoch_g_loss = 0
         for i in range(0, len(real_data), batch_size):

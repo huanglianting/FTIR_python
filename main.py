@@ -219,7 +219,7 @@ if os.path.exists(ftir_enhanced_path) and os.path.exists(mz_enhanced_path):
         mz_enhanced_path), torch.load(os.path.join(save_path, 'labels_combined.pt'))
 else:
     # 训练CGAN
-    # 主程序中训练CGAN部分保持不变
+    print("No enhanced data found, starting CGAN training (this may take a long time)...")
     generator_ftir, discriminator_ftir = train_cgan(
         generator_ftir, discriminator_ftir, ftir_train, y_train, latent_dim, epochs_cgan, batch_size_cgan
     )
