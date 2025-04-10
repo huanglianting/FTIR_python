@@ -13,6 +13,7 @@ class AffineTransform(nn.Module):
         return x * self.scale + self.shift  # 广播机制会自动扩展维度
 
 
+# 生成器
 class Generator(nn.Module):
     def __init__(self, latent_dim, condition_dim, output_dim):
         super(Generator, self).__init__()
