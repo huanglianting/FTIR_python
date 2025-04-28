@@ -9,22 +9,23 @@ import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
-from cgan_utils import Generator, Discriminator, train_cgan, generate_enhanced_data  # 导入封装好的CGAN模块
 from data_preprocessing import preprocess_data
 
-
 # 定义基础路径
-ftir_file_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\'
-mz_file_path = r'N:\\hlt\\FTIR\\FNA预实验\\code_test\\compound measurements.xlsx'
-save_path = 'N:\\hlt\\FTIR\\FNA预实验\\code_test\\result'  # 保存图片的路径
+ftir_file_path = 'N:\\hlt\\FTIR\\data\\'
+mz_file_path = r'N:\\hlt\\FTIR\\data\\compound_measurements.xlsx'
+save_path = 'N:\\hlt\\FTIR\\result\\FNA'  # 保存图片的路径
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
-
 # 调用预处理函数（文件夹在预处理中创建，此处无需重复）
-# ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, save_path)
+train_folder = os.path.join(save_path, 'train')
+test_folder = os.path.join(save_path, 'test')
+ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, save_path)
+
 
 # ====================读取训练集和测试集=====================================
+"""
 def read_data():
     train_folder = os.path.join(save_path, 'train')
     test_folder = os.path.join(save_path, 'test')
@@ -36,8 +37,8 @@ def read_data():
     y_test = np.load(os.path.join(test_folder, 'y_test.npy'))
     return ftir_train, mz_train, y_train, ftir_test, mz_test, y_test
 
-
 ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = read_data()
+"""
 
 # 数据标准化
 scaler_ftir = StandardScaler()
@@ -162,7 +163,7 @@ class MultiModalModel(nn.Module):
 # ==================主模型训练====================================
 def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size):
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     losses = []
     dataset = TensorDataset(ftir_data, mz_data, labels)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -193,61 +194,18 @@ def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size):
 
 
 # ==================主程序====================================
-# 初始化CGAN
-latent_dim = 100
-epochs_cgan = 20
-batch_size_cgan = 32
-
 # 检查输入维度和条件维度的值
 input_dim_ftir = ftir_train.shape[1]
 condition_dim = 1
 print(f"FTIR input_dim: {input_dim_ftir}, condition_dim: {condition_dim}")
-generator_ftir = Generator(latent_dim, condition_dim, ftir_train.shape[1])
-discriminator_ftir = Discriminator(input_dim_ftir, condition_dim)
 input_dim_mz = mz_train.shape[1]
 print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
-generator_mz = Generator(latent_dim, condition_dim, mz_train.shape[1])
-discriminator_mz = Discriminator(input_dim_mz, condition_dim)
-
-# 检查是否已经保存了增强数据
-ftir_enhanced_path = os.path.join(save_path, 'ftir_enhanced.pt')
-mz_enhanced_path = os.path.join(save_path, 'mz_enhanced.pt')
-
-if os.path.exists(ftir_enhanced_path) and os.path.exists(mz_enhanced_path):
-    print("Loading enhanced data from saved files...")
-    ftir_combined, mz_combined, labels_combined = torch.load(ftir_enhanced_path), torch.load(
-        mz_enhanced_path), torch.load(os.path.join(save_path, 'labels_combined.pt'))
-else:
-    # 训练CGAN
-    print("No enhanced data found, starting CGAN training (this may take a long time)...")
-    generator_ftir, discriminator_ftir = train_cgan(
-        generator_ftir, discriminator_ftir, ftir_train, y_train, latent_dim, epochs_cgan, batch_size_cgan
-    )
-    generator_mz, discriminator_mz = train_cgan(
-        generator_mz, discriminator_mz, mz_train, y_train, latent_dim, epochs_cgan, batch_size_cgan
-    )
-    # 生成增强数据
-    num_enhanced_samples = 200
-    enhanced_ftir, enhanced_ftir_labels = generate_enhanced_data(generator_ftir, num_enhanced_samples, latent_dim)
-    enhanced_mz, enhanced_mz_labels = generate_enhanced_data(generator_mz, num_enhanced_samples, latent_dim)
-    # 打印 y_train 和 enhanced_ftir_labels 的维度
-    print(f"y_train shape: {y_train.shape}")
-    print(f"enhanced_ftir_labels shape: {enhanced_ftir_labels.shape}")
-    # 合并增强数据和原始数据
-    ftir_combined = torch.cat([ftir_train, enhanced_ftir], dim=0)
-    mz_combined = torch.cat([mz_train, enhanced_mz], dim=0)
-    labels_combined = torch.cat([y_train, enhanced_ftir_labels], dim=0)
-    # 保存增强数据
-    torch.save(ftir_combined, ftir_enhanced_path)
-    torch.save(mz_combined, mz_enhanced_path)
-    torch.save(labels_combined, os.path.join(save_path, 'labels_combined.pt'))
-    print("Enhanced data saved to files.")
 
 # 初始化主模型
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
 
-# 训练主模型
-train_losses = train_main_model(model, ftir_combined, mz_combined, labels_combined, epochs=200, batch_size=32)
+# 训练主模型, y_train 是指 label_train
+train_losses = train_main_model(model, ftir_train, mz_train, y_train, epochs=100, batch_size=32)
 
 # 绘制训练损失曲线
 plt.plot(train_losses)

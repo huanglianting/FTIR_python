@@ -71,7 +71,7 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
     labels_list = []
 
     # 处理癌症样本
-    for i in range(1, 11):
+    for i in range(1, 8):
         cancer_ftir_key = f'cancer{i}'
         cancer_mz_key = f'cancer_{i} [1]'
         ftir_samples = cancer_ftir[cancer_ftir_key].T  # shape：(xxxx, 467)，如 (1421, 467)
@@ -83,7 +83,7 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
         labels_list.extend([1] * ftir_samples.shape[0])  # 癌症的标签标记为1
 
     # 处理正常样本
-    for i in range(1, 11):
+    for i in range(1, 8):
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
         ftir_samples = normal_ftir[normal_ftir_key].T

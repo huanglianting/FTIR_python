@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="下一步应该改成切换到GPU上面跑。带不动了已经。">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="4.22正式实验，已经跑通了ftir和mz的处理，下一步跑通跨模态训练网络。">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ftir_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/ftir_process.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/load_and_preprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/load_and_preprocess.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mz_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/mz_process.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,7 +86,7 @@
       <recent name="N:\hlt\Code+With+Mosh+-+MySQL课程文件\Code With Mosh - MySQL课程文件\SQL-Course-Materials\SQL Course Materials" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.mz_process">
+  <component name="RunManager" selected="Python.main">
     <configuration name="ftir_process" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="code" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -200,14 +197,8 @@
       <workItem from="1742346257352" duration="16687000" />
       <workItem from="1742779133315" duration="620000" />
       <workItem from="1744164882674" duration="35172000" />
-      <workItem from="1745822778404" duration="7995000" />
-    </task>
-    <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
-      <created>1723195361312</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
-      <option name="project" value="LOCAL" />
-      <updated>1723195361312</updated>
+      <workItem from="1745822778404" duration="13620000" />
+      <workItem from="1745846412150" duration="341000" />
     </task>
     <task id="LOCAL-00002" summary="该版本优化了得到AB光谱的方法，删掉了原来繁琐的背景校正，而是直接在load_data直接获取AB，同时去掉了求二阶导数这一步，结果更好了">
       <created>1723538142288</created>
@@ -545,7 +536,14 @@
       <option name="project" value="LOCAL" />
       <updated>1744267223342</updated>
     </task>
-    <option name="localTasksCounter" value="50" />
+    <task id="LOCAL-00050" summary="4.22正式实验，已经跑通了ftir和mz的处理，下一步跑通跨模态训练网络。">
+      <created>1745838462873</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1745838462874</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -600,7 +598,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="还是改成每个光谱一个自己的图了，新增函数PCA-LDA" />
     <MESSAGE value="PCA-LDA的作图已经做好了，3D的PCA-LDA的作图也有" />
     <MESSAGE value="新增计算每类及总共的Accuracy, Precision, Recall, Specificity (Macro Averages)，并将结果输出到表格中" />
     <MESSAGE value="删除了flatten_region.py、plot_spectrum_with_mean_std.py，把perform_pca_lda_analysis.py给写完了" />
@@ -625,12 +622,13 @@
     <MESSAGE value="CGAN debug 备份" />
     <MESSAGE value="debug 备份" />
     <MESSAGE value="下一步应该改成切换到GPU上面跑。带不动了已经。" />
-    <option name="LAST_COMMIT_MESSAGE" value="下一步应该改成切换到GPU上面跑。带不动了已经。" />
+    <MESSAGE value="4.22正式实验，已经跑通了ftir和mz的处理，下一步跑通跨模态训练网络。" />
+    <option name="LAST_COMMIT_MESSAGE" value="4.22正式实验，已经跑通了ftir和mz的处理，下一步跑通跨模态训练网络。" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1744266982939" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745832987053" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1745842301781" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745833261298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
