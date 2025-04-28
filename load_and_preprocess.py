@@ -5,13 +5,9 @@ from scipy.signal import savgol_filter
 def preprocess_spectrum(x, AB, threshold1, threshold2, order, frame_len, save_path):
     # 只处理threshold1-threshold2之间的光谱
     x, filtered_spectrum = filter_threshold(AB, x, threshold1, threshold2)
-    # 矢量归一化
-    normalized_spectrum = vector_normalized(filtered_spectrum)
-    # Savitzky-Golay平滑
-    smoothed_spectrum = savgol_filter(normalized_spectrum, frame_len, order, axis=0)
-    # 计算二阶导数。求了导感觉效果没那么好；另外，如果求了二阶导数，那么k-means那里，纵坐标还是AB就不太对了
-    # x, derivative_spectrum = derivative(smoothed_spectrum, x)
-    return x, smoothed_spectrum
+    # Savitzky-Golay平滑并求二阶导数
+    spectrum = savgol_filter(filtered_spectrum, frame_len, order, axis=0, deriv=2)
+    return x, spectrum
 
 
 def filter_threshold(spectrum, x, threshold1, threshold2):

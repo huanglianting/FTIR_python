@@ -54,9 +54,9 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
     # 创建绘图
     plt.figure(figsize=(12, 6))
     plt.plot(x, mean_1, label='benign', color='green')
-    plt.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
+    # plt.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
     plt.plot(x, mean_2, label='cancer', color='red')
-    plt.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='red', alpha=0.2)
+    # plt.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='red', alpha=0.2)
 
     # 在指定的波数点处标注短虚线
     for peak in peak_wavenumbers:
@@ -71,7 +71,7 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
     # 设置图表标签和标题
     plt.xlabel('Wavenumber (cm^-1)')
     plt.ylabel('Absorbance')
-    plt.title('Spectrum (Mean ± SD) with Marked Peaks')
+    plt.title('Spectrum with Marked Peaks')
     plt.legend()
     plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
 

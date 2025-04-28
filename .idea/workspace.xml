@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="debug 备份">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="下一步应该改成切换到GPU上面跑。带不动了已经。">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cgan_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/cgan_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ftir_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/ftir_process.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/load_and_preprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/load_and_preprocess.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mz_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/mz_process.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot_spectrum_with_marked_peaks.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -86,7 +89,29 @@
       <recent name="N:\hlt\Code+With+Mosh+-+MySQL课程文件\Code With Mosh - MySQL课程文件\SQL-Course-Materials\SQL Course Materials" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.main">
+  <component name="RunManager" selected="Python.mz_process">
+    <configuration name="ftir_process" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="code" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/ftir_process.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="code" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -134,6 +159,7 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.mz_process" />
+        <item itemvalue="Python.ftir_process" />
       </list>
     </recent_temporary>
   </component>
@@ -173,7 +199,8 @@
       <workItem from="1742257179705" duration="29788000" />
       <workItem from="1742346257352" duration="16687000" />
       <workItem from="1742779133315" duration="620000" />
-      <workItem from="1744164882674" duration="25234000" />
+      <workItem from="1744164882674" duration="35172000" />
+      <workItem from="1745822778404" duration="7995000" />
     </task>
     <task id="LOCAL-00001" summary="更新为在900-1800cm-1指纹区域进行处理">
       <created>1723195361312</created>
@@ -511,7 +538,14 @@
       <option name="project" value="LOCAL" />
       <updated>1744265762919</updated>
     </task>
-    <option name="localTasksCounter" value="49" />
+    <task id="LOCAL-00049" summary="下一步应该改成切换到GPU上面跑。带不动了已经。">
+      <created>1744267223342</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1744267223342</updated>
+    </task>
+    <option name="localTasksCounter" value="50" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -566,7 +600,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="这个是四个光谱图都作为子图，绘制一张大图的" />
     <MESSAGE value="还是改成每个光谱一个自己的图了，新增函数PCA-LDA" />
     <MESSAGE value="PCA-LDA的作图已经做好了，3D的PCA-LDA的作图也有" />
     <MESSAGE value="新增计算每类及总共的Accuracy, Precision, Recall, Specificity (Macro Averages)，并将结果输出到表格中" />
@@ -591,11 +624,13 @@
     <MESSAGE value="网络初步实现" />
     <MESSAGE value="CGAN debug 备份" />
     <MESSAGE value="debug 备份" />
-    <option name="LAST_COMMIT_MESSAGE" value="debug 备份" />
+    <MESSAGE value="下一步应该改成切换到GPU上面跑。带不动了已经。" />
+    <option name="LAST_COMMIT_MESSAGE" value="下一步应该改成切换到GPU上面跑。带不动了已经。" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1744266707070" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1740545207402" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1744266982939" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745832987053" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

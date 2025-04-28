@@ -12,18 +12,18 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
     def generate_file_lists(prefixes, num_files, ftir_file_path):
         all_file_lists = {}
         for prefix in prefixes:
-            file_list = [f'{ftir_file_path}{prefix}_{i}.0.mat' for i in range(1, num_files + 1)]
+            file_list = [f'{ftir_file_path}{prefix}_{i}.mat' for i in range(1, num_files + 1)]
             all_file_lists[prefix] = file_list
         return all_file_lists
 
-    # 生成cancer和control的文件列表
-    cancer_prefixes = [f'cancer{i}' for i in range(1, 11)]  # 一共有cancer1到cancer10，总计10个样品
-    control_prefixes = [f'control{i}' for i in range(1, 11)]
+    # 生成cancer和normal的文件列表
+    cancer_prefixes = [f'cancer{i}' for i in range(1, 8)]  # 一共有cancer1到cancer7，总计7个样品
+    normal_prefixes = [f'normal{i}' for i in range(1, 8)]
     cancer_file_lists = generate_file_lists(cancer_prefixes, 3, ftir_file_path)  # 对于FTIR，每个样品重复三次滴加到基底
-    control_file_lists = generate_file_lists(control_prefixes, 3, ftir_file_path)
+    normal_file_lists = generate_file_lists(normal_prefixes, 3, ftir_file_path)
     # 加载数据
     cancer_ftir_data = {k: [sio.loadmat(f) for f in v] for k, v in cancer_file_lists.items()}
-    control_ftir_data = {k: [sio.loadmat(f) for f in v] for k, v in control_file_lists.items()}
+    normal_ftir_data = {k: [sio.loadmat(f) for f in v] for k, v in normal_file_lists.items()}
 
     # FTIR光谱预处理相关参数
     threshold1 = 900  # 过滤掉小于threshold1的噪声
@@ -31,11 +31,11 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
     order = 2  # 多项式阶数
     frame_len = 13  # 窗口长度（帧长度）
     # 进行预处理
-    control_ftir, cancer_ftir = {}, {}
-    x_ftir, control_ftir['control1'] = load_and_preprocess(control_ftir_data['control1'], threshold1, threshold2,
+    normal_ftir, cancer_ftir = {}, {}
+    x_ftir, normal_ftir['normal1'] = load_and_preprocess(normal_ftir_data['normal1'], threshold1, threshold2,
                                                            order, frame_len, save_path)
-    for key in list(control_ftir_data.keys())[1:]:
-        _, control_ftir[key] = load_and_preprocess(control_ftir_data[key], threshold1, threshold2, order, frame_len,
+    for key in list(normal_ftir_data.keys())[1:]:
+        _, normal_ftir[key] = load_and_preprocess(normal_ftir_data[key], threshold1, threshold2, order, frame_len,
                                                    save_path)
     for key in cancer_ftir_data.keys():
         _, cancer_ftir[key] = load_and_preprocess(cancer_ftir_data[key], threshold1, threshold2, order, frame_len,
@@ -43,9 +43,9 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
 
     # 打印每个样品的形状
     print("x_ftir shape:", x_ftir.shape)
-    for key in control_ftir.keys():
-        print(f"spectrum_control{key[len('control'):]} shape:",
-              control_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1517) (467, 1716)
+    for key in normal_ftir.keys():
+        print(f"spectrum_normal{key[len('normal'):]} shape:",
+              normal_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1517) (467, 1716)
     for key in cancer_ftir.keys():
         print(f"spectrum_cancer{key[len('cancer'):]} shape:",
               cancer_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1165) (467, 1260)
@@ -53,14 +53,14 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
     # ===================================处理mz===========================================================
     df = pd.read_excel(mz_file_path, header=1)  # 从第二行读取数据
     cancer_columns = [col for col in df.columns if 'cancer' in col.lower()]  # 分别提取每个癌症和正常样本
-    control_columns = [col for col in df.columns if 'normal' in col.lower()]
+    normal_columns = [col for col in df.columns if 'normal' in col.lower()]
     cancer_mz = {col: df[col].values for col in cancer_columns}
-    control_mz = {col: df[col].values for col in control_columns}
+    normal_mz = {col: df[col].values for col in normal_columns}
     mz = df['m/z'].values  # 提取 m/z 列，形状为 (12572,)
 
     for col, values in cancer_mz.items():  # 癌症样本数据，每个样本形状为(12572,)
         print(f"{col} shape:", values.shape)
-    for col, values in control_mz.items():  # 正常样本数据，每个样本形状为(12572,)
+    for col, values in normal_mz.items():  # 正常样本数据，每个样本形状为(12572,)
         print(f"{col} shape:", values.shape)
     print("mz shape:", mz.shape)
 
@@ -84,10 +84,10 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
 
     # 处理正常样本
     for i in range(1, 11):
-        control_ftir_key = f'control{i}'
-        control_mz_key = f'normal_{i} [1]'
-        ftir_samples = control_ftir[control_ftir_key].T
-        mz_sample = control_mz[control_mz_key].reshape(1, -1)
+        normal_ftir_key = f'normal{i}'
+        normal_mz_key = f'normal_{i} [1]'
+        ftir_samples = normal_ftir[normal_ftir_key].T
+        mz_sample = normal_mz[normal_mz_key].reshape(1, -1)
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
         mz_sample = np.repeat(mz_sample, ftir_samples.shape[0], axis=0)
         ftir_features_list.append(ftir_samples)
