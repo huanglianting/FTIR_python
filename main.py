@@ -62,20 +62,16 @@ y_test = torch.tensor(y_test, dtype=torch.long)
 class FTIRMLP(nn.Module):
     def __init__(self, input_dim):
         super(FTIRMLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.bn1 = nn.BatchNorm1d(128)
+        self.fc1 = nn.Linear(input_dim, 32)
+        self.bn1 = nn.BatchNorm1d(32)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(128, 64)
-        self.bn2 = nn.BatchNorm1d(64)
+        self.dropout = nn.Dropout(0.3)
 
     def forward(self, x):
         x = self.fc1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.dropout(x)
-        x = self.fc2(x)
-        x = self.bn2(x)
         return x
 
 
@@ -83,20 +79,16 @@ class FTIRMLP(nn.Module):
 class MZMLP(nn.Module):
     def __init__(self, input_dim):
         super(MZMLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.bn1 = nn.BatchNorm1d(128)
+        self.fc1 = nn.Linear(input_dim, 32)
+        self.bn1 = nn.BatchNorm1d(32)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(128, 64)
-        self.bn2 = nn.BatchNorm1d(64)
+        self.dropout = nn.Dropout(0.3)
 
     def forward(self, x):
         x = self.fc1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.dropout(x)
-        x = self.fc2(x)
-        x = self.bn2(x)
         return x
 
 
@@ -136,12 +128,8 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_mlp = FTIRMLP(ftir_input_dim)
         self.mz_mlp = MZMLP(mz_input_dim)
-        self.co_attention = CoAttentionNet(64)
-        self.fc = nn.Linear(64 * 2, 1)
-        self.bilstm = nn.LSTM(input_size=1, hidden_size=16, num_layers=1, bidirectional=True, batch_first=True)
-        # 将输出维度 (hidden_size * 2) 映射到2（因为是二分类问题）
-        self.fc_after_bilstm = nn.Linear(16 * 2, 2)
-        # 将输出转换为概率分布，例如输出：0.8（80%的概率）为是癌症，0.2为不是癌症
+        self.co_attention = CoAttentionNet(32)
+        self.fc = nn.Linear(32 * 2, 2)  # 直接输出类别概率
         self.softmax = nn.Softmax(dim=1)
         # 添加 L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
@@ -154,11 +142,6 @@ class MultiModalModel(nn.Module):
         # 放入Co-Attention Net
         combined_features = self.co_attention(ftir_features, mz_features)
         output = self.fc(combined_features)
-        # 调整维度以适应 BiLSTM 的输入要求 [batch_size, seq_len, input_size]
-        output = output.unsqueeze(2)
-        lstm_output, _ = self.bilstm(output)
-        lstm_output = lstm_output[:, -1, :]
-        output = self.fc_after_bilstm(lstm_output)
         output = self.softmax(output)
         return output
 
@@ -242,6 +225,11 @@ with torch.no_grad():
     test_outputs = model(ftir_test, mz_test)
     _, predicted = torch.max(test_outputs, 1)
 
+# 打印标签分布和预测结果
+print("训练集标签分布:", np.bincount(y_train.numpy()))
+print("测试集标签分布:", np.bincount(y_test.numpy()))
+print("预测结果:", predicted[:10].numpy())
+print("真实标签:", y_test[:10].numpy())
 # 计算性能指标
 accuracy = accuracy_score(y_test, predicted)
 precision = precision_score(y_test, predicted)
@@ -258,6 +246,16 @@ print(f'Accuracy: {accuracy:.4f}')
 print(f'Precision: {precision:.4f}')
 print(f'Recall: {recall:.4f}')
 print(f'F1 Score: {f1:.4f}')
+
+# 计算每个类别的准确率
+class_0_indices = (y_test == 0).nonzero(as_tuple=True)[0]
+class_1_indices = (y_test == 1).nonzero(as_tuple=True)[0]
+
+accuracy_class_0 = (predicted[class_0_indices] == y_test[class_0_indices]).float().mean()
+accuracy_class_1 = (predicted[class_1_indices] == y_test[class_1_indices]).float().mean()
+
+print(f'类别0准确率: {accuracy_class_0:.4f}')
+print(f'类别1准确率: {accuracy_class_1:.4f}')
 
 # 绘制混淆矩阵
 cm = confusion_matrix(y_test, predicted)
