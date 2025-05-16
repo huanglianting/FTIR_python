@@ -99,9 +99,9 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
     labels = np.array(labels_list)
 
     # ==========================================划分训练、测试集==================================================
-    # 划分训练集和测试集7:3，记得打乱一下random，不要 1111100000，要0110010001这样的
+    # 划分训练集和测试集6:4，记得打乱一下random，不要 1111100000，要0110010001这样的
     ftir_train, ftir_test, mz_train, mz_test, y_train, y_test = train_test_split(
-        ftir_features, mz_features, labels, test_size=0.3, random_state=41
+        ftir_features, mz_features, labels, test_size=0.3, random_state=57
     )
 
     print("ftir_train shape:", ftir_train.shape)  # (20447, 467)
@@ -110,13 +110,6 @@ def preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, sav
     print("ftir_test shape:", ftir_test.shape)  # (8763, 467)
     print("mz_test shape:", mz_test.shape)  # (8763, 12572)
     print("y_test shape:", y_test.shape)  # (8763,)
-
-    # 数据增强：对训练集添加高斯噪声。因为只有10个样本，很容易过拟合。
-    noise_std = 0.1  # 噪声的标准差，可以根据需要调整
-    ftir_noise = np.random.normal(0, noise_std, ftir_train.shape)
-    mz_noise = np.random.normal(0, noise_std, mz_train.shape)
-    ftir_train = ftir_train + ftir_noise
-    mz_train = mz_train + mz_noise
 
     # 保存训练集和测试集
     np.save(os.path.join(train_folder, 'ftir_train.npy'), ftir_train)

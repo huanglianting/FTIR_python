@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="On explicit save action" serverName="wulab@192.168.1.196:22" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="root@202.120.40.136:25633">
         <serverdata>
@@ -16,6 +16,22 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="root@202.120.40.136:25633 password (1)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="wulab@192.168.1.196:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/" local="$PROJECT_DIR$" web="" />
+            <mapping local="" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
+    <option name="myAutoUpload" value="ON_EXPLICIT_SAVE" />
   </component>
 </project>

@@ -1,31 +1,31 @@
 import os
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
 from data_preprocessing import preprocess_data
 
 # 定义基础路径
-ftir_file_path = 'N:\\hlt\\FTIR\\data\\'
-mz_file_path = r'N:\\hlt\\FTIR\\data\\compound_measurements.xlsx'
-save_path = 'N:\\hlt\\FTIR\\result\\FNA'  # 保存图片的路径
+ftir_file_path = './data/'
+mz_file_path = r'./data/compound_measurements.xlsx'
+save_path = './result'  # 保存图片的路径
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
 # 调用预处理函数（文件夹在预处理中创建，此处无需重复）
 train_folder = os.path.join(save_path, 'train')
 test_folder = os.path.join(save_path, 'test')
-ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path, train_folder, test_folder, save_path)
-
-
-# ====================读取训练集和测试集=====================================
+ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path, train_folder,
+                                                                            test_folder, save_path)
 """
+# ====================读取训练集和测试集=====================================
 def read_data():
     train_folder = os.path.join(save_path, 'train')
     test_folder = os.path.join(save_path, 'test')
@@ -37,9 +37,9 @@ def read_data():
     y_test = np.load(os.path.join(test_folder, 'y_test.npy'))
     return ftir_train, mz_train, y_train, ftir_test, mz_test, y_test
 
+
 ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = read_data()
 """
-
 # 数据标准化
 scaler_ftir = StandardScaler()
 ftir_train = scaler_ftir.fit_transform(ftir_train)
@@ -143,6 +143,9 @@ class MultiModalModel(nn.Module):
         self.fc_after_bilstm = nn.Linear(16 * 2, 2)
         # 将输出转换为概率分布，例如输出：0.8（80%的概率）为是癌症，0.2为不是癌症
         self.softmax = nn.Softmax(dim=1)
+        # 添加 L2 正则化
+        self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
+        self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
 
     def forward(self, ftir, mz):
         # 先通过 MLP 提取特征
@@ -161,7 +164,7 @@ class MultiModalModel(nn.Module):
 
 
 # ==================主模型训练====================================
-def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size):
+def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size, writer, noise_std):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     losses = []
@@ -175,7 +178,15 @@ def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size):
         for ftir_batch, mz_batch, label_batch in dataloader:
             # 确保每次迭代开始时梯度清零
             optimizer.zero_grad()
-            outputs = model(ftir_batch, mz_batch)
+            #  ================== 添加高斯噪声  ==================
+            # 生成与输入数据同形状的高斯噪声
+            ftir_noise = torch.randn_like(ftir_batch) * noise_std  # 与FTIR数据同分布的噪声
+            mz_noise = torch.randn_like(mz_batch) * noise_std  # 与MZ数据同分布的噪声
+            # 将噪声添加到输入数据中（训练时添加，测试时不添加）
+            ftir_noisy = ftir_batch + ftir_noise
+            mz_noisy = mz_batch + mz_noise
+            # ==================  输入带噪声的数据到模型 ==================
+            outputs = model(ftir_noisy, mz_noisy)  # 注意：输入改为带噪声的数据
             loss = criterion(outputs, label_batch)
             # 执行反向传播
             loss.backward()
@@ -190,10 +201,17 @@ def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size):
         accuracy = correct / total
         losses.append(epoch_loss)
         print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.4f}')
+
+        # 添加训练损失和准确率到 TensorBoard
+        writer.add_scalar('Training Loss', epoch_loss, epoch)
+        writer.add_scalar('Training Accuracy', accuracy, epoch)
+
     return losses
 
 
 # ==================主程序====================================
+# 初始化 TensorBoard 的 SummaryWriter
+writer = SummaryWriter('./runs')
 # 检查输入维度和条件维度的值
 input_dim_ftir = ftir_train.shape[1]
 condition_dim = 1
@@ -205,14 +223,18 @@ print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
 
 # 训练主模型, y_train 是指 label_train
-train_losses = train_main_model(model, ftir_train, mz_train, y_train, epochs=100, batch_size=32)
+train_losses = train_main_model(model, ftir_train, mz_train, y_train, epochs=100, batch_size=32, writer=writer, noise_std=0.3)
+
+# 保存模型 checkpoint
+torch.save(model.state_dict(), './checkpoints/multimodal_model_checkpoint.pth')
 
 # 绘制训练损失曲线
 plt.plot(train_losses)
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
 plt.title('Training Loss Curve')
-plt.show()
+plt.savefig('training_loss.png')
+plt.close()
 
 # 评估模型
 model.eval()
@@ -226,6 +248,12 @@ precision = precision_score(y_test, predicted)
 recall = recall_score(y_test, predicted)
 f1 = f1_score(y_test, predicted)
 
+# 添加测试集性能指标到 TensorBoard
+writer.add_scalar('Test Accuracy', accuracy, 0)
+writer.add_scalar('Test Precision', precision, 0)
+writer.add_scalar('Test Recall', recall, 0)
+writer.add_scalar('Test F1 Score', f1, 0)
+
 print(f'Accuracy: {accuracy:.4f}')
 print(f'Precision: {precision:.4f}')
 print(f'Recall: {recall:.4f}')
@@ -238,4 +266,8 @@ sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
 plt.xlabel('Predicted Labels')
 plt.ylabel('True Labels')
 plt.title('Confusion Matrix')
-plt.show()
+plt.savefig('confusion_matrix.png')
+plt.close()
+
+# 关闭 TensorBoard 的 SummaryWriter
+writer.close()
