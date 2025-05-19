@@ -146,6 +146,23 @@ class MultiModalModel(nn.Module):
         return output
 
 
+# ==================数据增强====================================
+def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8):
+    # 高斯噪声
+    noise = torch.randn_like(x) * noise_std
+    x_aug = x + noise
+    # 随机缩放
+    scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
+    x_aug = x_aug * scale
+    # 随机偏移
+    shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
+    x_aug = x_aug + shift
+    # 随机保留峰（mask操作）
+    mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
+    x_aug = x_aug * mask.float().to(x.device)
+    return x_aug
+
+
 # ==================主模型训练====================================
 def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size, writer, noise_std):
     criterion = nn.CrossEntropyLoss()
@@ -161,13 +178,9 @@ def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size, writ
         for ftir_batch, mz_batch, label_batch in dataloader:
             # 确保每次迭代开始时梯度清零
             optimizer.zero_grad()
-            #  ================== 添加高斯噪声  ==================
-            # 生成与输入数据同形状的高斯噪声
-            ftir_noise = torch.randn_like(ftir_batch) * noise_std  # 与FTIR数据同分布的噪声
-            mz_noise = torch.randn_like(mz_batch) * noise_std  # 与MZ数据同分布的噪声
-            # 将噪声添加到输入数据中（训练时添加，测试时不添加）
-            ftir_noisy = ftir_batch + ftir_noise
-            mz_noisy = mz_batch + mz_noise
+            # ================== 数据增强 ==================
+            ftir_noisy = data_augmentation(ftir_batch)
+            mz_noisy = data_augmentation(mz_batch)
             # ==================  输入带噪声的数据到模型 ==================
             outputs = model(ftir_noisy, mz_noisy)  # 注意：输入改为带噪声的数据
             loss = criterion(outputs, label_batch)
@@ -179,16 +192,13 @@ def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size, writ
             _, predicted = torch.max(outputs.data, 1)
             total += label_batch.size(0)
             correct += (predicted == label_batch).sum().item()
-
         epoch_loss /= len(dataloader)
         accuracy = correct / total
         losses.append(epoch_loss)
         print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.4f}')
-
         # 添加训练损失和准确率到 TensorBoard
         writer.add_scalar('Training Loss', epoch_loss, epoch)
         writer.add_scalar('Training Accuracy', accuracy, epoch)
-
     return losses
 
 
