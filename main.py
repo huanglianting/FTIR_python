@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -14,15 +15,17 @@ from data_preprocessing import preprocess_data
 
 # 定义基础路径
 ftir_file_path = './data/'
-mz_file_path = r'./data/compound_measurements.xlsx'
+mz_file_path1 = r'./data/compound_measurements.xlsx'
+mz_file_path2 = r'./data/compound_measurements2.xlsx'
 save_path = './result'  # 保存图片的路径
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
-# 调用预处理函数（文件夹在预处理中创建，此处无需重复）
+# 调用预处理函数
 train_folder = os.path.join(save_path, 'train')
 test_folder = os.path.join(save_path, 'test')
-ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path, train_folder,
+ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path1,
+                                                                            mz_file_path2, train_folder,
                                                                             test_folder, save_path)
 """
 # ====================读取训练集和测试集=====================================
@@ -126,8 +129,8 @@ class CoAttentionNet(nn.Module):
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        self.ftir_mlp = FTIRMLP(ftir_input_dim)
-        self.mz_mlp = MZMLP(mz_input_dim)
+        # self.ftir_mlp = FTIRMLP(ftir_input_dim)
+        # self.mz_mlp = MZMLP(mz_input_dim)
         self.co_attention = CoAttentionNet(32)
         self.fc = nn.Linear(32 * 2, 2)  # 直接输出类别概率
         self.softmax = nn.Softmax(dim=1)
@@ -137,10 +140,10 @@ class MultiModalModel(nn.Module):
 
     def forward(self, ftir, mz):
         # 先通过 MLP 提取特征
-        ftir_features = self.ftir_mlp(ftir)
-        mz_features = self.mz_mlp(mz)
+        # ftir_features = self.ftir_mlp(ftir)
+        # mz_features = self.mz_mlp(mz)
         # 放入Co-Attention Net
-        combined_features = self.co_attention(ftir_features, mz_features)
+        combined_features = self.co_attention(ftir, mz)
         output = self.fc(combined_features)
         output = self.softmax(output)
         return output
@@ -216,7 +219,8 @@ print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
 
 # 训练主模型, y_train 是指 label_train
-train_losses = train_main_model(model, ftir_train, mz_train, y_train, epochs=100, batch_size=32, writer=writer, noise_std=0.3)
+train_losses = train_main_model(model, ftir_train, mz_train, y_train, epochs=200, batch_size=32, writer=writer,
+                                noise_std=0.3)
 
 # 保存模型 checkpoint
 torch.save(model.state_dict(), './checkpoints/multimodal_model_checkpoint.pth')
