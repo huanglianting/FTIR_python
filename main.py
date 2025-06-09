@@ -61,41 +61,6 @@ y_test = torch.tensor(y_test, dtype=torch.long)
 
 
 # ==================主模型定义====================================
-# 定义FTIR模态特异性特征提取的MLP分支网络
-class FTIRMLP(nn.Module):
-    def __init__(self, input_dim):
-        super(FTIRMLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 32)
-        self.bn1 = nn.BatchNorm1d(32)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-        return x
-
-
-# 定义MZ模态特异性特征提取的MLP分支网络
-class MZMLP(nn.Module):
-    def __init__(self, input_dim):
-        super(MZMLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 32)
-        self.bn1 = nn.BatchNorm1d(32)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-        return x
-
-
-# 定义Co - Attention net
 class CoAttentionNet(nn.Module):
     def __init__(self, input_dim):
         super(CoAttentionNet, self).__init__()
@@ -125,28 +90,57 @@ class CoAttentionNet(nn.Module):
         return output
 
 
-# 定义完整的模型
+# 完整的模型
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        # self.ftir_mlp = FTIRMLP(ftir_input_dim)
-        # self.mz_mlp = MZMLP(mz_input_dim)
         self.co_attention = CoAttentionNet(32)
         self.fc = nn.Linear(32 * 2, 2)  # 直接输出类别概率
         self.softmax = nn.Softmax(dim=1)
-        # 添加 L2 正则化
+        # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
         self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
 
     def forward(self, ftir, mz):
-        # 先通过 MLP 提取特征
-        # ftir_features = self.ftir_mlp(ftir)
-        # mz_features = self.mz_mlp(mz)
-        # 放入Co-Attention Net
         combined_features = self.co_attention(ftir, mz)
         output = self.fc(combined_features)
         output = self.softmax(output)
         return output
+
+
+class EarlyStopping:
+    def __init__(self, patience=7, verbose=False, delta=0, path='checkpoint.pt'):
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.inf
+        self.delta = delta
+        self.path = path
+
+    def __call__(self, val_loss, model):
+        score = -val_loss  # 因为要最小化损失，所以取负号
+
+        if self.best_score is None:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss, model):
+        # 当验证损失降低时保存模型
+        if self.verbose:
+            print(f'Validation loss 下降 ({self.val_loss_min:.6f} --> {val_loss:.6f}).  保存模型 ...')
+        torch.save(model.state_dict(), self.path)
+        self.val_loss_min = val_loss
 
 
 # ==================数据增强====================================
@@ -155,54 +149,92 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
     # 随机缩放
-    scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
-    x_aug = x_aug * scale
+    # scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
+    # x_aug = x_aug * scale
     # 随机偏移
     shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
     x_aug = x_aug + shift
     # 随机保留峰（mask操作）
-    mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
-    x_aug = x_aug * mask.float().to(x.device)
+    # mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
+    # x_aug = x_aug * mask.float().to(x.device)
     return x_aug
 
 
 # ==================主模型训练====================================
-def train_main_model(model, ftir_data, mz_data, labels, epochs, batch_size, writer, noise_std):
+def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer, noise_std):
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    losses = []
-    dataset = TensorDataset(ftir_data, mz_data, labels)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)   # L2正则化
+    early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
+    train_dataset = TensorDataset(ftir_train, mz_train, y_train)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_dataset = TensorDataset(ftir_val, mz_val, y_val)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    train_losses = []
+    val_losses = []
+    train_accuracies = []
+    val_accuracies = []
+
     for epoch in range(epochs):
+        # 训练阶段
         model.train()
-        epoch_loss = 0
+        train_loss = 0
         correct = 0
         total = 0
-        for ftir_batch, mz_batch, label_batch in dataloader:
-            # 确保每次迭代开始时梯度清零
+        for ftir_batch, mz_batch, label_batch in train_dataloader:
             optimizer.zero_grad()
-            # ================== 数据增强 ==================
             ftir_noisy = data_augmentation(ftir_batch)
             mz_noisy = data_augmentation(mz_batch)
-            # ==================  输入带噪声的数据到模型 ==================
-            outputs = model(ftir_noisy, mz_noisy)  # 注意：输入改为带噪声的数据
+            outputs = model(ftir_noisy, mz_noisy)
             loss = criterion(outputs, label_batch)
-            # 执行反向传播
             loss.backward()
-            # 更新模型参数
             optimizer.step()
-            epoch_loss += loss.item()
+            train_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
             total += label_batch.size(0)
             correct += (predicted == label_batch).sum().item()
-        epoch_loss /= len(dataloader)
-        accuracy = correct / total
-        losses.append(epoch_loss)
-        print(f'Epoch [{epoch + 1}/{epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.4f}')
-        # 添加训练损失和准确率到 TensorBoard
-        writer.add_scalar('Training Loss', epoch_loss, epoch)
-        writer.add_scalar('Training Accuracy', accuracy, epoch)
-    return losses
+        train_loss /= len(train_dataloader)
+        train_accuracy = correct / total
+        train_losses.append(train_loss)
+        train_accuracies.append(train_accuracy)
+
+        # 验证阶段
+        model.eval()
+        val_loss = 0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for ftir_batch, mz_batch, label_batch in val_dataloader:
+                outputs = model(ftir_batch, mz_batch)
+                loss = criterion(outputs, label_batch)
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += label_batch.size(0)
+                correct += (predicted == label_batch).sum().item()
+        val_loss /= len(val_dataloader)
+        val_accuracy = correct / total
+        val_losses.append(val_loss)
+        val_accuracies.append(val_accuracy)
+
+        print(f'Epoch [{epoch + 1}/{epochs}], '
+              f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
+              f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
+
+        # 添加指标到TensorBoard
+        writer.add_scalar('Training Loss', train_loss, epoch)
+        writer.add_scalar('Training Accuracy', train_accuracy, epoch)
+        writer.add_scalar('Validation Loss', val_loss, epoch)
+        writer.add_scalar('Validation Accuracy', val_accuracy, epoch)
+
+        # 早停检查
+        early_stopping(val_loss, model)
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+
+    # 加载最佳模型
+    model.load_state_dict(torch.load('checkpoints/best_model.pth'))
+    return model, train_losses, val_losses, train_accuracies, val_accuracies
 
 
 # ==================主程序====================================
@@ -215,22 +247,45 @@ print(f"FTIR input_dim: {input_dim_ftir}, condition_dim: {condition_dim}")
 input_dim_mz = mz_train.shape[1]
 print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
 
+# 划分训练集和验证集 (80%训练，20%验证)
+train_size = int(0.8 * len(ftir_train))
+ftir_val, mz_val, y_val = ftir_train[train_size:], mz_train[train_size:], y_train[train_size:]
+ftir_train, mz_train, y_train = ftir_train[:train_size], mz_train[:train_size], y_train[:train_size]
+
 # 初始化主模型
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
 
-# 训练主模型, y_train 是指 label_train
-train_losses = train_main_model(model, ftir_train, mz_train, y_train, epochs=200, batch_size=32, writer=writer,
-                                noise_std=0.3)
+# 训练主模型
+model, train_losses, val_losses, train_accuracies, val_accuracies = train_main_model(
+    model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val,
+    epochs=200, batch_size=32, writer=writer, noise_std=0.3
+)
 
-# 保存模型 checkpoint
-torch.save(model.state_dict(), './checkpoints/multimodal_model_checkpoint.pth')
+# 保存最终模型
+torch.save(model.state_dict(), './checkpoints/multimodal_model_final.pth')
 
-# 绘制训练损失曲线
-plt.plot(train_losses)
+
+# 绘制训练和验证损失曲线
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(train_losses, label='Train Loss')
+plt.plot(val_losses, label='Validation Loss')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
-plt.title('Training Loss Curve')
-plt.savefig('training_loss.png')
+plt.title('Training and Validation Loss')
+plt.legend()
+
+# 绘制训练和验证准确率曲线
+plt.subplot(1, 2, 2)
+plt.plot(train_accuracies, label='Train Accuracy')
+plt.plot(val_accuracies, label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training and Validation Accuracy')
+plt.legend()
+
+plt.tight_layout()
+plt.savefig('training_metrics.png')
 plt.close()
 
 # 评估模型
@@ -242,8 +297,9 @@ with torch.no_grad():
 # 打印标签分布和预测结果
 print("训练集标签分布:", np.bincount(y_train.numpy()))
 print("测试集标签分布:", np.bincount(y_test.numpy()))
-print("预测结果:", predicted[:10].numpy())
+print("预测结果:", predicted[:10].numpy())  # 只打印前10个结果
 print("真实标签:", y_test[:10].numpy())
+
 # 计算性能指标
 accuracy = accuracy_score(y_test, predicted)
 precision = precision_score(y_test, predicted)

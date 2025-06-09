@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="更新">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="先用mlp把两批维度不同无法匹配的质谱数据提取特征以后，再拼接在一起，并且也用mlp提取ftir的特征，使得mz能够与ftir对应起来，再划分训练集和测试集，之后就直接放入co-attention net。">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
@@ -225,14 +225,7 @@
       <workItem from="1744164882674" duration="35172000" />
       <workItem from="1745822778404" duration="13620000" />
       <workItem from="1745846412150" duration="822000" />
-      <workItem from="1746598929750" duration="76111000" />
-    </task>
-    <task id="LOCAL-00007" summary="该版本新增了两个图的绘制。子图1为cancer和benign处理前的原始光谱，子图2为cancer和benign处理后的最终光谱">
-      <created>1724134265502</created>
-      <option name="number" value="00007" />
-      <option name="presentableId" value="LOCAL-00007" />
-      <option name="project" value="LOCAL" />
-      <updated>1724134265502</updated>
+      <workItem from="1746598929750" duration="85257000" />
     </task>
     <task id="LOCAL-00008" summary="该版本为绘制cancer和benign处理后的最终光谱">
       <created>1724137071477</created>
@@ -570,7 +563,14 @@
       <option name="project" value="LOCAL" />
       <updated>1747987730951</updated>
     </task>
-    <option name="localTasksCounter" value="56" />
+    <task id="LOCAL-00056" summary="先用mlp把两批维度不同无法匹配的质谱数据提取特征以后，再拼接在一起，并且也用mlp提取ftir的特征，使得mz能够与ftir对应起来，再划分训练集和测试集，之后就直接放入co-attention net。">
+      <created>1749286266349</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1749286266349</updated>
+    </task>
+    <option name="localTasksCounter" value="57" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -625,7 +625,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="这一版本是未用PCA降维，直接使用RF方法" />
     <MESSAGE value="因为PCA-RF效果更好，所以这里又改回了PCA-RF，并重命名文件" />
     <MESSAGE value="新增SVM方法函数" />
     <MESSAGE value="进一步模块化了代码，把一些重复的部分封装、删除，不用的函数删除" />
@@ -650,13 +649,14 @@
     <MESSAGE value="5.16更新" />
     <MESSAGE value="简化模型，但仍没效果" />
     <MESSAGE value="更新" />
-    <option name="LAST_COMMIT_MESSAGE" value="更新" />
+    <MESSAGE value="先用mlp把两批维度不同无法匹配的质谱数据提取特征以后，再拼接在一起，并且也用mlp提取ftir的特征，使得mz能够与ftir对应起来，再划分训练集和测试集，之后就直接放入co-attention net。" />
+    <option name="LAST_COMMIT_MESSAGE" value="先用mlp把两批维度不同无法匹配的质谱数据提取特征以后，再拼接在一起，并且也用mlp提取ftir的特征，使得mz能够与ftir对应起来，再划分训练集和测试集，之后就直接放入co-attention net。" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$test.coverage" NAME="test 覆盖结果" MODIFIED="1746668071607" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1749286187422" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1749457183907" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745833261298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

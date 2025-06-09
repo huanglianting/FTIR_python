@@ -178,7 +178,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # ==========================================划分训练、测试集==================================================
     # 划分训练集和测试集6:4，记得打乱一下random，不要 1111100000，要0110010001这样的
     ftir_train, ftir_test, mz_train, mz_test, y_train, y_test = train_test_split(
-        ftir_features, mz_features, labels, test_size=0.4, random_state=57
+        ftir_features, mz_features, labels, test_size=0.4, random_state=61
     )
 
     print("划分后的数据集形状:")
