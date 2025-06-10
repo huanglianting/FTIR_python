@@ -2,39 +2,90 @@ import os
 import numpy as np
 import pandas as pd
 import scipy.io as sio
-from sklearn.model_selection import train_test_split
 from load_and_preprocess import load_and_preprocess
 import torch
 import torch.nn as nn
 
 
-# 定义FTIR模态特异性特征提取的MLP分支网络
-class FTIRMLP(nn.Module):
+# 定义FTIR模态特征提取的分支
+class FTIRFeatureExtractor(nn.Module):
     def __init__(self, input_dim):
-        super(FTIRMLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 32)
+        super(FTIRFeatureExtractor, self).__init__()
+        # 三层全连接网络
+        self.fc1 = nn.Linear(input_dim, 128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.relu1 = nn.ReLU()
+        self.fc2 = nn.Linear(128, 64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.relu2 = nn.ReLU()
+        self.fc3 = nn.Linear(64, 32)
+        self.bn3 = nn.BatchNorm1d(32)
+        self.relu3 = nn.ReLU()
+        self.dropout = nn.Dropout(0.3)
+        # 一维卷积神经网络
+        self.conv1d = nn.Conv1d(
+            in_channels=1,
+            out_channels=8,
+            kernel_size=3,
+            stride=1,
+            padding=1
+        )
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.relu(x)
+        # 三层全连接
+        x = self.relu1(self.bn1(self.fc1(x)))
+        x = self.relu2(self.bn2(self.fc2(x)))
+        x = self.relu3(self.bn3(self.fc3(x)))  # [样本数, 32]
+        x = self.dropout(x)
+        # 调整维度以适应卷积层输入
+        x = x.unsqueeze(1)  # [样本数, 1, 32]
+        x = self.relu(self.conv1d(x))  # [样本数, out_channels, 32]
+        # 展平卷积输出，重新变成二维
+        x = x.view(x.size(0), -1)  # [sample, 32 * out_channels]
         return x
 
 
-# 定义MZ模态特异性特征提取的MLP分支网络
-class MZMLP(nn.Module):
+# 定义MZ模态特征提取的分支
+class MZFeatureExtractor(nn.Module):
     def __init__(self, input_dim):
-        super(MZMLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 32)
+        super(MZFeatureExtractor, self).__init__()
+        # 三层全连接网络
+        self.fc1 = nn.Linear(input_dim, 128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.relu1 = nn.ReLU()
+        self.fc2 = nn.Linear(128, 64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.relu2 = nn.ReLU()
+        self.fc3 = nn.Linear(64, 32)
+        self.bn3 = nn.BatchNorm1d(32)
+        self.relu3 = nn.ReLU()
+        self.dropout = nn.Dropout(0.3)
+        # 一维卷积神经网络
+        self.conv1d = nn.Conv1d(
+            in_channels=1,
+            out_channels=8,
+            kernel_size=3,
+            stride=1,
+            padding=1
+        )
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.relu(x)
+        # 三层全连接
+        x = self.relu1(self.bn1(self.fc1(x)))
+        x = self.relu2(self.bn2(self.fc2(x)))
+        x = self.relu3(self.bn3(self.fc3(x)))  # [样本数, 32]
+        x = self.dropout(x)
+        # 调整维度以适应卷积层输入
+        x = x.unsqueeze(1)  # [样本数, 1, 32]
+        x = self.relu(self.conv1d(x))  # [样本数, out_channels, 32]
+        # 展平卷积输出，重新变成二维
+        x = x.view(x.size(0), -1)  # [sample, 32 * out_channels]
         return x
 
 
-def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
+def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, val_folder, test_folder, save_path):
     # ===============================处理FTIR=================================================
     # 生成文件列表的通用函数
     def generate_file_lists(prefixes, num_files, ftir_file_path):
@@ -107,94 +158,122 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         print(f"mz2:{col} shape:", values.shape)
     print("mz2 shape:", mz2.shape)
 
-    # =============================分别对每个样本的FTIR和mz数据进行处理======================================
-    # 合并所有样本的特征和标签
-    ftir_features_list = []
-    mz_features_list = []
-    labels_list = []
-
+    # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 初始化特征提取器
-    ftir_extractor = FTIRMLP(input_dim=len(x_ftir))  # FTIR特征提取器
-    mz1_extractor = MZMLP(input_dim=len(mz1))  # 第一批质谱特征提取器
-    mz2_extractor = MZMLP(input_dim=len(mz2))  # 第二批质谱特征提取器
+    ftir_extractor = FTIRFeatureExtractor(input_dim=len(x_ftir))
+    mz1_extractor = MZFeatureExtractor(input_dim=len(mz1))
+    mz2_extractor = MZFeatureExtractor(input_dim=len(mz2))
     # 设置为评估模式
     ftir_extractor.eval()
     mz1_extractor.eval()
     mz2_extractor.eval()
 
-    # 处理癌症样本
-    for i in range(1, 12):
+    # 按患者初始化（训练/验证/测试）列表
+    train_ftir, train_mz, train_labels = [], [], []
+    val_ftir, val_mz, val_labels = [], [], []
+    test_ftir, test_mz, test_labels = [], [], []
+
+    # 随机打乱患者顺序（1-11）
+    np.random.seed(58)
+    patients = np.arange(1, 12)  # 患者i=1到11
+    np.random.shuffle(patients)
+
+    # 划分比例：7训练，2验证，2测试
+    train_patients = patients[:7]
+    val_patients = patients[7:9]
+    test_patients = patients[9:]
+
+    # 遍历每个患者，处理并分配到对应集合
+    for i in patients:  # 按打乱后的顺序处理患者
+        # 处理癌症样本
         cancer_ftir_key = f'cancer{i}'
         cancer_mz_key = f'cancer_{i} [1]'
-        ftir_samples = cancer_ftir[cancer_ftir_key].T  # shape：(xxxx, 467)，如 (1421, 467)
-        # 使用MLP提取FTIR特征
+        ftir_cancer = cancer_ftir[cancer_ftir_key].T  # shape：(xxxx, 467)，如 (1421, 467)
+        # 使用FeatureExtractor网络提取特征
         with torch.no_grad():
-            ftir_feat = ftir_extractor(torch.tensor(ftir_samples, dtype=torch.float32)).numpy()
+            ftir_cancer_feat = ftir_extractor(torch.tensor(ftir_cancer, dtype=torch.float32)).numpy()
         if i <= 7:
-            mz_sample = cancer_mz1[cancer_mz_key].reshape(1, -1)   # shape：(1, 12572)
+            mz_cancer = cancer_mz1[cancer_mz_key].reshape(1, -1)   # shape：(1, 12572)
             with torch.no_grad():
-                mz_feat = mz1_extractor(torch.tensor(mz_sample, dtype=torch.float32)).numpy()
+                mz_cancer_feat = mz1_extractor(torch.tensor(mz_cancer, dtype=torch.float32)).numpy()
         else:
-            mz_sample = cancer_mz2[cancer_mz_key].reshape(1, -1)
+            mz_cancer = cancer_mz2[cancer_mz_key].reshape(1, -1)
             with torch.no_grad():
-                mz_feat = mz2_extractor(torch.tensor(mz_sample, dtype=torch.float32)).numpy()
-        ftir_features_list.append(ftir_feat)
+                mz_cancer_feat = mz2_extractor(torch.tensor(mz_cancer, dtype=torch.float32)).numpy()
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        mz_feat_repeated = np.repeat(mz_feat, ftir_samples.shape[0], axis=0)
-        mz_features_list.append(mz_feat_repeated)
-        labels_list.extend([1] * ftir_samples.shape[0])  # 癌症的标签标记为1
+        mz_cancer_repeated = np.repeat(mz_cancer_feat, ftir_cancer.shape[0], axis=0)
+        labels_cancer = np.ones(ftir_cancer.shape[0], dtype=int)  # 癌症的标签标记为1
 
-    # 处理正常样本
-    for i in range(1, 12):
+        # 处理正常样本
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
-        ftir_samples = normal_ftir[normal_ftir_key].T
-        # 使用MLP提取FTIR特征
+        ftir_normal = normal_ftir[normal_ftir_key].T
+        # 使用FeatureExtractor网络提取特征
         with torch.no_grad():
-            ftir_feat = ftir_extractor(torch.tensor(ftir_samples, dtype=torch.float32)).numpy()
+            ftir_normal_feat = ftir_extractor(torch.tensor(ftir_normal, dtype=torch.float32)).numpy()
         if i <= 7:
-            mz_sample = normal_mz1[normal_mz_key].reshape(1, -1)   # shape：(1, 12572)
+            mz_normal = normal_mz1[normal_mz_key].reshape(1, -1)   # shape：(1, 12572)
             with torch.no_grad():
-                mz_feat = mz1_extractor(torch.tensor(mz_sample, dtype=torch.float32)).numpy()
+                mz_normal_feat = mz1_extractor(torch.tensor(mz_normal, dtype=torch.float32)).numpy()
         else:
-            mz_sample = normal_mz2[normal_mz_key].reshape(1, -1)
+            mz_normal = normal_mz2[normal_mz_key].reshape(1, -1)
             with torch.no_grad():
-                mz_feat = mz2_extractor(torch.tensor(mz_sample, dtype=torch.float32)).numpy()
-        ftir_features_list.append(ftir_feat)
+                mz_normal_feat = mz2_extractor(torch.tensor(mz_normal, dtype=torch.float32)).numpy()
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        mz_feat_repeated = np.repeat(mz_feat, ftir_samples.shape[0], axis=0)
-        mz_features_list.append(mz_feat_repeated)
-        labels_list.extend([0] * ftir_samples.shape[0])  # 对照组（正常）的标签标记为0
+        mz_normal_repeated = np.repeat(mz_normal_feat, ftir_normal.shape[0], axis=0)
+        labels_normal = np.zeros(ftir_normal.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
 
-    # 合并特征
-    ftir_features = np.vstack(ftir_features_list)
-    mz_features = np.vstack(mz_features_list)
-    labels = np.array(labels_list)
-    print("合并后的特征形状:")
-    print("ftir_features shape:", ftir_features.shape)
-    print("mz_features shape:", mz_features.shape)
-    print("labels shape:", labels.shape)
+        # 合并患者i的所有样本
+        ftir_all = np.vstack([ftir_cancer_feat, ftir_normal_feat])
+        mz_all = np.vstack([mz_cancer_repeated, mz_normal_repeated])
+        labels_all = np.hstack([labels_cancer, labels_normal])
 
-    # ==========================================划分训练、测试集==================================================
-    # 划分训练集和测试集6:4，记得打乱一下random，不要 1111100000，要0110010001这样的
-    ftir_train, ftir_test, mz_train, mz_test, y_train, y_test = train_test_split(
-        ftir_features, mz_features, labels, test_size=0.4, random_state=61
-    )
+        # 生成打乱索引
+        np.random.seed(i)  # 固定患者内的随机种子，确保特征和标签同步打乱
+        indices = np.arange(ftir_all.shape[0])
+        np.random.shuffle(indices)
 
-    print("划分后的数据集形状:")
-    print("ftir_train shape:", ftir_train.shape)  # (20447, 467)
-    print("mz_train shape:", mz_train.shape)  # (20447, 12572)
-    print("y_train shape:", y_train.shape)  # (20447,)
-    print("ftir_test shape:", ftir_test.shape)  # (8763, 467)
-    print("mz_test shape:", mz_test.shape)  # (8763, 12572)
-    print("y_test shape:", y_test.shape)  # (8763,)
+        # 按索引打乱数据
+        ftir_shuffled = ftir_all[indices]
+        mz_shuffled = mz_all[indices]
+        labels_shuffled = labels_all[indices]
 
-    # 保存训练集和测试集
+        # 根据患者i所在训练/验证/测试集分配打乱后的数据
+        if i in train_patients:
+            train_ftir.append(ftir_shuffled)
+            train_mz.append(mz_shuffled)
+            train_labels.append(labels_shuffled)
+        elif i in val_patients:
+            val_ftir.append(ftir_shuffled)
+            val_mz.append(mz_shuffled)
+            val_labels.append(labels_shuffled)
+        else:
+            test_ftir.append(ftir_shuffled)
+            test_mz.append(mz_shuffled)
+            test_labels.append(labels_shuffled)
+
+    # 合并集合数据
+    ftir_train = np.vstack(train_ftir) if train_ftir else np.array([])
+    mz_train = np.vstack(train_mz) if train_mz else np.array([])
+    y_train = np.hstack(train_labels) if train_labels else np.array([])
+
+    ftir_val = np.vstack(val_ftir) if val_ftir else np.array([])
+    mz_val = np.vstack(val_mz) if val_mz else np.array([])
+    y_val = np.hstack(val_labels) if val_labels else np.array([])
+
+    ftir_test = np.vstack(test_ftir) if test_ftir else np.array([])
+    mz_test = np.vstack(test_mz) if test_mz else np.array([])
+    y_test = np.hstack(test_labels) if test_labels else np.array([])
+
+    # =============================保存数据==================================================
     np.save(os.path.join(train_folder, 'ftir_train.npy'), ftir_train)
     np.save(os.path.join(train_folder, 'mz_train.npy'), mz_train)
     np.save(os.path.join(train_folder, 'y_train.npy'), y_train)
+    np.save(os.path.join(val_folder, 'ftir_val.npy'), ftir_val)
+    np.save(os.path.join(val_folder, 'mz_val.npy'), mz_val)
+    np.save(os.path.join(val_folder, 'y_val.npy'), y_val)
     np.save(os.path.join(test_folder, 'ftir_test.npy'), ftir_test)
     np.save(os.path.join(test_folder, 'mz_test.npy'), mz_test)
     np.save(os.path.join(test_folder, 'y_test.npy'), y_test)
 
-    return ftir_train, mz_train, y_train, ftir_test, mz_test, y_test
+    return ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, ftir_test, mz_test, y_test

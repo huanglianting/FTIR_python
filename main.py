@@ -23,9 +23,13 @@ if not os.path.exists(save_path):
 
 # 调用预处理函数
 train_folder = os.path.join(save_path, 'train')
+val_folder = os.path.join(save_path, 'val')
 test_folder = os.path.join(save_path, 'test')
-ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path1,
-                                                                            mz_file_path2, train_folder,
+os.makedirs(train_folder, exist_ok=True)
+os.makedirs(test_folder, exist_ok=True)
+os.makedirs(val_folder, exist_ok=True)
+ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path1,
+                                                                            mz_file_path2, train_folder, val_folder,
                                                                             test_folder, save_path)
 """
 # ====================读取训练集和测试集=====================================
@@ -46,15 +50,20 @@ ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = read_data()
 # 数据标准化
 scaler_ftir = StandardScaler()
 ftir_train = scaler_ftir.fit_transform(ftir_train)
+ftir_val = scaler_ftir.transform(ftir_val)
 ftir_test = scaler_ftir.transform(ftir_test)
 scaler_mz = StandardScaler()
 mz_train = scaler_mz.fit_transform(mz_train)
+mz_val = scaler_mz.transform(mz_val)
 mz_test = scaler_mz.transform(mz_test)
 
 # 转换为PyTorch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
 mz_train = torch.tensor(mz_train, dtype=torch.float32)
 y_train = torch.tensor(y_train, dtype=torch.long)
+ftir_val = torch.tensor(ftir_val, dtype=torch.float32)
+mz_val = torch.tensor(mz_val, dtype=torch.float32)
+y_val = torch.tensor(y_val, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
@@ -94,8 +103,8 @@ class CoAttentionNet(nn.Module):
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        self.co_attention = CoAttentionNet(32)
-        self.fc = nn.Linear(32 * 2, 2)  # 直接输出类别概率
+        self.co_attention = CoAttentionNet(256)
+        self.fc = nn.Linear(256 * 2, 2)  # 直接输出类别概率
         self.softmax = nn.Softmax(dim=1)
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
@@ -109,7 +118,7 @@ class MultiModalModel(nn.Module):
 
 
 class EarlyStopping:
-    def __init__(self, patience=7, verbose=False, delta=0, path='checkpoint.pt'):
+    def __init__(self, patience=15, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
@@ -121,7 +130,6 @@ class EarlyStopping:
 
     def __call__(self, val_loss, model):
         score = -val_loss  # 因为要最小化损失，所以取负号
-
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(val_loss, model)
@@ -152,8 +160,8 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
     # scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
     # x_aug = x_aug * scale
     # 随机偏移
-    shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
-    x_aug = x_aug + shift
+    # shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
+    # x_aug = x_aug + shift
     # 随机保留峰（mask操作）
     # mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
     # x_aug = x_aug * mask.float().to(x.device)
@@ -246,11 +254,6 @@ condition_dim = 1
 print(f"FTIR input_dim: {input_dim_ftir}, condition_dim: {condition_dim}")
 input_dim_mz = mz_train.shape[1]
 print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
-
-# 划分训练集和验证集 (80%训练，20%验证)
-train_size = int(0.8 * len(ftir_train))
-ftir_val, mz_val, y_val = ftir_train[train_size:], mz_train[train_size:], y_train[train_size:]
-ftir_train, mz_train, y_train = ftir_train[:train_size], mz_train[:train_size], y_train[:train_size]
 
 # 初始化主模型
 model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
