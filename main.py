@@ -71,31 +71,45 @@ y_test = torch.tensor(y_test, dtype=torch.long)
 
 # ==================主模型定义====================================
 class CoAttentionNet(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, d_k=None):
         super(CoAttentionNet, self).__init__()
-        self.W_qA = nn.Linear(input_dim, input_dim)
-        self.W_kA = nn.Linear(input_dim, input_dim)
-        self.W_vA = nn.Linear(input_dim, input_dim)
-        self.W_qB = nn.Linear(input_dim, input_dim)
-        self.W_kB = nn.Linear(input_dim, input_dim)
-        self.W_vB = nn.Linear(input_dim, input_dim)
+        self.input_dim = input_dim
+        self.d_k = d_k if d_k is not None else input_dim  # 缩放因子d_k，若未指定，默认=input_dim
+        self.W_qI = nn.Linear(input_dim, self.d_k)  # Q的维度为d_k
+        self.W_kI = nn.Linear(input_dim, self.d_k)  # K的维度为d_k
+        self.W_vI = nn.Linear(input_dim, input_dim)  # V的维度保持input_dim
+        self.W_qM = nn.Linear(input_dim, self.d_k)
+        self.W_kM = nn.Linear(input_dim, self.d_k)
+        self.W_vM = nn.Linear(input_dim, input_dim)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, X_A, X_B):
-        Q_A = self.W_qA(X_A)
-        K_A = self.W_kA(X_A)
-        V_A = self.W_vA(X_A)
-        Q_B = self.W_qB(X_B)
-        K_B = self.W_kB(X_B)
-        V_B = self.W_vB(X_B)
-        S_AB = torch.matmul(Q_A, K_B.transpose(-2, -1))
-        S_BA = torch.matmul(Q_B, K_A.transpose(-2, -1))
-        A_AB = self.softmax(S_AB)
-        A_BA = self.softmax(S_BA)
-        F_A = torch.matmul(A_AB, V_B)
-        F_B = torch.matmul(A_BA, V_A)
-        # 这里简单将两个融合特征拼接作为输出，可根据需求调整
-        output = torch.cat([F_A, F_B], dim=-1)
+    def forward(self, X_I, X_M):
+        # X_I (模态FTIR) 和 X_M (模态MZ) 形状均为 [batch_size, input_dim]
+        # 计算模态FTIR的Q、K、V
+        Q_I = self.W_qI(X_I)  # [batch_size, d_k]
+        K_I = self.W_kI(X_I)  # [batch_size, d_k]
+        V_I = self.W_vI(X_I)  # [batch_size, input_dim]
+        # 计算模态MZ的Q、K、V
+        Q_M = self.W_qM(X_M)  # [batch_size, d_k]
+        K_M = self.W_kM(X_M)  # [batch_size, d_k]
+        V_M = self.W_vM(X_M)  # [batch_size, input_dim]
+        # 计算跨模态注意力分数（带缩放因子）
+        S_IM = torch.matmul(Q_M, K_I.transpose(-2, -1)) / np.sqrt(self.d_k)  # [batch_size, batch_size]
+        S_MI = torch.matmul(Q_I, K_M.transpose(-2, -1)) / np.sqrt(self.d_k)  # [batch_size, batch_size]
+        # 软最大化归一化
+        A_IM = self.softmax(S_IM)  # 模态I到M的注意力权重
+        A_MI = self.softmax(S_MI)  # 模态M到I的注意力权重
+        # 计算跨模态上下文向量
+        F_IM = torch.matmul(A_IM, V_I)  # [batch_size, input_dim]
+        F_MI = torch.matmul(A_MI, V_M)  # [batch_size, input_dim]
+        # 模态内特征与注意力结果融合（逐元素相乘）
+        Hat_A_IM = A_IM.unsqueeze(-1) * X_M.unsqueeze(1)  # [batch_size, batch_size, input_dim]
+        Hat_A_MI = A_MI.unsqueeze(-1) * X_I.unsqueeze(1)  # [batch_size, batch_size, input_dim]
+        # 模态间注意力矩阵乘法（特征维度交互）
+        A_MI_final = torch.matmul(Hat_A_IM.permute(0, 2, 1), Hat_A_MI)  # [batch_size, input_dim, input_dim]
+        A_MI_flatten = A_MI_final.flatten(start_dim=1)  # [batch_size, input_dim^2]
+        # 融合所有特征：跨模态上下文 + 模态间注意力
+        output = torch.cat([F_IM, F_MI, A_MI_flatten], dim=-1)  # [batch_size, input_dim*2 + input_dim^2]
         return output
 
 
@@ -103,8 +117,10 @@ class CoAttentionNet(nn.Module):
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        self.co_attention = CoAttentionNet(256)
-        self.fc = nn.Linear(256 * 2, 2)  # 直接输出类别概率
+        self.input_dim = 256
+        self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
+        # 计算全连接层输入维度：input_dim*2 + input_dim^2 = 256*2 + 256^2 = 65792
+        self.fc = nn.Linear(self.input_dim*2 + self.input_dim**2, 2)
         self.softmax = nn.Softmax(dim=1)
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
@@ -118,7 +134,7 @@ class MultiModalModel(nn.Module):
 
 
 class EarlyStopping:
-    def __init__(self, patience=15, verbose=False, delta=0, path='checkpoint.pt'):
+    def __init__(self, patience=10, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
@@ -171,7 +187,7 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
 # ==================主模型训练====================================
 def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer, noise_std):
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)   # L2正则化
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)   # L2正则化
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
