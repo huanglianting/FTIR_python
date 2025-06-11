@@ -117,15 +117,31 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.input_dim = 256
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
+
+        self.reduced_dim1 = 1024
+        self.reduced_dim2 = 128
+        self.flatten = nn.Flatten()
         # 计算全连接层输入维度：input_dim*2 + input_dim^2 = 256*2 + 256^2 = 65792
-        self.fc = nn.Linear(self.input_dim * 2 + self.input_dim ** 2, 2)
+        self.linear1 = nn.Linear(self.input_dim * 2 + self.input_dim ** 2, self.reduced_dim1)
+        self.relu = nn.ReLU()
+        self.dropout1 = nn.Dropout(0.5)
+        self.linear2 = nn.Linear(self.reduced_dim1, self.reduced_dim2)
+        self.dropout2 = nn.Dropout(0.3)
+
+        self.fc = nn.Linear(self.reduced_dim2, 2)
         self.softmax = nn.Softmax(dim=1)
+
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
         self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
 
     def forward(self, ftir, mz):
         combined_features = self.co_attention(ftir, mz)
+        combined_features = self.flatten(combined_features)
+        combined_features = self.relu(self.linear1(combined_features))
+        combined_features = self.dropout1(combined_features)
+        combined_features = self.linear2(combined_features)
+        combined_features = self.dropout2(combined_features)
         output = self.fc(combined_features)
         output = self.softmax(output)
         return output

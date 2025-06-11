@@ -4,10 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="把MLP改成三层全连接+卷积层，还有BN、Dropout、relu">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="添加五折交叉验证">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/load_and_preprocess.py" beforeDir="false" afterPath="$PROJECT_DIR$/load_and_preprocess.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -226,14 +224,7 @@
       <workItem from="1744164882674" duration="35172000" />
       <workItem from="1745822778404" duration="13620000" />
       <workItem from="1745846412150" duration="822000" />
-      <workItem from="1746598929750" duration="124071000" />
-    </task>
-    <task id="LOCAL-00011" summary="新增函数plot_spectrum_with_marked_peaks：能够把最终的光谱图画出来，并标注出指定需要标注的波数点。&#10;并修改了plot_spectrum_with_mean_std 和 analyze_and_plot_spectrum 两个函数，把x轴给翻转了过来">
-      <created>1724249033873</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1724249033873</updated>
+      <workItem from="1746598929750" duration="128140000" />
     </task>
     <task id="LOCAL-00012" summary="更新波数点">
       <created>1724315842059</created>
@@ -571,7 +562,14 @@
       <option name="project" value="LOCAL" />
       <updated>1749620577047</updated>
     </task>
-    <option name="localTasksCounter" value="60" />
+    <task id="LOCAL-00060" summary="添加五折交叉验证">
+      <created>1749640452808</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1749640452808</updated>
+    </task>
+    <option name="localTasksCounter" value="61" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -626,7 +624,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="进一步模块化了代码，把一些重复的部分封装、删除，不用的函数删除" />
     <MESSAGE value="新增CNN函数，还未调参、优化网络、训练测试验证集占比" />
     <MESSAGE value="存档" />
     <MESSAGE value="存档“CNN换成pytorch，还没debug" />
@@ -651,13 +648,14 @@
     <MESSAGE value="先用mlp把两批维度不同无法匹配的质谱数据提取特征以后，再拼接在一起，并且也用mlp提取ftir的特征，使得mz能够与ftir对应起来，再划分训练集和测试集，之后就直接放入co-attention net。" />
     <MESSAGE value="新增验证集、早停" />
     <MESSAGE value="把MLP改成三层全连接+卷积层，还有BN、Dropout、relu" />
-    <option name="LAST_COMMIT_MESSAGE" value="把MLP改成三层全连接+卷积层，还有BN、Dropout、relu" />
+    <MESSAGE value="添加五折交叉验证" />
+    <option name="LAST_COMMIT_MESSAGE" value="添加五折交叉验证" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$test.coverage" NAME="test 覆盖结果" MODIFIED="1746668071607" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1749633846271" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1749643476684" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745833261298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
