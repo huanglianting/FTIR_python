@@ -45,11 +45,6 @@ def load_and_preprocess(data_files, threshold1, threshold2, order, frame_len, sa
         x_all.append(x)
         spectrum_all.append(spectrum)
 
-    # Check if dimensions match before concatenation
-    print("Checking spectrum dimensions...")
-    for i, spec in enumerate(spectrum_all):
-        print(f"Spectrum {i}: shape = {spec.shape}")
-
     # Combine replicates by concatenating along the column axis (axis=1)
     x_combined = x_all[0]  # 所有x值相同，取第一个即可
     spectrum_combined = np.concatenate(spectrum_all, axis=1)

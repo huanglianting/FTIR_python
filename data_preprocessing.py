@@ -85,7 +85,7 @@ class MZFeatureExtractor(nn.Module):
         return x
 
 
-def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, val_folder, test_folder, save_path):
+def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
     # ===============================处理FTIR=================================================
     # 生成文件列表的通用函数
     def generate_file_lists(prefixes, num_files, ftir_file_path):
@@ -168,20 +168,16 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     mz1_extractor.eval()
     mz2_extractor.eval()
 
-    # 按患者初始化（训练/验证/测试）列表
-    train_ftir, train_mz, train_labels = [], [], []
-    val_ftir, val_mz, val_labels = [], [], []
-    test_ftir, test_mz, test_labels = [], [], []
-
+    # 按患者初始化（ 训练(+验证) / 测试 ）列表
+    train_ftir, train_mz, train_labels, train_patients = [], [], [], []
+    test_ftir, test_mz, test_labels, test_patients = [], [], [], []
     # 随机打乱患者顺序（1-11）
     np.random.seed(58)
     patients = np.arange(1, 12)  # 患者i=1到11
     np.random.shuffle(patients)
-
-    # 划分比例：7训练，2验证，2测试
-    train_patients = patients[:7]
-    val_patients = patients[7:9]
-    test_patients = patients[9:]
+    # 划分比例：9训练(+验证)，2测试
+    train_patients_list = patients[:9]
+    test_patients_list = patients[9:]
 
     # 遍历每个患者，处理并分配到对应集合
     for i in patients:  # 按打乱后的顺序处理患者
@@ -227,53 +223,49 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         ftir_all = np.vstack([ftir_cancer_feat, ftir_normal_feat])
         mz_all = np.vstack([mz_cancer_repeated, mz_normal_repeated])
         labels_all = np.hstack([labels_cancer, labels_normal])
+        patient_ids = np.full_like(labels_all, i)  # 为每个样本添加患者ID
 
+        # 打乱单个患者内的癌症/正常顺序，不然都是010101
         # 生成打乱索引
-        np.random.seed(i)  # 固定患者内的随机种子，确保特征和标签同步打乱
+        np.random.seed(i)  # 用i作种子，固定患者内的随机种子，确保特征和标签同步打乱
         indices = np.arange(ftir_all.shape[0])
         np.random.shuffle(indices)
-
         # 按索引打乱数据
         ftir_shuffled = ftir_all[indices]
         mz_shuffled = mz_all[indices]
         labels_shuffled = labels_all[indices]
-
-        # 根据患者i所在训练/验证/测试集分配打乱后的数据
-        if i in train_patients:
+        patient_ids_shuffled = patient_ids[indices]
+        # 根据患者i所在训练/测试集分配打乱后的数据
+        if i in train_patients_list:
             train_ftir.append(ftir_shuffled)
             train_mz.append(mz_shuffled)
             train_labels.append(labels_shuffled)
-        elif i in val_patients:
-            val_ftir.append(ftir_shuffled)
-            val_mz.append(mz_shuffled)
-            val_labels.append(labels_shuffled)
+            train_patients.append(patient_ids_shuffled)
         else:
             test_ftir.append(ftir_shuffled)
             test_mz.append(mz_shuffled)
             test_labels.append(labels_shuffled)
+            test_patients.append(patient_ids_shuffled)
 
-    # 合并集合数据
+    # 合并训练集数据
     ftir_train = np.vstack(train_ftir) if train_ftir else np.array([])
     mz_train = np.vstack(train_mz) if train_mz else np.array([])
     y_train = np.hstack(train_labels) if train_labels else np.array([])
-
-    ftir_val = np.vstack(val_ftir) if val_ftir else np.array([])
-    mz_val = np.vstack(val_mz) if val_mz else np.array([])
-    y_val = np.hstack(val_labels) if val_labels else np.array([])
-
+    patient_indices_train = np.hstack(train_patients) if train_patients else np.array([])
+    # 合并测试集数据
     ftir_test = np.vstack(test_ftir) if test_ftir else np.array([])
     mz_test = np.vstack(test_mz) if test_mz else np.array([])
     y_test = np.hstack(test_labels) if test_labels else np.array([])
+    patient_indices_test = np.hstack(test_patients) if test_patients else np.array([])
 
     # =============================保存数据==================================================
     np.save(os.path.join(train_folder, 'ftir_train.npy'), ftir_train)
     np.save(os.path.join(train_folder, 'mz_train.npy'), mz_train)
     np.save(os.path.join(train_folder, 'y_train.npy'), y_train)
-    np.save(os.path.join(val_folder, 'ftir_val.npy'), ftir_val)
-    np.save(os.path.join(val_folder, 'mz_val.npy'), mz_val)
-    np.save(os.path.join(val_folder, 'y_val.npy'), y_val)
+    np.save(os.path.join(train_folder, 'patient_indices_train.npy'), patient_indices_train)
     np.save(os.path.join(test_folder, 'ftir_test.npy'), ftir_test)
     np.save(os.path.join(test_folder, 'mz_test.npy'), mz_test)
     np.save(os.path.join(test_folder, 'y_test.npy'), y_test)
+    np.save(os.path.join(test_folder, 'patient_indices_test.npy'), patient_indices_test)
 
-    return ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, ftir_test, mz_test, y_test
+    return ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test

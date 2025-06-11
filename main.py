@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset
 from data_preprocessing import preprocess_data
+from sklearn.model_selection import KFold
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -23,14 +24,15 @@ if not os.path.exists(save_path):
 
 # 调用预处理函数
 train_folder = os.path.join(save_path, 'train')
-val_folder = os.path.join(save_path, 'val')
 test_folder = os.path.join(save_path, 'test')
-os.makedirs(train_folder, exist_ok=True)
-os.makedirs(test_folder, exist_ok=True)
-os.makedirs(val_folder, exist_ok=True)
-ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, ftir_test, mz_test, y_test = preprocess_data(ftir_file_path, mz_file_path1,
-                                                                            mz_file_path2, train_folder, val_folder,
-                                                                            test_folder, save_path)
+ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test = preprocess_data(
+    ftir_file_path, mz_file_path1,
+    mz_file_path2, train_folder,
+    test_folder, save_path)
+# 打印训练集和测试集的类别分布
+print("训练集类别分布:", np.bincount(y_train))
+print("测试集类别分布:", np.bincount(y_test))
+
 """
 # ====================读取训练集和测试集=====================================
 def read_data():
@@ -47,23 +49,19 @@ def read_data():
 
 ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = read_data()
 """
+
 # 数据标准化
 scaler_ftir = StandardScaler()
 ftir_train = scaler_ftir.fit_transform(ftir_train)
-ftir_val = scaler_ftir.transform(ftir_val)
 ftir_test = scaler_ftir.transform(ftir_test)
 scaler_mz = StandardScaler()
 mz_train = scaler_mz.fit_transform(mz_train)
-mz_val = scaler_mz.transform(mz_val)
 mz_test = scaler_mz.transform(mz_test)
 
 # 转换为PyTorch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
 mz_train = torch.tensor(mz_train, dtype=torch.float32)
 y_train = torch.tensor(y_train, dtype=torch.long)
-ftir_val = torch.tensor(ftir_val, dtype=torch.float32)
-mz_val = torch.tensor(mz_val, dtype=torch.float32)
-y_val = torch.tensor(y_val, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
@@ -120,7 +118,7 @@ class MultiModalModel(nn.Module):
         self.input_dim = 256
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
         # 计算全连接层输入维度：input_dim*2 + input_dim^2 = 256*2 + 256^2 = 65792
-        self.fc = nn.Linear(self.input_dim*2 + self.input_dim**2, 2)
+        self.fc = nn.Linear(self.input_dim * 2 + self.input_dim ** 2, 2)
         self.softmax = nn.Softmax(dim=1)
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
@@ -185,9 +183,10 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
 
 
 # ==================主模型训练====================================
-def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer, noise_std):
+def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer,
+                     noise_std):
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)   # L2正则化
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)  # L2正则化
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -262,92 +261,100 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
 
 
 # ==================主程序====================================
-# 初始化 TensorBoard 的 SummaryWriter
-writer = SummaryWriter('./runs')
-# 检查输入维度和条件维度的值
-input_dim_ftir = ftir_train.shape[1]
-condition_dim = 1
-print(f"FTIR input_dim: {input_dim_ftir}, condition_dim: {condition_dim}")
-input_dim_mz = mz_train.shape[1]
-print(f"MZ input_dim: {input_dim_mz}, condition_dim: {condition_dim}")
+# 按患者级别实现五折交叉验证
+n_splits = 5
+fold_metrics = []
+fold_results = []
 
-# 初始化主模型
-model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
+# 获取训练集中的患者ID
+unique_patients = np.unique(patient_indices_train)
 
-# 训练主模型
-model, train_losses, val_losses, train_accuracies, val_accuracies = train_main_model(
-    model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val,
-    epochs=200, batch_size=32, writer=writer, noise_std=0.3
-)
+# 患者级划分
+patient_to_fold = {}
+kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+for fold, (train_idx, val_idx) in enumerate(kf.split(unique_patients)):
+    for patient in unique_patients[val_idx]:
+        patient_to_fold[patient] = fold
 
-# 保存最终模型
-torch.save(model.state_dict(), './checkpoints/multimodal_model_final.pth')
+# 为每个样本分配折索引
+fold_indices = np.array([patient_to_fold[pid] for pid in patient_indices_train])
 
+# 进行交叉验证
+for fold in range(n_splits):
+    print(f"\n=========== 第 {fold + 1}/{n_splits} 折 ===========")
+    val_mask = (fold_indices == fold)
+    train_mask = ~val_mask
+    # 提取数据
+    ftir_train_fold = ftir_train[train_mask]
+    mz_train_fold = mz_train[train_mask]
+    y_train_fold = y_train[train_mask]
+    ftir_val_fold = ftir_train[val_mask]
+    mz_val_fold = mz_train[val_mask]
+    y_val_fold = y_train[val_mask]
+    print(f"训练集: {len(ftir_train_fold)}样本, {len(np.unique(patient_indices_train[train_mask]))}患者")
+    print(f"验证集: {len(ftir_val_fold)}样本, {len(np.unique(patient_indices_train[val_mask]))}患者")
 
-# 绘制训练和验证损失曲线
-plt.figure(figsize=(12, 5))
-plt.subplot(1, 2, 1)
-plt.plot(train_losses, label='Train Loss')
-plt.plot(val_losses, label='Validation Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('Training and Validation Loss')
-plt.legend()
+    # 训练模型
+    writer = SummaryWriter(f'./runs/fold_{fold + 1}')
+    model = MultiModalModel(ftir_train_fold.shape[1], mz_train_fold.shape[1])
+    model, train_losses, val_losses, train_accuracies, val_accuracies = train_main_model(
+        model, ftir_train_fold, mz_train_fold, y_train_fold,
+        ftir_val_fold, mz_val_fold, y_val_fold,
+        epochs=200, batch_size=32, writer=writer, noise_std=0.3
+    )
+    writer.close()
 
-# 绘制训练和验证准确率曲线
-plt.subplot(1, 2, 2)
-plt.plot(train_accuracies, label='Train Accuracy')
-plt.plot(val_accuracies, label='Validation Accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.title('Training and Validation Accuracy')
-plt.legend()
+    # 保存每个折的详细训练历史
+    fold_results.append({
+        'fold': fold + 1,
+        'model': model,
+        'train_losses': train_losses,
+        'val_losses': val_losses,
+        'train_accuracies': train_accuracies,
+        'val_accuracies': val_accuracies
+    })
 
-plt.tight_layout()
-plt.savefig('training_metrics.png')
-plt.close()
+    # 获取最后一个epoch的准确率和loss
+    final_accuracy = val_accuracies[-1]
+    final_loss = val_losses[-1]
+    fold_metrics.append({
+        'accuracy': final_accuracy,
+        'loss': final_loss
+    })
 
-# 评估模型
-model.eval()
+# 计算平均指标
+avg_accuracy = np.mean([m['accuracy'] for m in fold_metrics])
+avg_loss = np.mean([m['loss'] for m in fold_metrics])
+print(f"\n五折交叉验证平均 - 准确率: {avg_accuracy:.4f}, Loss: {avg_loss:.4f}")
+
+# 找出表现最好的折
+best_fold_idx = np.argmax([m['accuracy'] for m in fold_metrics])
+best_fold = best_fold_idx + 1
+print(f"\n表现最好的折: 第 {best_fold} 折")
+
+# 使用最佳折的模型在测试集上评估
+best_model = fold_results[best_fold_idx]['model']
+best_model.eval()
 with torch.no_grad():
-    test_outputs = model(ftir_test, mz_test)
-    _, predicted = torch.max(test_outputs, 1)
+    test_outputs = best_model(ftir_test, mz_test)
+    _, test_pred = torch.max(test_outputs, 1)
 
-# 打印标签分布和预测结果
-print("训练集标签分布:", np.bincount(y_train.numpy()))
-print("测试集标签分布:", np.bincount(y_test.numpy()))
-print("预测结果:", predicted[:10].numpy())  # 只打印前10个结果
-print("真实标签:", y_test[:10].numpy())
-
-# 计算性能指标
-accuracy = accuracy_score(y_test, predicted)
-precision = precision_score(y_test, predicted)
-recall = recall_score(y_test, predicted)
-f1 = f1_score(y_test, predicted)
-
-# 添加测试集性能指标到 TensorBoard
-writer.add_scalar('Test Accuracy', accuracy, 0)
-writer.add_scalar('Test Precision', precision, 0)
-writer.add_scalar('Test Recall', recall, 0)
-writer.add_scalar('Test F1 Score', f1, 0)
-
-print(f'Accuracy: {accuracy:.4f}')
-print(f'Precision: {precision:.4f}')
-print(f'Recall: {recall:.4f}')
-print(f'F1 Score: {f1:.4f}')
+test_accuracy = accuracy_score(y_test, test_pred)
+test_f1 = f1_score(y_test, test_pred)
+test_precision = precision_score(y_test, test_pred)
+test_recall = recall_score(y_test, test_pred)
+print(f"测试集结果 - 准确率: {test_accuracy:.4f}, 精确率: {test_precision:.4f}, 召回率: {test_recall:.4f}, F1: {test_f1:.4f}")
 
 # 计算每个类别的准确率
 class_0_indices = (y_test == 0).nonzero(as_tuple=True)[0]
 class_1_indices = (y_test == 1).nonzero(as_tuple=True)[0]
-
-accuracy_class_0 = (predicted[class_0_indices] == y_test[class_0_indices]).float().mean()
-accuracy_class_1 = (predicted[class_1_indices] == y_test[class_1_indices]).float().mean()
-
+accuracy_class_0 = (test_pred[class_0_indices] == y_test[class_0_indices]).float().mean()
+accuracy_class_1 = (test_pred[class_1_indices] == y_test[class_1_indices]).float().mean()
 print(f'类别0准确率: {accuracy_class_0:.4f}')
 print(f'类别1准确率: {accuracy_class_1:.4f}')
 
 # 绘制混淆矩阵
-cm = confusion_matrix(y_test, predicted)
+cm = confusion_matrix(y_test, test_pred)
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
 plt.xlabel('Predicted Labels')
@@ -356,5 +363,31 @@ plt.title('Confusion Matrix')
 plt.savefig('confusion_matrix.png')
 plt.close()
 
-# 关闭 TensorBoard 的 SummaryWriter
-writer.close()
+# 保存最佳模型
+torch.save(best_model.state_dict(), os.path.join(save_path, 'best_model.pth'))
+
+# 绘制所有折的训练曲线
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+for i, fold_result in enumerate(fold_results):
+    plt.plot(fold_result['train_losses'], label=f'Fold {i+1} Train Loss')
+    plt.plot(fold_result['val_losses'], label=f'Fold {i+1} Val Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss of All Folds')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+for i, fold_result in enumerate(fold_results):
+    plt.plot(fold_result['train_accuracies'], label=f'Fold {i+1} Train Accuracy')
+    plt.plot(fold_result['val_accuracies'], label=f'Fold {i+1} Val Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training and Validation Accuracy of All Folds')
+plt.legend()
+
+plt.tight_layout()
+plt.savefig(os.path.join(save_path, 'all_folds_training_metrics.png'))
+plt.close()
+
+print(f"\n所有结果已保存到 {save_path} 目录")
