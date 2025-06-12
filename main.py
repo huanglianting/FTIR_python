@@ -117,31 +117,44 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.input_dim = 256
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
-
-        self.reduced_dim1 = 1024
-        self.reduced_dim2 = 128
+        # 计算co-attention输出维度
+        self.co_attention_dim = self.input_dim * 2 + self.input_dim ** 2
+        # 调整输入维度以适应Conv1d
+        self.adjust_dim = nn.Linear(self.co_attention_dim, 64)
+        # 序列长度
+        self.sequence_length = 1
+        # 卷积层 + 批归一化 + 最大池化
+        self.conv1d_1 = nn.Conv1d(64, 128, kernel_size=1, padding=0)
+        self.relu_1 = nn.ReLU()
+        self.bn_1 = nn.BatchNorm1d(128)
+        self.conv1d_2 = nn.Conv1d(128, 256, kernel_size=1, padding=0)
+        self.relu_2 = nn.ReLU()
+        self.maxpool1d = nn.MaxPool1d(kernel_size=1, stride=1)
+        self.bn_2 = nn.BatchNorm1d(256)
+        # 计算卷积层后的维度
+        self.conv_output_dim = 256 * self.sequence_length  # 256 * 1 = 256
+        # 线性层
+        self.reduced_dim = 128
+        self.linear = nn.Linear(self.conv_output_dim, self.reduced_dim)  # nn.Linear(256, 128)
+        self.dropout = nn.Dropout(0.3)
+        # 展平层
         self.flatten = nn.Flatten()
-        # 计算全连接层输入维度：input_dim*2 + input_dim^2 = 256*2 + 256^2 = 65792
-        self.linear1 = nn.Linear(self.input_dim * 2 + self.input_dim ** 2, self.reduced_dim1)
-        self.relu = nn.ReLU()
-        self.dropout1 = nn.Dropout(0.5)
-        self.linear2 = nn.Linear(self.reduced_dim1, self.reduced_dim2)
-        self.dropout2 = nn.Dropout(0.3)
-
-        self.fc = nn.Linear(self.reduced_dim2, 2)
+        # 输出层
+        self.fc = nn.Linear(self.reduced_dim, 2)
         self.softmax = nn.Softmax(dim=1)
-
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
         self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
 
     def forward(self, ftir, mz):
         combined_features = self.co_attention(ftir, mz)
+        combined_features = self.adjust_dim(combined_features)
+        combined_features = combined_features.unsqueeze(2)  # [batch_size, channels, sequence_length]
+        combined_features = self.bn_1(self.relu_1(self.conv1d_1(combined_features)))
+        combined_features = self.bn_2(self.maxpool1d(self.relu_2(self.conv1d_2(combined_features))))
         combined_features = self.flatten(combined_features)
-        combined_features = self.relu(self.linear1(combined_features))
-        combined_features = self.dropout1(combined_features)
-        combined_features = self.linear2(combined_features)
-        combined_features = self.dropout2(combined_features)
+        combined_features = self.linear(combined_features)
+        combined_features = self.dropout(combined_features)
         output = self.fc(combined_features)
         output = self.softmax(output)
         return output
