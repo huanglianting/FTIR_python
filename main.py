@@ -161,41 +161,112 @@ class MultiModalModel(nn.Module):
 
 
 class EarlyStopping:
-    def __init__(self, patience=10, verbose=False, delta=0, path='checkpoint.pt'):
+    def __init__(self, patience=15, verbose=False, delta=0, save_dir='checkpoints',
+                 monitor_metrics=['val_loss', 'val_accuracy', 'val_f1'],
+                 weights=[0.5, 0.3, 0.2],
+                 save_all_best=False):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.inf
         self.delta = delta
-        self.path = path
+        self.save_dir = save_dir
+        self.monitor_metrics = monitor_metrics
+        self.weights = weights
+        self.save_all_best = save_all_best
 
-    def __call__(self, val_loss, model):
-        score = -val_loss  # 因为要最小化损失，所以取负号
+        # 初始化保存目录
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        # 记录最佳模型的信息
+        self.best_epoch = 0
+        self.best_metrics = {}
+
+        # 为每个指标设置初始最佳值
+        for metric in monitor_metrics:
+            if 'loss' in metric:
+                self.best_metrics[metric] = float('inf')
+            else:  # 假设其他指标都是越大越好
+                self.best_metrics[metric] = float('-inf')
+
+    def __call__(self, metrics_dict, epoch, model):
+        # 计算综合得分
+        score = 0
+        for metric, weight in zip(self.monitor_metrics, self.weights):
+            value = metrics_dict[metric]
+            # 对于损失类指标，值越小越好；对于准确率类指标，值越大越好
+            if 'loss' in metric:
+                # 损失取负值，使其与准确率方向一致（越大越好）
+                score += -value * weight
+            else:
+                score += value * weight
+
+        # 判断是否是最佳模型
+        is_best = False
         if self.best_score is None:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model)
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            if self.counter >= self.patience:
-                self.early_stop = True
+            is_best = True
         else:
+            is_best = score > self.best_score + self.delta
+
+        # 保存最佳模型
+        if is_best:
             self.best_score = score
-            self.save_checkpoint(val_loss, model)
+            self.best_epoch = epoch
             self.counter = 0
 
-    def save_checkpoint(self, val_loss, model):
-        # 当验证损失降低时保存模型
-        if self.verbose:
-            print(f'Validation loss 下降 ({self.val_loss_min:.6f} --> {val_loss:.6f}).  保存模型 ...')
-        torch.save(model.state_dict(), self.path)
-        self.val_loss_min = val_loss
+            # 更新各指标的最佳值
+            for metric in self.monitor_metrics:
+                value = metrics_dict[metric]
+                if 'loss' in metric and value < self.best_metrics[metric]:
+                    self.best_metrics[metric] = value
+                elif 'loss' not in metric and value > self.best_metrics[metric]:
+                    self.best_metrics[metric] = value
+
+            # 保存模型
+            self.save_checkpoint(metrics_dict, epoch, model, is_best=True)
+
+            if self.verbose:
+                print(f'Epoch {epoch + 1}: 新的最佳模型 (综合得分: {score:.4f})')
+                for metric in self.monitor_metrics:
+                    print(f'  {metric}: {metrics_dict[metric]:.4f}')
+        else:
+            self.counter += 1
+            if self.verbose:
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+
+            # 保存当前轮次的模型
+            if self.save_all_best:
+                self.save_checkpoint(metrics_dict, epoch, model, is_best=False)
+
+            if self.counter >= self.patience:
+                self.early_stop = True
+                if self.verbose:
+                    print(f"早停触发！最佳模型在第 {self.best_epoch + 1} 轮")
+                    for metric in self.monitor_metrics:
+                        print(f'最佳 {metric}: {self.best_metrics[metric]:.4f}')
+
+    def save_checkpoint(self, metrics_dict, epoch, model, is_best=False):
+        # 构建文件名，包含所有监控指标
+        metrics_str = "_".join([f"{metric}_{metrics_dict[metric]:.4f}" for metric in self.monitor_metrics])
+        filename = f"epoch_{epoch + 1}_{metrics_str}.pth"
+
+        # 如果是最佳模型，额外保存为best_model.pth
+        if is_best:
+            filename = "best_model.pth"
+
+        filepath = os.path.join(self.save_dir, filename)
+        torch.save(model.state_dict(), filepath)
+
+        if self.verbose and is_best:
+            print(f'保存最佳模型到: {filepath}')
+        elif self.verbose and not is_best and self.save_all_best:
+            print(f'保存当前模型到: {filepath}')
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8):
+def data_augmentation(x, noise_std=0.2, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8):
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
@@ -216,7 +287,12 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      noise_std):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)  # L2正则化
-    early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
+    early_stopping = EarlyStopping(
+        patience=15,
+        verbose=True,
+        save_dir=f'./checkpoints/fold_{fold + 1}',  # 为每个折创建单独的目录
+        save_all_best=True  # 保存所有最佳模型
+    )
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
@@ -226,6 +302,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
     val_losses = []
     train_accuracies = []
     val_accuracies = []
+    val_f1s = []
 
     for epoch in range(epochs):
         # 训练阶段
@@ -253,6 +330,8 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         # 验证阶段
         model.eval()
         val_loss = 0
+        y_true = []
+        y_pred = []
         correct = 0
         total = 0
         with torch.no_grad():
@@ -263,10 +342,14 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                 _, predicted = torch.max(outputs.data, 1)
                 total += label_batch.size(0)
                 correct += (predicted == label_batch).sum().item()
+                y_true.extend(label_batch.cpu().numpy())
+                y_pred.extend(predicted.cpu().numpy())
         val_loss /= len(val_dataloader)
         val_accuracy = correct / total
+        val_f1 = f1_score(y_true, y_pred, average='weighted')
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
+        val_f1s.append(val_f1)
 
         print(f'Epoch [{epoch + 1}/{epochs}], '
               f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
@@ -279,9 +362,16 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         writer.add_scalar('Validation Accuracy', val_accuracy, epoch)
 
         # 早停检查
-        early_stopping(val_loss, model)
+        early_stopping(
+            metrics_dict={
+                'val_loss': val_loss,
+                'val_accuracy': val_accuracy,
+                'val_f1': val_f1
+            },
+            epoch=epoch,
+            model=model
+        )
         if early_stopping.early_stop:
-            print("Early stopping")
             break
 
     # 加载最佳模型
