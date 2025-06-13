@@ -172,7 +172,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     train_ftir, train_mz, train_labels, train_patients = [], [], [], []
     test_ftir, test_mz, test_labels, test_patients = [], [], [], []
     # 随机打乱患者顺序（1-11）
-    np.random.seed(58)
+    np.random.seed(4)
     patients = np.arange(1, 12)  # 患者i=1到11
     np.random.shuffle(patients)
     # 划分比例：9训练(+验证)，2测试

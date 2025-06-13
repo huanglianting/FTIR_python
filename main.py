@@ -119,8 +119,22 @@ class MultiModalModel(nn.Module):
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
         # 计算co-attention输出维度
         self.co_attention_dim = self.input_dim * 2 + self.input_dim ** 2
-        # 调整输入维度以适应Conv1d
-        self.adjust_dim = nn.Linear(self.co_attention_dim, 64)
+        # 渐进式降维
+        self.dim_reduction = nn.Sequential(
+            nn.Linear(self.co_attention_dim, 2048),
+            nn.BatchNorm1d(2048),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(2048, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(512, 64)  # 最终降到64维
+        )
         # 序列长度
         self.sequence_length = 1
         # 卷积层 + 批归一化 + 最大池化
@@ -148,7 +162,7 @@ class MultiModalModel(nn.Module):
 
     def forward(self, ftir, mz):
         combined_features = self.co_attention(ftir, mz)
-        combined_features = self.adjust_dim(combined_features)
+        combined_features = self.dim_reduction(combined_features)
         combined_features = combined_features.unsqueeze(2)  # [batch_size, channels, sequence_length]
         combined_features = self.bn_1(self.relu_1(self.conv1d_1(combined_features)))
         combined_features = self.bn_2(self.maxpool1d(self.relu_2(self.conv1d_2(combined_features))))
@@ -161,7 +175,7 @@ class MultiModalModel(nn.Module):
 
 
 class EarlyStopping:
-    def __init__(self, patience=15, verbose=False, delta=0, save_dir='checkpoints',
+    def __init__(self, patience=10, verbose=False, delta=0, save_dir='checkpoints',
                  monitor_metrics=['val_loss', 'val_accuracy', 'val_f1'],
                  weights=[0.5, 0.3, 0.2],
                  save_all_best=False):
@@ -288,7 +302,6 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)  # L2正则化
     early_stopping = EarlyStopping(
-        patience=15,
         verbose=True,
         save_dir=f'./checkpoints/fold_{fold + 1}',  # 为每个折创建单独的目录
         save_all_best=True  # 保存所有最佳模型
