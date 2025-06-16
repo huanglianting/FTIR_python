@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset
 from data_preprocessing import preprocess_data
-from sklearn.model_selection import KFold
+from sklearn.model_selection import GroupKFold
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -284,24 +284,25 @@ n_splits = 5
 fold_metrics = []
 fold_results = []
 
-# 获取训练集中的患者ID
-unique_patients = np.unique(patient_indices_train)
-
-# 患者级划分
-patient_to_fold = {}
-kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-for fold, (train_idx, val_idx) in enumerate(kf.split(unique_patients)):
-    for patient in unique_patients[val_idx]:
-        patient_to_fold[patient] = fold
-
-# 为每个样本分配折索引
-fold_indices = np.array([patient_to_fold[pid] for pid in patient_indices_train])
-
-# 进行交叉验证
+# 使用GroupKFold确保同一患者所有样本在同一折
+gkf = GroupKFold(n_splits=n_splits)
 for fold in range(n_splits):
     print(f"\n=========== 第 {fold + 1}/{n_splits} 折 ===========")
-    val_mask = (fold_indices == fold)
-    train_mask = ~val_mask
+    # 获取当前折的训练/验证样本索引
+    train_idx, val_idx = next(gkf.split(np.arange(len(y_train)), groups=patient_indices_train))
+    # 提取对应的患者ID
+    train_patients = patient_indices_train[train_idx]
+    val_patients = patient_indices_train[val_idx]
+    # 使用 np.unique 来去重并比较数量
+    train_patients_unique = np.unique(train_patients)
+    val_patients_unique = np.unique(val_patients)
+    # 确保训练集与验证集无交集
+    assert len(set(train_patients_unique) & set(val_patients_unique)) == 0, "患者跨折泄漏"
+    print(f"Fold {fold} 训练患者ID: {train_patients_unique}")
+    print(f"Fold {fold} 验证患者ID: {val_patients_unique}")
+    # 提取数据
+    train_mask = np.isin(patient_indices_train, train_patients)
+    val_mask = np.isin(patient_indices_train, val_patients)
     # 提取数据
     ftir_train_fold = ftir_train[train_mask]
     mz_train_fold = mz_train[train_mask]
@@ -309,10 +310,6 @@ for fold in range(n_splits):
     ftir_val_fold = ftir_train[val_mask]
     mz_val_fold = mz_train[val_mask]
     y_val_fold = y_train[val_mask]
-    print(f"Fold {fold} train classes: {np.bincount(y_train_fold)}")
-    print(f"Fold {fold} val classes: {np.bincount(y_val_fold)}")
-    print(f"训练集: {len(ftir_train_fold)}样本, {len(np.unique(patient_indices_train[train_mask]))}患者")
-    print(f"验证集: {len(ftir_val_fold)}样本, {len(np.unique(patient_indices_train[val_mask]))}患者")
 
     # 训练模型
     writer = SummaryWriter(f'./runs/fold_{fold + 1}')

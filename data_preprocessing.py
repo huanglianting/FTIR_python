@@ -234,29 +234,29 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         ftir_shuffled = ftir_all[indices]
         mz_shuffled = mz_all[indices]
         labels_shuffled = labels_all[indices]
-        patient_ids_shuffled = patient_ids[indices]
+        patient_ids_shuffled = np.full_like(labels_shuffled, i)
         # 根据患者i所在训练/测试集分配打乱后的数据
         if i in train_patients_list:
             train_ftir.append(ftir_shuffled)
             train_mz.append(mz_shuffled)
             train_labels.append(labels_shuffled)
-            train_patients.append(patient_ids_shuffled)
+            train_patients.extend(patient_ids_shuffled)
         else:
             test_ftir.append(ftir_shuffled)
             test_mz.append(mz_shuffled)
             test_labels.append(labels_shuffled)
-            test_patients.append(patient_ids_shuffled)
+            test_patients.extend(patient_ids_shuffled)
 
     # 合并训练集数据
     ftir_train = np.vstack(train_ftir) if train_ftir else np.array([])
     mz_train = np.vstack(train_mz) if train_mz else np.array([])
     y_train = np.hstack(train_labels) if train_labels else np.array([])
-    patient_indices_train = np.hstack(train_patients) if train_patients else np.array([])
+    patient_indices_train = np.array(train_patients)
     # 合并测试集数据
     ftir_test = np.vstack(test_ftir) if test_ftir else np.array([])
     mz_test = np.vstack(test_mz) if test_mz else np.array([])
     y_test = np.hstack(test_labels) if test_labels else np.array([])
-    patient_indices_test = np.hstack(test_patients) if test_patients else np.array([])
+    patient_indices_test = np.array(test_patients)
 
     # =============================保存数据==================================================
     np.save(os.path.join(train_folder, 'ftir_train.npy'), ftir_train)
