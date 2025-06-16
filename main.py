@@ -115,178 +115,80 @@ class CoAttentionNet(nn.Module):
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        self.input_dim = 256
+        self.input_dim = 128
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
-        # 计算co-attention输出维度
-        self.co_attention_dim = self.input_dim * 2 + self.input_dim ** 2
-        # 渐进式降维
-        self.dim_reduction = nn.Sequential(
-            nn.Linear(self.co_attention_dim, 2048),
-            nn.BatchNorm1d(2048),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(2048, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, 64)  # 最终降到64维
-        )
-        # 序列长度
-        self.sequence_length = 1
-        # 卷积层 + 批归一化 + 最大池化
-        self.conv1d_1 = nn.Conv1d(64, 128, kernel_size=1, padding=0)
-        self.relu_1 = nn.ReLU()
-        self.bn_1 = nn.BatchNorm1d(128)
-        self.conv1d_2 = nn.Conv1d(128, 256, kernel_size=1, padding=0)
-        self.relu_2 = nn.ReLU()
-        self.maxpool1d = nn.MaxPool1d(kernel_size=1, stride=1)
-        self.bn_2 = nn.BatchNorm1d(256)
-        # 计算卷积层后的维度
-        self.conv_output_dim = 256 * self.sequence_length  # 256 * 1 = 256
-        # 线性层
-        self.reduced_dim = 128
-        self.linear = nn.Linear(self.conv_output_dim, self.reduced_dim)  # nn.Linear(256, 128)
-        self.dropout = nn.Dropout(0.3)
-        # 展平层
+
+        self.reduced_dim1 = 1024
+        self.reduced_dim2 = 128
         self.flatten = nn.Flatten()
-        # 输出层
-        self.fc = nn.Linear(self.reduced_dim, 2)
+        # 计算全连接层输入维度：input_dim*2 + input_dim^2 = 128*2 + 128^2
+        self.linear1 = nn.Linear(self.input_dim * 2 + self.input_dim ** 2, self.reduced_dim1)
+        self.relu = nn.ReLU()
+        self.dropout1 = nn.Dropout(0.5)
+        self.linear2 = nn.Linear(self.reduced_dim1, self.reduced_dim2)
+        self.dropout2 = nn.Dropout(0.3)
+
+        self.fc = nn.Linear(self.reduced_dim2, 2)
         self.softmax = nn.Softmax(dim=1)
+
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
         self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
 
     def forward(self, ftir, mz):
         combined_features = self.co_attention(ftir, mz)
-        combined_features = self.dim_reduction(combined_features)
-        combined_features = combined_features.unsqueeze(2)  # [batch_size, channels, sequence_length]
-        combined_features = self.bn_1(self.relu_1(self.conv1d_1(combined_features)))
-        combined_features = self.bn_2(self.maxpool1d(self.relu_2(self.conv1d_2(combined_features))))
         combined_features = self.flatten(combined_features)
-        combined_features = self.linear(combined_features)
-        combined_features = self.dropout(combined_features)
+        combined_features = self.relu(self.linear1(combined_features))
+        combined_features = self.dropout1(combined_features)
+        combined_features = self.relu(self.linear2(combined_features))
+        combined_features = self.dropout2(combined_features)
         output = self.fc(combined_features)
         output = self.softmax(output)
         return output
 
 
 class EarlyStopping:
-    def __init__(self, patience=10, verbose=False, delta=0, save_dir='checkpoints',
-                 monitor_metrics=['val_loss', 'val_accuracy', 'val_f1'],
-                 weights=[0.5, 0.3, 0.2],
-                 save_all_best=False):
+    def __init__(self, patience=10, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
         self.early_stop = False
+        self.val_loss_min = np.inf
         self.delta = delta
-        self.save_dir = save_dir
-        self.monitor_metrics = monitor_metrics
-        self.weights = weights
-        self.save_all_best = save_all_best
+        self.path = path
 
-        # 初始化保存目录
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
-        # 记录最佳模型的信息
-        self.best_epoch = 0
-        self.best_metrics = {}
-
-        # 为每个指标设置初始最佳值
-        for metric in monitor_metrics:
-            if 'loss' in metric:
-                self.best_metrics[metric] = float('inf')
-            else:  # 假设其他指标都是越大越好
-                self.best_metrics[metric] = float('-inf')
-
-    def __call__(self, metrics_dict, epoch, model):
-        # 计算综合得分
-        score = 0
-        for metric, weight in zip(self.monitor_metrics, self.weights):
-            value = metrics_dict[metric]
-            # 对于损失类指标，值越小越好；对于准确率类指标，值越大越好
-            if 'loss' in metric:
-                # 损失取负值，使其与准确率方向一致（越大越好）
-                score += -value * weight
-            else:
-                score += value * weight
-
-        # 判断是否是最佳模型
-        is_best = False
+    def __call__(self, val_loss, model):
+        score = -val_loss  # 因为要最小化损失，所以取负号
         if self.best_score is None:
-            is_best = True
-        else:
-            is_best = score > self.best_score + self.delta
-
-        # 保存最佳模型
-        if is_best:
             self.best_score = score
-            self.best_epoch = epoch
-            self.counter = 0
-
-            # 更新各指标的最佳值
-            for metric in self.monitor_metrics:
-                value = metrics_dict[metric]
-                if 'loss' in metric and value < self.best_metrics[metric]:
-                    self.best_metrics[metric] = value
-                elif 'loss' not in metric and value > self.best_metrics[metric]:
-                    self.best_metrics[metric] = value
-
-            # 保存模型
-            self.save_checkpoint(metrics_dict, epoch, model, is_best=True)
-
-            if self.verbose:
-                print(f'Epoch {epoch + 1}: 新的最佳模型 (综合得分: {score:.4f})')
-                for metric in self.monitor_metrics:
-                    print(f'  {metric}: {metrics_dict[metric]:.4f}')
-        else:
+            self.save_checkpoint(val_loss, model)
+        elif score < self.best_score + self.delta:
             self.counter += 1
-            if self.verbose:
-                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-
-            # 保存当前轮次的模型
-            if self.save_all_best:
-                self.save_checkpoint(metrics_dict, epoch, model, is_best=False)
-
+            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
-                if self.verbose:
-                    print(f"早停触发！最佳模型在第 {self.best_epoch + 1} 轮")
-                    for metric in self.monitor_metrics:
-                        print(f'最佳 {metric}: {self.best_metrics[metric]:.4f}')
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model)
+            self.counter = 0
 
-    def save_checkpoint(self, metrics_dict, epoch, model, is_best=False):
-        # 构建文件名，包含所有监控指标
-        metrics_str = "_".join([f"{metric}_{metrics_dict[metric]:.4f}" for metric in self.monitor_metrics])
-        filename = f"epoch_{epoch + 1}_{metrics_str}.pth"
-
-        # 如果是最佳模型，额外保存为best_model.pth
-        if is_best:
-            filename = "best_model.pth"
-
-        filepath = os.path.join(self.save_dir, filename)
-        torch.save(model.state_dict(), filepath)
-
-        if self.verbose and is_best:
-            print(f'保存最佳模型到: {filepath}')
-        elif self.verbose and not is_best and self.save_all_best:
-            print(f'保存当前模型到: {filepath}')
+    def save_checkpoint(self, val_loss, model):
+        # 当验证损失降低时保存模型
+        if self.verbose:
+            print(f'Validation loss 下降 ({self.val_loss_min:.6f} --> {val_loss:.6f}).  保存模型 ...')
+        torch.save(model.state_dict(), self.path)
+        self.val_loss_min = val_loss
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.2, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8):
+def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8):
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
     # 随机缩放
-    # scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
-    # x_aug = x_aug * scale
+    scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
+    x_aug = x_aug * scale
     # 随机偏移
     # shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
     # x_aug = x_aug + shift
@@ -301,11 +203,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      noise_std):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)  # L2正则化
-    early_stopping = EarlyStopping(
-        verbose=True,
-        save_dir=f'./checkpoints/fold_{fold + 1}',  # 为每个折创建单独的目录
-        save_all_best=True  # 保存所有最佳模型
-    )
+    early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
@@ -315,7 +213,6 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
     val_losses = []
     train_accuracies = []
     val_accuracies = []
-    val_f1s = []
 
     for epoch in range(epochs):
         # 训练阶段
@@ -343,8 +240,6 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         # 验证阶段
         model.eval()
         val_loss = 0
-        y_true = []
-        y_pred = []
         correct = 0
         total = 0
         with torch.no_grad():
@@ -355,14 +250,10 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                 _, predicted = torch.max(outputs.data, 1)
                 total += label_batch.size(0)
                 correct += (predicted == label_batch).sum().item()
-                y_true.extend(label_batch.cpu().numpy())
-                y_pred.extend(predicted.cpu().numpy())
         val_loss /= len(val_dataloader)
         val_accuracy = correct / total
-        val_f1 = f1_score(y_true, y_pred, average='weighted')
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
-        val_f1s.append(val_f1)
 
         print(f'Epoch [{epoch + 1}/{epochs}], '
               f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
@@ -374,18 +265,13 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         writer.add_scalar('Validation Loss', val_loss, epoch)
         writer.add_scalar('Validation Accuracy', val_accuracy, epoch)
 
-        # 早停检查
-        early_stopping(
-            metrics_dict={
-                'val_loss': val_loss,
-                'val_accuracy': val_accuracy,
-                'val_f1': val_f1
-            },
-            epoch=epoch,
-            model=model
-        )
+        early_stopping(val_loss, model)
         if early_stopping.early_stop:
+            print("Early stopping")
             break
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # 加载最佳模型
     model.load_state_dict(torch.load('checkpoints/best_model.pth'))
@@ -423,6 +309,8 @@ for fold in range(n_splits):
     ftir_val_fold = ftir_train[val_mask]
     mz_val_fold = mz_train[val_mask]
     y_val_fold = y_train[val_mask]
+    print(f"Fold {fold} train classes: {np.bincount(y_train_fold)}")
+    print(f"Fold {fold} val classes: {np.bincount(y_val_fold)}")
     print(f"训练集: {len(ftir_train_fold)}样本, {len(np.unique(patient_indices_train[train_mask]))}患者")
     print(f"验证集: {len(ftir_val_fold)}样本, {len(np.unique(patient_indices_train[val_mask]))}患者")
 

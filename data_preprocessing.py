@@ -25,7 +25,7 @@ class FTIRFeatureExtractor(nn.Module):
         # 一维卷积神经网络
         self.conv1d = nn.Conv1d(
             in_channels=1,
-            out_channels=8,
+            out_channels=4,
             kernel_size=3,
             stride=1,
             padding=1
@@ -64,7 +64,7 @@ class MZFeatureExtractor(nn.Module):
         # 一维卷积神经网络
         self.conv1d = nn.Conv1d(
             in_channels=1,
-            out_channels=8,
+            out_channels=4,
             kernel_size=3,
             stride=1,
             padding=1
@@ -175,9 +175,9 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     np.random.seed(4)
     patients = np.arange(1, 12)  # 患者i=1到11
     np.random.shuffle(patients)
-    # 划分比例：9训练(+验证)，2测试
-    train_patients_list = patients[:9]
-    test_patients_list = patients[9:]
+    # 划分比例：8训练(+验证)，3测试
+    train_patients_list = patients[:8]
+    test_patients_list = patients[3:]
 
     # 遍历每个患者，处理并分配到对应集合
     for i in patients:  # 按打乱后的顺序处理患者
