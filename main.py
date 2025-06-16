@@ -1,4 +1,3 @@
-import os
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
@@ -13,6 +12,8 @@ from sklearn.model_selection import GroupKFold
 import random
 import os
 import matplotlib
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
 
 matplotlib.use('Agg')
 
@@ -83,6 +84,23 @@ y_test = torch.tensor(y_test, dtype=torch.long)
 
 
 # ==================主模型定义====================================
+# 定义模态特征提取的分支
+class FeatureExtractor(nn.Module):
+    def __init__(self, input_dim):
+        super(FeatureExtractor, self).__init__()
+        self.net = nn.Sequential(
+            nn.Unflatten(1, (1, -1)),
+            nn.AdaptiveAvgPool1d(32),
+            nn.Flatten(),
+            nn.Dropout(0.3),
+            nn.Linear(32, 32),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 class CoAttentionNet(nn.Module):
     def __init__(self, input_dim, d_k=None):
         super(CoAttentionNet, self).__init__()
@@ -130,32 +148,26 @@ class CoAttentionNet(nn.Module):
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        self.input_dim = 128
+        self.ftir_extractor = FeatureExtractor(input_dim=ftir_input_dim)
+        self.mz_extractor = FeatureExtractor(input_dim=mz_input_dim)
+        self.input_dim = 32
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
-        self.reduced_dim1 = 1024
-        self.reduced_dim2 = 128
-        self.flatten = nn.Flatten()
-        # 计算全连接层输入维度：input_dim*2 + input_dim^2 = 128*2 + 128^2
-        self.linear1 = nn.Linear(self.input_dim * 2 + self.input_dim ** 2, self.reduced_dim1)
-        self.relu = nn.ReLU()
-        self.dropout1 = nn.Dropout(0.5)
-        self.linear2 = nn.Linear(self.reduced_dim1, self.reduced_dim2)
-        self.dropout2 = nn.Dropout(0.3)
-        self.fc = nn.Linear(self.reduced_dim2, 2)
-        self.softmax = nn.Softmax(dim=1)
-        # L2 正则化
-        self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
-        self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
+        # 轻量分类头
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(0.3),
+            nn.Linear(self.input_dim * 2 + self.input_dim ** 2, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 2),
+            nn.Softmax(dim=1)
+        )
 
     def forward(self, ftir, mz):
-        combined_features = self.co_attention(ftir, mz)
-        combined_features = self.flatten(combined_features)
-        combined_features = self.relu(self.linear1(combined_features))
-        combined_features = self.dropout1(combined_features)
-        combined_features = self.relu(self.linear2(combined_features))
-        combined_features = self.dropout2(combined_features)
-        output = self.fc(combined_features)
-        output = self.softmax(output)
+        ftir_feat = self.ftir_extractor(ftir)
+        mz_feat = self.mz_extractor(mz)
+        combined_features = self.co_attention(ftir_feat, mz_feat)
+        output = self.classifier(combined_features)
         return output
 
 
@@ -204,8 +216,8 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
     scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
     x_aug = x_aug * scale
     # 随机偏移
-    # shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
-    # x_aug = x_aug + shift
+    shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
+    x_aug = x_aug + shift
     # 随机保留峰（mask操作）
     # mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
     # x_aug = x_aug * mask.float().to(x.device)
@@ -217,6 +229,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      noise_std):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-3)  # L2正则化
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     g = torch.Generator()
@@ -270,6 +283,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         val_accuracy = correct / total
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
+        scheduler.step(val_loss)  # 根据验证损失更新学习率
 
         print(f'Epoch [{epoch + 1}/{epochs}], '
               f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '

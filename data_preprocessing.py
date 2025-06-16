@@ -7,82 +7,22 @@ import torch
 import torch.nn as nn
 
 
-# 定义FTIR模态特征提取的分支
-class FTIRFeatureExtractor(nn.Module):
-    def __init__(self, input_dim):
-        super(FTIRFeatureExtractor, self).__init__()
-        # 三层全连接网络
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.bn1 = nn.BatchNorm1d(128)
-        self.relu1 = nn.ReLU()
-        self.fc2 = nn.Linear(128, 64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.relu2 = nn.ReLU()
-        self.fc3 = nn.Linear(64, 32)
-        self.bn3 = nn.BatchNorm1d(32)
-        self.relu3 = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
-        # 一维卷积神经网络
-        self.conv1d = nn.Conv1d(
-            in_channels=1,
-            out_channels=4,
-            kernel_size=3,
-            stride=1,
-            padding=1
+# 初步提取特征
+class SimpleMLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim=64, output_dim=32):
+        super(SimpleMLP, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(hidden_dim, output_dim),
+            nn.BatchNorm1d(output_dim),
+            nn.ReLU()
         )
-        self.relu = nn.ReLU()
 
     def forward(self, x):
-        # 三层全连接
-        x = self.relu1(self.bn1(self.fc1(x)))
-        x = self.relu2(self.bn2(self.fc2(x)))
-        x = self.relu3(self.bn3(self.fc3(x)))  # [样本数, 32]
-        x = self.dropout(x)
-        # 调整维度以适应卷积层输入
-        x = x.unsqueeze(1)  # [样本数, 1, 32]
-        x = self.relu(self.conv1d(x))  # [样本数, out_channels, 32]
-        # 展平卷积输出，重新变成二维
-        x = x.view(x.size(0), -1)  # [sample, 32 * out_channels]
-        return x
-
-
-# 定义MZ模态特征提取的分支
-class MZFeatureExtractor(nn.Module):
-    def __init__(self, input_dim):
-        super(MZFeatureExtractor, self).__init__()
-        # 三层全连接网络
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.bn1 = nn.BatchNorm1d(128)
-        self.relu1 = nn.ReLU()
-        self.fc2 = nn.Linear(128, 64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.relu2 = nn.ReLU()
-        self.fc3 = nn.Linear(64, 32)
-        self.bn3 = nn.BatchNorm1d(32)
-        self.relu3 = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
-        # 一维卷积神经网络
-        self.conv1d = nn.Conv1d(
-            in_channels=1,
-            out_channels=4,
-            kernel_size=3,
-            stride=1,
-            padding=1
-        )
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        # 三层全连接
-        x = self.relu1(self.bn1(self.fc1(x)))
-        x = self.relu2(self.bn2(self.fc2(x)))
-        x = self.relu3(self.bn3(self.fc3(x)))  # [样本数, 32]
-        x = self.dropout(x)
-        # 调整维度以适应卷积层输入
-        x = x.unsqueeze(1)  # [样本数, 1, 32]
-        x = self.relu(self.conv1d(x))  # [样本数, out_channels, 32]
-        # 展平卷积输出，重新变成二维
-        x = x.view(x.size(0), -1)  # [sample, 32 * out_channels]
-        return x
+        return self.net(x)
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -160,9 +100,9 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 初始化特征提取器
-    ftir_extractor = FTIRFeatureExtractor(input_dim=len(x_ftir))
-    mz1_extractor = MZFeatureExtractor(input_dim=len(mz1))
-    mz2_extractor = MZFeatureExtractor(input_dim=len(mz2))
+    ftir_extractor = SimpleMLP(input_dim=len(x_ftir))
+    mz1_extractor = SimpleMLP(input_dim=len(mz1))
+    mz2_extractor = SimpleMLP(input_dim=len(mz2))
     # 设置为评估模式
     ftir_extractor.eval()
     mz1_extractor.eval()
@@ -185,7 +125,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         cancer_ftir_key = f'cancer{i}'
         cancer_mz_key = f'cancer_{i} [1]'
         ftir_cancer = cancer_ftir[cancer_ftir_key].T  # shape：(xxxx, 467)，如 (1421, 467)
-        # 使用FeatureExtractor网络提取特征
+        # 使用 MLP 初步提取特征
         with torch.no_grad():
             ftir_cancer_feat = ftir_extractor(torch.tensor(ftir_cancer, dtype=torch.float32)).numpy()
         if i <= 7:
@@ -204,7 +144,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
         ftir_normal = normal_ftir[normal_ftir_key].T
-        # 使用FeatureExtractor网络提取特征
+        # 使用 MLP 初步提取特征
         with torch.no_grad():
             ftir_normal_feat = ftir_extractor(torch.tensor(ftir_normal, dtype=torch.float32)).numpy()
         if i <= 7:
