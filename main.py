@@ -5,14 +5,29 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
-import matplotlib
-
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset
 from data_preprocessing import preprocess_data
 from sklearn.model_selection import GroupKFold
+import random
+import os
+import matplotlib
+
+matplotlib.use('Agg')
+
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+
+set_seed(42)  # 在程序最开始调用
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -117,7 +132,6 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.input_dim = 128
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
-
         self.reduced_dim1 = 1024
         self.reduced_dim2 = 128
         self.flatten = nn.Flatten()
@@ -127,10 +141,8 @@ class MultiModalModel(nn.Module):
         self.dropout1 = nn.Dropout(0.5)
         self.linear2 = nn.Linear(self.reduced_dim1, self.reduced_dim2)
         self.dropout2 = nn.Dropout(0.3)
-
         self.fc = nn.Linear(self.reduced_dim2, 2)
         self.softmax = nn.Softmax(dim=1)
-
         # L2 正则化
         self.fc.weight.data = torch.nn.Parameter(torch.nn.init.xavier_uniform_(self.fc.weight.data))
         self.fc.bias.data = torch.nn.Parameter(torch.nn.init.zeros_(self.fc.bias.data))
@@ -182,7 +194,9 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8):
+def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8, seed=None):
+    if seed is not None:
+        torch.manual_seed(seed)
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
@@ -205,7 +219,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-3)  # L2正则化
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    g = torch.Generator()
+    g.manual_seed(42)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=g)
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 

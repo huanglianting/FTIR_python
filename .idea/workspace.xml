@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="修改weight decay。&#10;&#10;测试集结果 - 准确率: 0.8333, 精确率: 1.0000, 召回率: 0.6667, F1: 0.8000&#10;类别0准确率: 1.0000&#10;类别1准确率: 0.6667">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="重新更新了k-fold，但是还没解决模型不稳定，每次测试结果差距很大的问题">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
@@ -227,13 +227,6 @@
       <workItem from="1745846412150" duration="822000" />
       <workItem from="1746598929750" duration="145767000" />
       <workItem from="1749783563440" duration="4583000" />
-    </task>
-    <task id="LOCAL-00017" summary="还是改成每个光谱一个自己的图了，新增函数PCA-LDA">
-      <created>1728377893751</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1728377893751</updated>
     </task>
     <task id="LOCAL-00018" summary="PCA-LDA的作图已经做好了，3D的PCA-LDA的作图也有">
       <created>1728537599503</created>
@@ -571,7 +564,14 @@
       <option name="project" value="LOCAL" />
       <updated>1750055121404</updated>
     </task>
-    <option name="localTasksCounter" value="66" />
+    <task id="LOCAL-00066" summary="重新更新了k-fold，但是还没解决模型不稳定，每次测试结果差距很大的问题">
+      <created>1750066872326</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1750066872327</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -626,7 +626,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="将PCA-LDA、PCA-RF、SVM、CNN的训练与测试函数都分开了，训练集测试集划分结果保存，不再每次都重新划分" />
     <MESSAGE value="新的FNA测试code" />
     <MESSAGE value="新的质谱作图" />
     <MESSAGE value="构建多模态之前的FNA预实验处理" />
@@ -651,13 +650,14 @@
     <MESSAGE value="改了早停，但还是不太好结果。&#10;&#10;早停触发！最佳模型在第 17 轮&#10;最佳 val_loss: 0.3217&#10;最佳 val_accuracy: 1.0000&#10;最佳 val_f1: 1.0000&#10;Early stopping&#10;五折交叉验证平均 - 准确率: 0.6354, Loss: 0.6681&#10;表现最好的折: 第 5 折&#10;&#10;测试集结果 - 准确率: 0.5000, 精确率: 0.0000, 召回率: 0.0000, F1: 0.0000&#10;类别0准确率: 1.0000&#10;类别1准确率: 0.0000" />
     <MESSAGE value="改了数据增强、数据维度、训练集占比。过拟合问题大大降低。&#10;&#10;测试集结果 - 准确率: 0.7188, 精确率: 0.7442, 召回率: 0.6667, F1: 0.7033&#10;类别0准确率: 0.7708&#10;类别1准确率: 0.6667" />
     <MESSAGE value="修改weight decay。&#10;&#10;测试集结果 - 准确率: 0.8333, 精确率: 1.0000, 召回率: 0.6667, F1: 0.8000&#10;类别0准确率: 1.0000&#10;类别1准确率: 0.6667" />
-    <option name="LAST_COMMIT_MESSAGE" value="修改weight decay。&#10;&#10;测试集结果 - 准确率: 0.8333, 精确率: 1.0000, 召回率: 0.6667, F1: 0.8000&#10;类别0准确率: 1.0000&#10;类别1准确率: 0.6667" />
+    <MESSAGE value="重新更新了k-fold，但是还没解决模型不稳定，每次测试结果差距很大的问题" />
+    <option name="LAST_COMMIT_MESSAGE" value="重新更新了k-fold，但是还没解决模型不稳定，每次测试结果差距很大的问题" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$test.coverage" NAME="test 覆盖结果" MODIFIED="1746668071607" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1750066507966" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1750071565012" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745833261298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
