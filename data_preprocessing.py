@@ -3,26 +3,6 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from load_and_preprocess import load_and_preprocess
-import torch
-import torch.nn as nn
-
-
-# 初步提取特征
-class SimpleMLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim=64, output_dim=32):
-        super(SimpleMLP, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_dim, output_dim),
-            nn.BatchNorm1d(output_dim),
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        return self.net(x)
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -62,12 +42,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
 
     # 打印每个样品的形状
     print("x_ftir shape:", x_ftir.shape)
-    for key in normal_ftir.keys():
-        print(f"spectrum_normal{key[len('normal'):]} shape:",
-              normal_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1517) (467, 1716)
-    for key in cancer_ftir.keys():
-        print(f"spectrum_cancer{key[len('cancer'):]} shape:",
-              cancer_ftir[key].shape)  # 形状均为(467, xxxx)。例如：(467, 1165) (467, 1260)
+    print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
@@ -86,31 +61,13 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # m/z列不同，保留两个不同的特征集（横坐标），形状为 (12572,)
     mz1 = df1['m/z'].values
     mz2 = df2['m/z'].values
-
-    for col, values in cancer_mz1.items():  # 癌症样本数据，每个样本形状为(12572,)
-        print(f"mz1:{col} shape:", values.shape)
-    for col, values in normal_mz1.items():  # 正常样本数据，每个样本形状为(12572,)
-        print(f"mz1:{col} shape:", values.shape)
     print("mz1 shape:", mz1.shape)
-    for col, values in cancer_mz2.items():  # 癌症样本数据，每个样本形状为(12572,)
-        print(f"mz2:{col} shape:", values.shape)
-    for col, values in normal_mz2.items():  # 正常样本数据，每个样本形状为(12572,)
-        print(f"mz2:{col} shape:", values.shape)
     print("mz2 shape:", mz2.shape)
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
-    # 初始化特征提取器
-    ftir_extractor = SimpleMLP(input_dim=len(x_ftir))
-    mz1_extractor = SimpleMLP(input_dim=len(mz1))
-    mz2_extractor = SimpleMLP(input_dim=len(mz2))
-    # 设置为评估模式
-    ftir_extractor.eval()
-    mz1_extractor.eval()
-    mz2_extractor.eval()
-
     # 按患者初始化（ 训练(+验证) / 测试 ）列表
-    train_ftir, train_mz, train_labels, train_patients = [], [], [], []
-    test_ftir, test_mz, test_labels, test_patients = [], [], [], []
+    train_ftir_raw, train_mz_raw, train_labels, train_patients = [], [], [], []
+    test_ftir_raw, test_mz_raw, test_labels, test_patients = [], [], [], []
     # 随机打乱患者顺序（1-11）
     np.random.seed(42)
     patients = np.arange(1, 12)  # 患者i=1到11
@@ -124,46 +81,28 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         # 处理癌症样本
         cancer_ftir_key = f'cancer{i}'
         cancer_mz_key = f'cancer_{i} [1]'
-        ftir_cancer = cancer_ftir[cancer_ftir_key].T  # shape：(xxxx, 467)，如 (1421, 467)
-        # 使用 MLP 初步提取特征
-        with torch.no_grad():
-            ftir_cancer_feat = ftir_extractor(torch.tensor(ftir_cancer, dtype=torch.float32)).numpy()
-        if i <= 7:
-            mz_cancer = cancer_mz1[cancer_mz_key].reshape(1, -1)   # shape：(1, 12572)
-            with torch.no_grad():
-                mz_cancer_feat = mz1_extractor(torch.tensor(mz_cancer, dtype=torch.float32)).numpy()
-        else:
-            mz_cancer = cancer_mz2[cancer_mz_key].reshape(1, -1)
-            with torch.no_grad():
-                mz_cancer_feat = mz2_extractor(torch.tensor(mz_cancer, dtype=torch.float32)).numpy()
+        ftir_cancer = cancer_ftir[cancer_ftir_key].T  # shape: (xxxx, 467)
+        mz_cancer = cancer_mz1[cancer_mz_key].reshape(1, -1) if i <= 7 else cancer_mz2[cancer_mz_key].reshape(1, -1)
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        mz_cancer_repeated = np.repeat(mz_cancer_feat, ftir_cancer.shape[0], axis=0)
+        # 先复制成 (N_samples, N_features)，再转置为 (N_features, N_samples)
+        mz_cancer_repeated = np.repeat(mz_cancer, ftir_cancer.shape[0], axis=0).T  # shape: (3888/4780, N_samples)
+        print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
         labels_cancer = np.ones(ftir_cancer.shape[0], dtype=int)  # 癌症的标签标记为1
 
         # 处理正常样本
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
         ftir_normal = normal_ftir[normal_ftir_key].T
-        # 使用 MLP 初步提取特征
-        with torch.no_grad():
-            ftir_normal_feat = ftir_extractor(torch.tensor(ftir_normal, dtype=torch.float32)).numpy()
-        if i <= 7:
-            mz_normal = normal_mz1[normal_mz_key].reshape(1, -1)   # shape：(1, 12572)
-            with torch.no_grad():
-                mz_normal_feat = mz1_extractor(torch.tensor(mz_normal, dtype=torch.float32)).numpy()
-        else:
-            mz_normal = normal_mz2[normal_mz_key].reshape(1, -1)
-            with torch.no_grad():
-                mz_normal_feat = mz2_extractor(torch.tensor(mz_normal, dtype=torch.float32)).numpy()
+        mz_normal = normal_mz1[normal_mz_key].reshape(1, -1) if i <= 7 else normal_mz2[normal_mz_key].reshape(1, -1)
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        mz_normal_repeated = np.repeat(mz_normal_feat, ftir_normal.shape[0], axis=0)
+        mz_normal_repeated = np.repeat(mz_normal, ftir_normal.shape[0], axis=0).T
         labels_normal = np.zeros(ftir_normal.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
 
         # 合并患者i的所有样本
-        ftir_all = np.vstack([ftir_cancer_feat, ftir_normal_feat])
+        ftir_all = np.vstack([ftir_cancer, ftir_normal])
         mz_all = np.vstack([mz_cancer_repeated, mz_normal_repeated])
         labels_all = np.hstack([labels_cancer, labels_normal])
-        patient_ids = np.full_like(labels_all, i)  # 为每个样本添加患者ID
+        patient_ids = np.full_like(labels_all, i)   # 为每个样本添加患者ID
 
         # 打乱单个患者内的癌症/正常顺序，不然都是010101
         # 生成打乱索引
@@ -177,35 +116,25 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         patient_ids_shuffled = np.full_like(labels_shuffled, i)
         # 根据患者i所在训练/测试集分配打乱后的数据
         if i in train_patients_list:
-            train_ftir.append(ftir_shuffled)
-            train_mz.append(mz_shuffled)
+            train_ftir_raw.append(ftir_shuffled)
+            train_mz_raw.append(mz_shuffled)
             train_labels.append(labels_shuffled)
             train_patients.extend(patient_ids_shuffled)
         else:
-            test_ftir.append(ftir_shuffled)
-            test_mz.append(mz_shuffled)
+            test_ftir_raw.append(ftir_shuffled)
+            test_mz_raw.append(mz_shuffled)
             test_labels.append(labels_shuffled)
             test_patients.extend(patient_ids_shuffled)
 
     # 合并训练集数据
-    ftir_train = np.vstack(train_ftir) if train_ftir else np.array([])
-    mz_train = np.vstack(train_mz) if train_mz else np.array([])
+    ftir_train_raw = np.vstack(train_ftir_raw) if train_ftir_raw else np.array([])
+    mz_train_raw = np.vstack(train_mz_raw) if train_mz_raw else np.array([])
     y_train = np.hstack(train_labels) if train_labels else np.array([])
     patient_indices_train = np.array(train_patients)
     # 合并测试集数据
-    ftir_test = np.vstack(test_ftir) if test_ftir else np.array([])
-    mz_test = np.vstack(test_mz) if test_mz else np.array([])
+    ftir_test_raw = np.vstack(test_ftir_raw) if test_ftir_raw else np.array([])
+    mz_test_raw = np.vstack(test_mz_raw) if test_mz_raw else np.array([])
     y_test = np.hstack(test_labels) if test_labels else np.array([])
     patient_indices_test = np.array(test_patients)
 
-    # =============================保存数据==================================================
-    np.save(os.path.join(train_folder, 'ftir_train.npy'), ftir_train)
-    np.save(os.path.join(train_folder, 'mz_train.npy'), mz_train)
-    np.save(os.path.join(train_folder, 'y_train.npy'), y_train)
-    np.save(os.path.join(train_folder, 'patient_indices_train.npy'), patient_indices_train)
-    np.save(os.path.join(test_folder, 'ftir_test.npy'), ftir_test)
-    np.save(os.path.join(test_folder, 'mz_test.npy'), mz_test)
-    np.save(os.path.join(test_folder, 'y_test.npy'), y_test)
-    np.save(os.path.join(test_folder, 'patient_indices_test.npy'), patient_indices_test)
-
-    return ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test
+    return ftir_train_raw, mz_train_raw, y_train, patient_indices_train, ftir_test_raw, mz_test_raw, y_test, patient_indices_test

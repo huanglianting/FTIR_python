@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="新增SVM消融对比，已经确认不是MLP提取特征的问题，问题就出在神经网络太复杂上了">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="使用了残差连接，删去注意力，迄今为止验证集取得的最好的结果">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -226,20 +227,6 @@
       <workItem from="1745846412150" duration="822000" />
       <workItem from="1746598929750" duration="145767000" />
       <workItem from="1749783563440" duration="4583000" />
-    </task>
-    <task id="LOCAL-00021" summary="删除了flatten_region.py、plot_spectrum_with_mean_std.py，把perform_pca_lda_analysis.py给写完了">
-      <created>1728632839423</created>
-      <option name="number" value="00021" />
-      <option name="presentableId" value="LOCAL-00021" />
-      <option name="project" value="LOCAL" />
-      <updated>1728632839423</updated>
-    </task>
-    <task id="LOCAL-00022" summary="新增PCA-RF方法">
-      <created>1728636429085</created>
-      <option name="number" value="00022" />
-      <option name="presentableId" value="LOCAL-00022" />
-      <option name="project" value="LOCAL" />
-      <updated>1728636429085</updated>
     </task>
     <task id="LOCAL-00023" summary="这一版本是未用PCA降维，直接使用RF方法">
       <created>1728637048014</created>
@@ -570,7 +557,21 @@
       <option name="project" value="LOCAL" />
       <updated>1750139510195</updated>
     </task>
-    <option name="localTasksCounter" value="70" />
+    <task id="LOCAL-00070" summary="使用了残差连接，删去注意力，迄今为止验证集取得的最好的结果">
+      <created>1750141639581</created>
+      <option name="number" value="00070" />
+      <option name="presentableId" value="LOCAL-00070" />
+      <option name="project" value="LOCAL" />
+      <updated>1750141639581</updated>
+    </task>
+    <task id="LOCAL-00071" summary="使用了残差连接，删去注意力，迄今为止验证集取得的最好的结果">
+      <created>1750141653036</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1750141653036</updated>
+    </task>
+    <option name="localTasksCounter" value="72" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -625,7 +626,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="多模态之前的FNA预实验处理对于FTIR和m/z数据的pca特征压缩、在特征维度上的拼接均已实现" />
     <MESSAGE value="新增数据增强" />
     <MESSAGE value="合并、删除一些非必要函数" />
     <MESSAGE value="网络初步实现" />
@@ -650,13 +650,14 @@
     <MESSAGE value="解决了固定随机种子，每次测试结果差距很大的问题。但模型仍然很复杂，不稳定，过拟合。" />
     <MESSAGE value="简化了网络，但仍然不够&#10;测试集结果 - 准确率: 0.6667, 精确率: 0.6667, 召回率: 0.6667, F1: 0.6667&#10;类别0准确率: 0.6667&#10;类别1准确率: 0.6667" />
     <MESSAGE value="新增SVM消融对比，已经确认不是MLP提取特征的问题，问题就出在神经网络太复杂上了" />
-    <option name="LAST_COMMIT_MESSAGE" value="新增SVM消融对比，已经确认不是MLP提取特征的问题，问题就出在神经网络太复杂上了" />
+    <MESSAGE value="使用了残差连接，删去注意力，迄今为止验证集取得的最好的结果" />
+    <option name="LAST_COMMIT_MESSAGE" value="使用了残差连接，删去注意力，迄今为止验证集取得的最好的结果" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$test.coverage" NAME="test 覆盖结果" MODIFIED="1746668071607" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1750141463169" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1750152684845" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745833261298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

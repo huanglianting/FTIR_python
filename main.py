@@ -42,30 +42,13 @@ if not os.path.exists(save_path):
 # 调用预处理函数
 train_folder = os.path.join(save_path, 'train')
 test_folder = os.path.join(save_path, 'test')
-ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test = preprocess_data(
+ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, _ = preprocess_data(
     ftir_file_path, mz_file_path1,
     mz_file_path2, train_folder,
     test_folder, save_path)
 # 打印训练集和测试集的类别分布
 print("训练集类别分布:", np.bincount(y_train))
 print("测试集类别分布:", np.bincount(y_test))
-
-"""
-# ====================读取训练集和测试集=====================================
-def read_data():
-    train_folder = os.path.join(save_path, 'train')
-    test_folder = os.path.join(save_path, 'test')
-    ftir_train = np.load(os.path.join(train_folder, 'ftir_train.npy'))
-    mz_train = np.load(os.path.join(train_folder, 'mz_train.npy'))
-    y_train = np.load(os.path.join(train_folder, 'y_train.npy'))
-    ftir_test = np.load(os.path.join(test_folder, 'ftir_test.npy'))
-    mz_test = np.load(os.path.join(test_folder, 'mz_test.npy'))
-    y_test = np.load(os.path.join(test_folder, 'y_test.npy'))
-    return ftir_train, mz_train, y_train, ftir_test, mz_test, y_test
-
-
-ftir_train, mz_train, y_train, ftir_test, mz_test, y_test = read_data()
-"""
 
 # 数据标准化
 scaler_ftir = StandardScaler()
@@ -82,6 +65,7 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
+patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 
 # ==================主模型定义====================================
@@ -91,10 +75,13 @@ class FeatureExtractor(nn.Module):
         super(FeatureExtractor, self).__init__()
         self.net = nn.Sequential(
             nn.Unflatten(1, (1, -1)),
+            nn.Conv1d(1, 16, kernel_size=5, stride=2),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
             nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
-            nn.Dropout(0.3),
-            nn.Linear(32, 32),
+            nn.Linear(16 * 32, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU()
         )
 
@@ -123,10 +110,9 @@ class MultiModalModel(nn.Module):
         self.ftir_extractor = FeatureExtractor(input_dim=ftir_input_dim)
         self.mz_extractor = FeatureExtractor(input_dim=mz_input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(ftir_input_dim + mz_input_dim, 64),
+            nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            SimpleResidualBlock(64),
             SimpleResidualBlock(64),
             nn.Linear(64, 2),
             nn.Softmax(dim=1)
@@ -175,31 +161,26 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.05, 0.05), keep_ratio=0.8, seed=None):
+def data_augmentation(x, noise_std=0.1, seed=None):
     if seed is not None:
         torch.manual_seed(seed)
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
-    # 随机缩放
-    # scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
-    # x_aug = x_aug * scale
-    # 随机偏移
-    # shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
-    # x_aug = x_aug + shift
-    # 随机保留峰（mask操作）
-    # mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
-    # x_aug = x_aug * mask.float().to(x.device)
     return x_aug
 
 
 # ==================主模型训练====================================
-def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer,
-                     noise_std):
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # 防止模型过于自信
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer):
+    class_counts = np.bincount(y_train_fold.numpy())
+    weights = 1. / class_counts
+    weights = torch.tensor([1.0, 2.0], dtype=torch.float)  # 给类别1更高的权重
+
+    criterion = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)  # 防止模型过于自信
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
+
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     g = torch.Generator()
     g.manual_seed(42)
@@ -306,6 +287,7 @@ for fold in range(n_splits):
     ftir_train_fold = ftir_train[train_mask]
     mz_train_fold = mz_train[train_mask]
     y_train_fold = y_train[train_mask]
+    patient_indices_train_fold = patient_indices_train[train_mask]
     ftir_val_fold = ftir_train[val_mask]
     mz_val_fold = mz_train[val_mask]
     y_val_fold = y_train[val_mask]
@@ -314,9 +296,12 @@ for fold in range(n_splits):
     writer = SummaryWriter(f'./runs/fold_{fold + 1}')
     model = MultiModalModel(ftir_train_fold.shape[1], mz_train_fold.shape[1])
     model, train_losses, val_losses, train_accuracies, val_accuracies = train_main_model(
-        model, ftir_train_fold, mz_train_fold, y_train_fold,
+        model,
+        ftir_train_fold, mz_train_fold, y_train_fold,
         ftir_val_fold, mz_val_fold, y_val_fold,
-        epochs=200, batch_size=32, writer=writer, noise_std=0.3
+        epochs=200,
+        batch_size=32,
+        writer=writer
     )
     writer.close()
 
