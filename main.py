@@ -13,7 +13,8 @@ import random
 import os
 import matplotlib
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report
 
 matplotlib.use('Agg')
 
@@ -133,6 +134,13 @@ class CoAttentionNet(nn.Module):
         # 计算跨模态上下文向量
         F_IM = torch.matmul(A_IM, V_I)  # [batch_size, input_dim]
         F_MI = torch.matmul(A_MI, V_M)  # [batch_size, input_dim]
+        # 简化模态内特征与注意力结果融合，直接使用跨模态上下文向量
+        # 移除原代码中复杂的逐元素相乘和矩阵乘法步骤
+        output = torch.cat([F_IM, F_MI], dim=-1)  # [batch_size, input_dim*2]
+        return output
+
+
+'''
         # 模态内特征与注意力结果融合（逐元素相乘）
         Hat_A_IM = A_IM.unsqueeze(-1) * X_M.unsqueeze(1)  # [batch_size, batch_size, input_dim]
         Hat_A_MI = A_MI.unsqueeze(-1) * X_I.unsqueeze(1)  # [batch_size, batch_size, input_dim]
@@ -141,7 +149,24 @@ class CoAttentionNet(nn.Module):
         A_MI_flatten = A_MI_final.flatten(start_dim=1)  # [batch_size, input_dim^2]
         # 融合所有特征：跨模态上下文 + 模态间注意力
         output = torch.cat([F_IM, F_MI, A_MI_flatten], dim=-1)  # [batch_size, input_dim*2 + input_dim^2]
-        return output
+'''
+
+
+class SimpleFusion(nn.Module):
+    def __init__(self, ftir_dim, mz_dim, hidden_dim=128):
+        super(SimpleFusion, self).__init__()
+        self.fuse = nn.Sequential(
+            nn.Linear(ftir_dim + mz_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.4),
+            nn.Linear(hidden_dim, 2),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, ftir_feat, mz_feat):
+        x = torch.cat([ftir_feat, mz_feat], dim=-1)
+        return self.fuse(x)
 
 
 # 完整的模型
@@ -152,22 +177,31 @@ class MultiModalModel(nn.Module):
         self.mz_extractor = FeatureExtractor(input_dim=mz_input_dim)
         self.input_dim = 32
         self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
-        # 轻量分类头
+        self.simple_fusion = SimpleFusion(ftir_dim=ftir_input_dim, mz_dim=mz_input_dim)
+        co_attn_out_dim = 64  # Co-Attention 输出维度，原来是self.input_dim * 2 + self.input_dim ** 2
+        feat_ext_out_dim = 32  # FeatureExtractor 输出维度
+        total_dim = co_attn_out_dim + feat_ext_out_dim * 2
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Dropout(0.3),
-            nn.Linear(self.input_dim * 2 + self.input_dim ** 2, 128),
+            nn.Linear(total_dim, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 2),
+            nn.Dropout(0.5),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(0.4),
+            nn.Linear(64, 2),
             nn.Softmax(dim=1)
         )
 
     def forward(self, ftir, mz):
         ftir_feat = self.ftir_extractor(ftir)
         mz_feat = self.mz_extractor(mz)
-        combined_features = self.co_attention(ftir_feat, mz_feat)
-        output = self.classifier(combined_features)
+        co_attn_output = self.co_attention(ftir, mz)
+        feat = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, 64]
+        combined = torch.cat([co_attn_output, feat], dim=-1)  # [B, 128]
+        output = self.classifier(combined)  # [B, 2]
+        # output = self.simple_fusion(ftir_feat, mz_feat)   # 这是简单融合，测试用的
         return output
 
 
@@ -227,7 +261,7 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
 # ==================主模型训练====================================
 def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer,
                      noise_std):
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # 防止模型过于自信
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-3)  # L2正则化
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
@@ -400,6 +434,23 @@ accuracy_class_1 = (test_pred[class_1_indices] == y_test[class_1_indices]).float
 print(f'类别0准确率: {accuracy_class_0:.4f}')
 print(f'类别1准确率: {accuracy_class_1:.4f}')
 
+
+# 和SVM作对比，看看是当前神经网络效果如何
+train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
+test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()])
+y_labels = y_train.numpy()
+y_test_labels = y_test.numpy()
+
+# 训练 SVM 分类器
+clf = SVC(kernel='rbf', probability=True)
+clf.fit(train_features, y_labels)
+
+# 预测并输出报告
+preds = clf.predict(test_features)
+print("\nSVM 分类结果:")
+print(classification_report(y_test_labels, preds))
+
+
 # 绘制混淆矩阵
 cm = confusion_matrix(y_test, test_pred)
 plt.figure(figsize=(8, 6))
@@ -417,8 +468,8 @@ torch.save(best_model.state_dict(), os.path.join(save_path, 'best_model.pth'))
 plt.figure(figsize=(12, 5))
 plt.subplot(1, 2, 1)
 for i, fold_result in enumerate(fold_results):
-    plt.plot(fold_result['train_losses'], label=f'Fold {i+1} Train Loss')
-    plt.plot(fold_result['val_losses'], label=f'Fold {i+1} Val Loss')
+    plt.plot(fold_result['train_losses'], label=f'Fold {i + 1} Train Loss')
+    plt.plot(fold_result['val_losses'], label=f'Fold {i + 1} Val Loss')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
 plt.title('Training and Validation Loss of All Folds')
@@ -426,8 +477,8 @@ plt.legend()
 
 plt.subplot(1, 2, 2)
 for i, fold_result in enumerate(fold_results):
-    plt.plot(fold_result['train_accuracies'], label=f'Fold {i+1} Train Accuracy')
-    plt.plot(fold_result['val_accuracies'], label=f'Fold {i+1} Val Accuracy')
+    plt.plot(fold_result['train_accuracies'], label=f'Fold {i + 1} Train Accuracy')
+    plt.plot(fold_result['val_accuracies'], label=f'Fold {i + 1} Val Accuracy')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.title('Training and Validation Accuracy of All Folds')
