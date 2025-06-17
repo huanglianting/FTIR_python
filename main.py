@@ -102,71 +102,18 @@ class FeatureExtractor(nn.Module):
         return self.net(x)
 
 
-class CoAttentionNet(nn.Module):
-    def __init__(self, input_dim, d_k=None):
-        super(CoAttentionNet, self).__init__()
-        self.input_dim = input_dim
-        self.d_k = d_k if d_k is not None else input_dim  # 缩放因子d_k，若未指定，默认=input_dim
-        self.W_qI = nn.Linear(input_dim, self.d_k)  # Q的维度为d_k
-        self.W_kI = nn.Linear(input_dim, self.d_k)  # K的维度为d_k
-        self.W_vI = nn.Linear(input_dim, input_dim)  # V的维度保持input_dim
-        self.W_qM = nn.Linear(input_dim, self.d_k)
-        self.W_kM = nn.Linear(input_dim, self.d_k)
-        self.W_vM = nn.Linear(input_dim, input_dim)
-        self.softmax = nn.Softmax(dim=-1)
-
-    def forward(self, X_I, X_M):
-        # X_I (模态FTIR) 和 X_M (模态MZ) 形状均为 [batch_size, input_dim]
-        # 计算模态FTIR的Q、K、V
-        Q_I = self.W_qI(X_I)  # [batch_size, d_k]
-        K_I = self.W_kI(X_I)  # [batch_size, d_k]
-        V_I = self.W_vI(X_I)  # [batch_size, input_dim]
-        # 计算模态MZ的Q、K、V
-        Q_M = self.W_qM(X_M)  # [batch_size, d_k]
-        K_M = self.W_kM(X_M)  # [batch_size, d_k]
-        V_M = self.W_vM(X_M)  # [batch_size, input_dim]
-        # 计算跨模态注意力分数（带缩放因子）
-        S_IM = torch.matmul(Q_M, K_I.transpose(-2, -1)) / np.sqrt(self.d_k)  # [batch_size, batch_size]
-        S_MI = torch.matmul(Q_I, K_M.transpose(-2, -1)) / np.sqrt(self.d_k)  # [batch_size, batch_size]
-        # 软最大化归一化
-        A_IM = self.softmax(S_IM)  # 模态I到M的注意力权重
-        A_MI = self.softmax(S_MI)  # 模态M到I的注意力权重
-        # 计算跨模态上下文向量
-        F_IM = torch.matmul(A_IM, V_I)  # [batch_size, input_dim]
-        F_MI = torch.matmul(A_MI, V_M)  # [batch_size, input_dim]
-        # 简化模态内特征与注意力结果融合，直接使用跨模态上下文向量
-        # 移除原代码中复杂的逐元素相乘和矩阵乘法步骤
-        output = torch.cat([F_IM, F_MI], dim=-1)  # [batch_size, input_dim*2]
-        return output
-
-
-'''
-        # 模态内特征与注意力结果融合（逐元素相乘）
-        Hat_A_IM = A_IM.unsqueeze(-1) * X_M.unsqueeze(1)  # [batch_size, batch_size, input_dim]
-        Hat_A_MI = A_MI.unsqueeze(-1) * X_I.unsqueeze(1)  # [batch_size, batch_size, input_dim]
-        # 模态间注意力矩阵乘法（特征维度交互）
-        A_MI_final = torch.matmul(Hat_A_IM.permute(0, 2, 1), Hat_A_MI)  # [batch_size, input_dim, input_dim]
-        A_MI_flatten = A_MI_final.flatten(start_dim=1)  # [batch_size, input_dim^2]
-        # 融合所有特征：跨模态上下文 + 模态间注意力
-        output = torch.cat([F_IM, F_MI, A_MI_flatten], dim=-1)  # [batch_size, input_dim*2 + input_dim^2]
-'''
-
-
-class SimpleFusion(nn.Module):
-    def __init__(self, ftir_dim, mz_dim, hidden_dim=128):
-        super(SimpleFusion, self).__init__()
-        self.fuse = nn.Sequential(
-            nn.Linear(ftir_dim + mz_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
+class SimpleResidualBlock(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.BatchNorm1d(dim),
             nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, 2),
-            nn.Softmax(dim=1)
+            nn.Dropout(0.5)
         )
 
-    def forward(self, ftir_feat, mz_feat):
-        x = torch.cat([ftir_feat, mz_feat], dim=-1)
-        return self.fuse(x)
+    def forward(self, x):
+        return x + self.net(x)
 
 
 # 完整的模型
@@ -175,21 +122,12 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FeatureExtractor(input_dim=ftir_input_dim)
         self.mz_extractor = FeatureExtractor(input_dim=mz_input_dim)
-        self.input_dim = 32
-        self.co_attention = CoAttentionNet(input_dim=self.input_dim, d_k=32)
-        self.simple_fusion = SimpleFusion(ftir_dim=ftir_input_dim, mz_dim=mz_input_dim)
-        co_attn_out_dim = 64  # Co-Attention 输出维度，原来是self.input_dim * 2 + self.input_dim ** 2
-        feat_ext_out_dim = 32  # FeatureExtractor 输出维度
-        total_dim = co_attn_out_dim + feat_ext_out_dim * 2
         self.classifier = nn.Sequential(
-            nn.Linear(total_dim, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, 64),
+            nn.Linear(ftir_input_dim + mz_input_dim, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.4),
+            SimpleResidualBlock(64),
+            SimpleResidualBlock(64),
             nn.Linear(64, 2),
             nn.Softmax(dim=1)
         )
@@ -197,11 +135,8 @@ class MultiModalModel(nn.Module):
     def forward(self, ftir, mz):
         ftir_feat = self.ftir_extractor(ftir)
         mz_feat = self.mz_extractor(mz)
-        co_attn_output = self.co_attention(ftir, mz)
-        feat = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, 64]
-        combined = torch.cat([co_attn_output, feat], dim=-1)  # [B, 128]
+        combined = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, ftir_dim + mz_dim]
         output = self.classifier(combined)  # [B, 2]
-        # output = self.simple_fusion(ftir_feat, mz_feat)   # 这是简单融合，测试用的
         return output
 
 
@@ -247,11 +182,11 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
     # 随机缩放
-    scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
-    x_aug = x_aug * scale
+    # scale = torch.FloatTensor([np.random.uniform(*scale_range)]).to(x.device)
+    # x_aug = x_aug * scale
     # 随机偏移
-    shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
-    x_aug = x_aug + shift
+    # shift = torch.FloatTensor([np.random.uniform(*shift_range)]).to(x.device)
+    # x_aug = x_aug + shift
     # 随机保留峰（mask操作）
     # mask = torch.rand(x_aug.shape[1]) > (1 - keep_ratio)
     # x_aug = x_aug * mask.float().to(x.device)
@@ -262,7 +197,7 @@ def data_augmentation(x, noise_std=0.3, scale_range=(0.9, 1.1), shift_range=(-0.
 def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer,
                      noise_std):
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # 防止模型过于自信
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-3)  # L2正则化
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
