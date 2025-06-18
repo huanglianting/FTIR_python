@@ -69,6 +69,23 @@ patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 
 # ==================主模型定义====================================
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=16):
+        super(SEBlock, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction, bias=False),
+            nn.ReLU(),
+            nn.Linear(channels // reduction, channels, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):  # [B, C, L]
+        y = self.avg_pool(x).view(x.size(0), x.size(1))
+        y = self.fc(y).view(x.size(0), x.size(1), 1)
+        return x * y.expand_as(x)
+
+
 # 定义模态特征提取的分支
 class FeatureExtractor(nn.Module):
     def __init__(self, input_dim):
@@ -78,6 +95,7 @@ class FeatureExtractor(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
+            SEBlock(32),  # 添加 SE 注意力
             nn.MaxPool1d(3, 2),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),

@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from load_and_preprocess import load_and_preprocess
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -131,6 +133,16 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     mz_train_raw = np.vstack(train_mz_raw) if train_mz_raw else np.array([])
     y_train = np.hstack(train_labels) if train_labels else np.array([])
     patient_indices_train = np.array(train_patients)
+    # FTIR train raw 的 PCA 图
+    pca = PCA(n_components=2)
+    ftir_pca = pca.fit_transform(ftir_train_raw)
+    plt.scatter(ftir_pca[y_train == 0, 0], ftir_pca[y_train == 0, 1], label='Normal')
+    plt.scatter(ftir_pca[y_train == 1, 0], ftir_pca[y_train == 1, 1], label='Cancer')
+    plt.legend()
+    plt.title("FTIR Data Distribution")
+    plt.savefig('FTIR_Data_Distribution.png')
+    plt.close()
+
     # 合并测试集数据
     ftir_test_raw = np.vstack(test_ftir_raw) if test_ftir_raw else np.array([])
     mz_test_raw = np.vstack(test_mz_raw) if test_mz_raw else np.array([])
