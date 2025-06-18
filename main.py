@@ -87,9 +87,9 @@ class SEBlock(nn.Module):
 
 
 # 定义模态特征提取的分支
-class FeatureExtractor(nn.Module):
+class FTIREncoder(nn.Module):
     def __init__(self, input_dim):
-        super(FeatureExtractor, self).__init__()
+        super(FTIREncoder, self).__init__()
         self.net = nn.Sequential(
             nn.Unflatten(1, (1, -1)),
             nn.Conv1d(1, 32, 7, stride=2),
@@ -98,6 +98,30 @@ class FeatureExtractor(nn.Module):
             SEBlock(32),  # 添加 SE 注意力
             nn.MaxPool1d(3, 2),
             nn.Conv1d(32, 64, 5, stride=2),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(64),
+            nn.Flatten(),
+            nn.Linear(64 * 64, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(0.5)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class MZEncoder(nn.Module):
+    def __init__(self, input_dim):
+        super(MZEncoder, self).__init__()
+        self.net = nn.Sequential(
+            nn.Unflatten(1, (1, -1)),
+            nn.Conv1d(1, 32, 5, stride=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            SEBlock(32),
+            nn.Conv1d(32, 64, 3, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
@@ -126,14 +150,34 @@ class SimpleResidualBlock(nn.Module):
         return x + self.net(x)
 
 
+class GatedFusion(nn.Module):
+    def __init__(self, dim=128):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.Linear(dim * 2, dim),
+            nn.ReLU(),
+            nn.Linear(dim, 2),
+            nn.Softmax(dim=1)
+        )
+        self.bias = nn.Parameter(torch.tensor([0.5, 0.5]))  # 初始为平均融合
+
+    def forward(self, ftir_feat, mz_feat):
+        combined = torch.cat([ftir_feat, mz_feat], dim=1)
+        weights = self.gate(combined) * self.bias  # 加权融合
+        weights = weights / weights.sum(dim=1, keepdim=True)  # 归一化
+        fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
+        return fused.squeeze(1)
+
+
 # 多模态模型
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
-        self.ftir_extractor = FeatureExtractor(input_dim=ftir_input_dim)
-        self.mz_extractor = FeatureExtractor(input_dim=mz_input_dim)
+        self.ftir_extractor = FTIREncoder(input_dim=ftir_input_dim)
+        self.mz_extractor = MZEncoder(input_dim=mz_input_dim)
+        self.fuser = GatedFusion(dim=128)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 64),
+            nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             SimpleResidualBlock(64),
@@ -144,16 +188,17 @@ class MultiModalModel(nn.Module):
     def forward(self, ftir, mz):
         ftir_feat = self.ftir_extractor(ftir)
         mz_feat = self.mz_extractor(mz)
-        combined = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, ftir_dim + mz_dim]
+        combined = self.fuser(ftir_feat, mz_feat)
+        # combined = torch.cat([ftir_feat, mz_feat], dim=-1)
         output = self.classifier(combined)  # [B, 2]
         return output
 
 
 # 单模态模型
-class SingleModalModel(nn.Module):
+class SingleFTIRModel(nn.Module):
     def __init__(self, input_dim):
-        super(SingleModalModel, self).__init__()
-        self.feature_extractor = FeatureExtractor(input_dim=input_dim)
+        super(SingleFTIRModel, self).__init__()
+        self.encoder = FTIREncoder(input_dim=input_dim)
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
@@ -164,7 +209,26 @@ class SingleModalModel(nn.Module):
         )
 
     def forward(self, x):
-        features = self.feature_extractor(x)
+        features = self.encoder(x)
+        output = self.classifier(features)
+        return output
+
+
+class SingleMZModel(nn.Module):
+    def __init__(self, input_dim):
+        super(SingleMZModel, self).__init__()
+        self.encoder = MZEncoder(input_dim=input_dim)
+        self.classifier = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            SimpleResidualBlock(64),
+            nn.Linear(64, 2),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, x):
+        features = self.encoder(x)
         output = self.classifier(features)
         return output
 
@@ -462,7 +526,7 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
     })
 
     print("\n==== 训练 FTIR-only 模型 ====")
-    ftir_model = SingleModalModel(ftir_train.shape[1])
+    ftir_model = SingleFTIRModel(ftir_train.shape[1])
     ftir_writer = SummaryWriter('./runs/ftir_only')
     ftir_model, ftir_train_losses, ftir_val_losses, ftir_train_accs, ftir_val_accs = train_single_modal_model(
         ftir_model,
@@ -477,7 +541,7 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
     ftir_writer.close()
 
     print("\n==== 训练 mz-only 模型 ====")
-    mz_model = SingleModalModel(mz_train.shape[1])
+    mz_model = SingleMZModel(mz_train.shape[1])
     mz_writer = SummaryWriter('./runs/mz_only')
     mz_model, mz_train_losses, mz_val_losses, mz_train_accs, mz_val_accs = train_single_modal_model(
         mz_model,

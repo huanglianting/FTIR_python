@@ -1,10 +1,11 @@
-import os
 import numpy as np
 import pandas as pd
 import scipy.io as sio
+import seaborn as sns
 from load_and_preprocess import load_and_preprocess
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+sns.set_style("whitegrid")
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -133,11 +134,18 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     mz_train_raw = np.vstack(train_mz_raw) if train_mz_raw else np.array([])
     y_train = np.hstack(train_labels) if train_labels else np.array([])
     patient_indices_train = np.array(train_patients)
+
     # FTIR train raw 的 PCA 图
     pca = PCA(n_components=2)
     ftir_pca = pca.fit_transform(ftir_train_raw)
-    plt.scatter(ftir_pca[y_train == 0, 0], ftir_pca[y_train == 0, 1], label='Normal')
-    plt.scatter(ftir_pca[y_train == 1, 0], ftir_pca[y_train == 1, 1], label='Cancer')
+    colors = ['#0072B2', '#D55E00']  # 蓝色和橙色，类似常见论文配色
+    # 绘制散点图并设置透明度
+    plt.scatter(ftir_pca[y_train == 0, 0], ftir_pca[y_train == 0, 1],
+                label='Normal', c=colors[0], alpha=0.6)
+    plt.scatter(ftir_pca[y_train == 1, 0], ftir_pca[y_train == 1, 1],
+                label='Cancer', c=colors[1], alpha=0.6)
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
     plt.legend()
     plt.title("FTIR Data Distribution")
     plt.savefig('FTIR_Data_Distribution.png')
