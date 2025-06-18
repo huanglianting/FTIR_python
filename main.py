@@ -75,14 +75,19 @@ class FeatureExtractor(nn.Module):
         super(FeatureExtractor, self).__init__()
         self.net = nn.Sequential(
             nn.Unflatten(1, (1, -1)),
-            nn.Conv1d(1, 16, kernel_size=5, stride=2),
-            nn.BatchNorm1d(16),
+            nn.Conv1d(1, 32, 7, stride=2),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(32),
-            nn.Flatten(),
-            nn.Linear(16 * 32, 64),
+            nn.MaxPool1d(3, 2),
+            nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
-            nn.ReLU()
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(64),
+            nn.Flatten(),
+            nn.Linear(64 * 64, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(0.5)
         )
 
     def forward(self, x):
@@ -103,14 +108,14 @@ class SimpleResidualBlock(nn.Module):
         return x + self.net(x)
 
 
-# 完整的模型
+# 多模态模型
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FeatureExtractor(input_dim=ftir_input_dim)
         self.mz_extractor = FeatureExtractor(input_dim=mz_input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(256, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             SimpleResidualBlock(64),
@@ -124,6 +129,40 @@ class MultiModalModel(nn.Module):
         combined = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, ftir_dim + mz_dim]
         output = self.classifier(combined)  # [B, 2]
         return output
+
+
+# 单模态模型
+class SingleModalModel(nn.Module):
+    def __init__(self, input_dim):
+        super(SingleModalModel, self).__init__()
+        self.feature_extractor = FeatureExtractor(input_dim=input_dim)
+        self.classifier = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            SimpleResidualBlock(64),
+            nn.Linear(64, 2),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, x):
+        features = self.feature_extractor(x)
+        output = self.classifier(features)
+        return output
+
+
+# 单模态模型评价指标函数
+def evaluate_model(model, x_test, y_test, name="Model"):
+    model.eval()
+    with torch.no_grad():
+        outputs = model(x_test)
+        _, predicted = torch.max(outputs, 1)
+        acc = accuracy_score(y_test, predicted)
+        f1 = f1_score(y_test, predicted)
+        prec = precision_score(y_test, predicted)
+        rec = recall_score(y_test, predicted)
+        print(f"{name} - 准确率: {acc:.4f}, 精确率: {prec:.4f}, 召回率: {rec:.4f}, F1: {f1:.4f}")
+    return acc, prec, rec, f1
 
 
 class EarlyStopping:
@@ -161,22 +200,25 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.1, seed=None):
+def data_augmentation(x, noise_std=0.1, scaling_factor=0.1, shift_range=0.05, seed=None):
     if seed is not None:
         torch.manual_seed(seed)
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
+    # 随机缩放
+    scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
+    x_aug= x_aug * scale.clamp(min=0.9, max=1.1)
+    # 随机偏移
+    shift = torch.randint(-int(x_aug.shape[1] * shift_range), int(x_aug.shape[1] * shift_range), (1,))
+    x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
     return x_aug
 
 
 # ==================主模型训练====================================
+# 多模态模型训练
 def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer):
-    class_counts = np.bincount(y_train_fold.numpy())
-    weights = 1. / class_counts
-    weights = torch.tensor([1.0, 2.0], dtype=torch.float)  # 给类别1更高的权重
-
-    criterion = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.1)  # 防止模型过于自信
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # 防止模型过于自信
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
     early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/best_model.pth')
@@ -258,6 +300,88 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
     return model, train_losses, val_losses, train_accuracies, val_accuracies
 
 
+# 单模态模型训练
+def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batch_size, writer):
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+    early_stopping = EarlyStopping(patience=10, verbose=True, path='./checkpoints/single_best_model.pth')
+
+    train_dataset = TensorDataset(x_train, y_train)
+    g = torch.Generator()
+    g.manual_seed(42)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=g)
+    val_dataset = TensorDataset(x_val, y_val)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    train_losses = []
+    val_losses = []
+    train_accuracies = []
+    val_accuracies = []
+
+    for epoch in range(epochs):
+        model.train()
+        train_loss = 0
+        correct = 0
+        total = 0
+        for inputs, labels in train_dataloader:
+            optimizer.zero_grad()
+            inputs_noisy = data_augmentation(inputs)
+            outputs = model(inputs_noisy)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+        train_loss /= len(train_dataloader)
+        train_accuracy = correct / total
+        train_losses.append(train_loss)
+        train_accuracies.append(train_accuracy)
+
+        # 验证阶段
+        model.eval()
+        val_loss = 0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for inputs, labels in val_dataloader:
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        val_loss /= len(val_dataloader)
+        val_accuracy = correct / total
+        val_losses.append(val_loss)
+        val_accuracies.append(val_accuracy)
+        scheduler.step(val_loss)
+
+        print(f'Epoch [{epoch + 1}/{epochs}], '
+              f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
+              f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
+
+        # 写入 TensorBoard
+        writer.add_scalar('Training Loss', train_loss, epoch)
+        writer.add_scalar('Training Accuracy', train_accuracy, epoch)
+        writer.add_scalar('Validation Loss', val_loss, epoch)
+        writer.add_scalar('Validation Accuracy', val_accuracy, epoch)
+
+        early_stopping(val_loss, model)
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    model.load_state_dict(torch.load('./checkpoints/single_best_model.pth'))
+    return model, train_losses, val_losses, train_accuracies, val_accuracies
+
+
 # ==================主程序====================================
 # 按患者级别实现五折交叉验证
 n_splits = 5
@@ -288,7 +412,7 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
     print(f"训练集标签分布: {np.bincount(y_train_fold)}")
     print(f"验证集标签分布: {np.bincount(y_val_fold)}")
 
-    # 训练模型
+    # 训练多模态模型
     writer = SummaryWriter(f'./runs/fold_{fold + 1}')
     model = MultiModalModel(ftir_train_fold.shape[1], mz_train_fold.shape[1])
     model, train_losses, val_losses, train_accuracies, val_accuracies = train_main_model(
@@ -319,6 +443,36 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         'loss': final_loss
     })
 
+    print("\n==== 训练 FTIR-only 模型 ====")
+    ftir_model = SingleModalModel(ftir_train.shape[1])
+    ftir_writer = SummaryWriter('./runs/ftir_only')
+    ftir_model, ftir_train_losses, ftir_val_losses, ftir_train_accs, ftir_val_accs = train_single_modal_model(
+        ftir_model,
+        ftir_train,
+        y_train,
+        ftir_test,
+        y_test,
+        epochs=200,
+        batch_size=32,
+        writer=ftir_writer
+    )
+    ftir_writer.close()
+
+    print("\n==== 训练 mz-only 模型 ====")
+    mz_model = SingleModalModel(mz_train.shape[1])
+    mz_writer = SummaryWriter('./runs/mz_only')
+    mz_model, mz_train_losses, mz_val_losses, mz_train_accs, mz_val_accs = train_single_modal_model(
+        mz_model,
+        mz_train,
+        y_train,
+        mz_test,
+        y_test,
+        epochs=200,
+        batch_size=32,
+        writer=mz_writer
+    )
+    mz_writer.close()
+
 # 计算平均指标
 avg_accuracy = np.mean([m['accuracy'] for m in fold_metrics])
 avg_loss = np.mean([m['loss'] for m in fold_metrics])
@@ -340,7 +494,7 @@ test_accuracy = accuracy_score(y_test, test_pred)
 test_f1 = f1_score(y_test, test_pred)
 test_precision = precision_score(y_test, test_pred)
 test_recall = recall_score(y_test, test_pred)
-print(f"测试集结果 - 准确率: {test_accuracy:.4f}, 精确率: {test_precision:.4f}, 召回率: {test_recall:.4f}, F1: {test_f1:.4f}")
+print(f"多模态网络测试集结果 - 准确率: {test_accuracy:.4f}, 精确率: {test_precision:.4f}, 召回率: {test_recall:.4f}, F1: {test_f1:.4f}")
 
 # 计算每个类别的准确率
 class_0_indices = (y_test == 0).nonzero(as_tuple=True)[0]
@@ -350,6 +504,13 @@ accuracy_class_1 = (test_pred[class_1_indices] == y_test[class_1_indices]).float
 print(f'类别0准确率: {accuracy_class_0:.4f}')
 print(f'类别1准确率: {accuracy_class_1:.4f}')
 
+# 评估 FTIR-only 模型
+print("\n==== FTIR-only 模型测试结果 ====")
+evaluate_model(ftir_model, ftir_test, y_test, "FTIR-only")
+
+# 评估 mz-only 模型
+print("\n==== mz-only 模型测试结果 ====")
+evaluate_model(mz_model, mz_test, y_test, "mz-only")
 
 # 和SVM作对比，看看是当前神经网络效果如何
 train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
