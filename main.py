@@ -169,18 +169,58 @@ class GatedFusion(nn.Module):
         return fused.squeeze(1)
 
 
+class HybridFusion(nn.Module):
+    def __init__(self, dim=128, num_heads=4):
+        super().__init__()
+        # Gate Fusion
+        self.gate = nn.Sequential(
+            nn.Linear(dim * 2, dim),
+            nn.ReLU(),
+            nn.Linear(dim, 2),
+            nn.Softmax(dim=1)
+        )
+        self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
+
+        # Attention Fusion
+        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.proj = nn.Linear(dim, dim)
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, ftir_feat, mz_feat):
+        # Gate Fusion Part
+        combined_gate = torch.cat([ftir_feat, mz_feat], dim=1)
+        weights = self.gate(combined_gate) * self.gate_bias
+        weights = weights / weights.sum(dim=1, keepdim=True)
+        gate_fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
+
+        # Attention Fusion Part
+        ftir_seq = ftir_feat.unsqueeze(1)
+        mz_seq = mz_feat.unsqueeze(1)
+        cross_ftir, _ = self.attn(ftir_seq, mz_seq, mz_seq)
+        cross_mz, _ = self.attn(mz_seq, ftir_seq, ftir_seq)
+        attn_fused = (cross_ftir + cross_mz).squeeze(1)
+
+        # 最终融合
+        final_fused = torch.cat([gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
+        print("Gate weights:", weights.detach().cpu().numpy())
+        return final_fused
+
+
 # 多模态模型
 class MultiModalModel(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(input_dim=ftir_input_dim)
         self.mz_extractor = MZEncoder(input_dim=mz_input_dim)
-        self.fuser = GatedFusion(dim=128)
+        self.fuser = HybridFusion(dim=128, num_heads=4)
         self.classifier = nn.Sequential(
+            nn.Linear(256, 128),  # 新增一层映射
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            SimpleResidualBlock(128),
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            SimpleResidualBlock(64),
             nn.Linear(64, 2),
             nn.Softmax(dim=1)
         )
