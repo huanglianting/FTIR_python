@@ -71,8 +71,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # 按患者初始化（ 训练(+验证) / 测试 ）列表
     train_ftir_raw, train_mz_raw, train_labels, train_patients = [], [], [], []
     test_ftir_raw, test_mz_raw, test_labels, test_patients = [], [], [], []
-    # 随机打乱患者顺序53（1-11）38、29、28、21
-    np.random.seed(21)
+    # 随机打乱患者顺序（1-11）38、29、28、21、59
+    np.random.seed(59)
     patients = np.arange(1, 12)  # 患者i=1到11
     np.random.shuffle(patients)
     # 划分比例：8训练(+验证)，3测试
