@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, auc, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -202,7 +202,7 @@ class HybridFusion(nn.Module):
 
         # 最终融合
         final_fused = torch.cat([gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
-        print("Gate weights:", weights.detach().cpu().numpy())
+        # print("Gate weights:", weights.detach().cpu().numpy())
         return final_fused
 
 
@@ -385,6 +385,8 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         val_loss = 0
         correct = 0
         total = 0
+        all_probs = []
+        all_targets = []
         with torch.no_grad():
             for ftir_batch, mz_batch, label_batch in val_dataloader:
                 outputs = model(ftir_batch, mz_batch)
@@ -393,8 +395,12 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                 _, predicted = torch.max(outputs.data, 1)
                 total += label_batch.size(0)
                 correct += (predicted == label_batch).sum().item()
+                probs = torch.softmax(outputs, dim=1)[:, 1]  # 取类别1的概率
+                all_probs.extend(probs.cpu().numpy())
+                all_targets.extend(label_batch.cpu().numpy())
         val_loss /= len(val_dataloader)
         val_accuracy = correct / total
+        val_auc = roc_auc_score(all_targets, all_probs)
         val_losses.append(val_loss)
         val_accuracies.append(val_accuracy)
         scheduler.step(val_loss)  # 根据验证损失更新学习率
@@ -408,6 +414,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         writer.add_scalar('Training Accuracy', train_accuracy, epoch)
         writer.add_scalar('Validation Loss', val_loss, epoch)
         writer.add_scalar('Validation Accuracy', val_accuracy, epoch)
+        writer.add_scalar('Validation AUC', val_auc, epoch)
 
         early_stopping(val_loss, model)
         if early_stopping.early_stop:
@@ -611,12 +618,32 @@ best_model.eval()
 with torch.no_grad():
     test_outputs = best_model(ftir_test, mz_test)
     _, test_pred = torch.max(test_outputs, 1)
+    probs = torch.softmax(test_outputs, dim=1)[:, 1].cpu().numpy()
+    y_true = y_test.cpu().numpy()
 
 test_accuracy = accuracy_score(y_test, test_pred)
 test_f1 = f1_score(y_test, test_pred)
 test_precision = precision_score(y_test, test_pred)
 test_recall = recall_score(y_test, test_pred)
 print(f"多模态网络测试集结果 - 准确率: {test_accuracy:.4f}, 精确率: {test_precision:.4f}, 召回率: {test_recall:.4f}, F1: {test_f1:.4f}")
+
+# 计算 FPR, TPR 和 AUC
+fpr, tpr, _ = roc_curve(y_true, probs)
+roc_auc = auc(fpr, tpr)
+# 绘制 ROC 曲线
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, color='darkorange', lw=2,
+         label=f'ROC curve (area = {roc_auc:.4f})')
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC)')
+plt.legend(loc="lower right")
+plt.savefig(os.path.join(save_path, 'roc_curve.png'))
+plt.close()
+print(f"ROC AUC Score: {roc_auc:.4f}")
 
 # 计算每个类别的准确率
 class_0_indices = (y_test == 0).nonzero(as_tuple=True)[0]
