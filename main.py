@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, auc, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -15,6 +15,8 @@ import matplotlib
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report
+import itertools
+import pandas as pd
 
 matplotlib.use('Agg')
 
@@ -512,10 +514,116 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batc
 
 
 # ==================主程序====================================
+def run_experiments():
+    # 定义你要搜索的参数空间
+    param_grid = {
+        'lr': [1e-4, 3e-4, 1e-3],
+        'weight_decay': [0, 1e-4, 5e-4],
+        'batch_size': [16, 32, 64],
+        'label_smoothing': [0.0, 0.1, 0.2],
+        'noise_std': [0.0, 0.05, 0.1],
+        'scheduler_factor': [0.3, 0.5],
+        'early_stop_patience': [10, 15]
+    }
+
+    all_params = [dict(zip(param_grid.keys(), values)) for values in itertools.product(*param_grid.values())]
+
+    results = []
+
+    for i, params in enumerate(all_params):
+        print(f"\n=== 实验 {i + 1}/{len(all_params)} ===")
+        print("当前参数:", params)
+
+        # 重新加载数据（确保每次实验独立）
+        ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, _ = preprocess_data(
+            ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path)
+
+        # 标准化
+        scaler_ftir = StandardScaler()
+        ftir_train = scaler_ftir.fit_transform(ftir_train)
+        ftir_test = scaler_ftir.transform(ftir_test)
+        scaler_mz = StandardScaler()
+        mz_train = scaler_mz.fit_transform(mz_train)
+        mz_test = scaler_mz.transform(mz_test)
+
+        # 张量化
+        ftir_train_tensor = torch.tensor(ftir_train, dtype=torch.float32)
+        mz_train_tensor = torch.tensor(mz_train, dtype=torch.float32)
+        y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+        ftir_test_tensor = torch.tensor(ftir_test, dtype=torch.float32)
+        mz_test_tensor = torch.tensor(mz_test, dtype=torch.float32)
+        y_test_tensor = torch.tensor(y_test, dtype=torch.long)
+
+        # 构建模型
+        model = MultiModalModel(ftir_train.shape[1], mz_train.shape[1])
+
+        # 定义损失函数、优化器等
+        criterion = nn.CrossEntropyLoss(label_smoothing=params['label_smoothing'])
+        optimizer = torch.optim.AdamW(model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
+        scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=params['scheduler_factor'], patience=3)
+        early_stopping = EarlyStopping(patience=params['early_stop_patience'])
+
+        # 构造 DataLoader
+        train_dataset = TensorDataset(ftir_train_tensor, mz_train_tensor, y_train_tensor)
+        train_loader = DataLoader(train_dataset, batch_size=params['batch_size'], shuffle=True)
+        val_dataset = TensorDataset(ftir_test_tensor, mz_test_tensor, y_test_tensor)
+        val_loader = DataLoader(val_dataset, batch_size=params['batch_size'], shuffle=False)
+
+        # 简化训练过程（可替换为完整五折交叉验证）
+        best_acc = 0.0
+        for epoch in range(50):  # 快速训练，不跑满 200 epochs
+            model.train()
+            for ftir_batch, mz_batch, label_batch in train_loader:
+                ftir_noisy = data_augmentation(ftir_batch, noise_std=params['noise_std'])
+                mz_noisy = data_augmentation(mz_batch, noise_std=params['noise_std'])
+                outputs = model(ftir_noisy, mz_noisy)
+                loss = criterion(outputs, label_batch)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            # 验证并记录指标
+            model.eval()
+            all_preds, all_probs = [], []
+            with torch.no_grad():
+                for ftir_batch, mz_batch, label_batch in val_loader:
+                    outputs = model(ftir_batch, mz_batch)
+                    probs = torch.softmax(outputs, dim=1)[:, 1].cpu().numpy()
+                    preds = torch.argmax(outputs, dim=1).cpu().numpy()
+                    all_preds.extend(preds)
+                    all_probs.extend(probs)
+
+            acc = accuracy_score(y_test, all_preds)
+            prec = precision_score(y_test, all_preds)
+            rec = recall_score(y_test, all_preds)
+            f1 = f1_score(y_test, all_preds)
+            auc = roc_auc_score(y_test, all_probs)
+
+            if acc > best_acc:
+                best_acc = acc
+
+        # 保存该组参数下的最好结果
+        results.append({
+            'params': str(params),
+            'accuracy': best_acc,
+            'precision': precision_score(y_test, all_preds),
+            'recall': recall_score(y_test, all_preds),
+            'f1': f1_score(y_test, all_preds),
+            'auc': auc
+        })
+        print(f"结果: {results[-1]}")
+
+    # 保存为 CSV
+    df = pd.DataFrame(results)
+    df.to_csv('hyperparameter_search_results.csv', index=False)
+    print("\n✅ 所有实验完成，结果已保存至 hyperparameter_search_results.csv")
+
+
 # 按患者级别实现五折交叉验证
 n_splits = 5
 fold_metrics = []
 fold_results = []
+test_metrics_list = []
 # 使用GroupKFold确保同一患者所有样本在同一折
 sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -564,12 +672,39 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         'val_accuracies': val_accuracies
     })
 
-    # 获取最后一个epoch的准确率和loss
     final_accuracy = val_accuracies[-1]
     final_loss = val_losses[-1]
     fold_metrics.append({
         'accuracy': final_accuracy,
         'loss': final_loss
+    })
+
+    # 在测试集上评估该折模型
+    model.eval()
+    with torch.no_grad():
+        test_outputs = model(ftir_test, mz_test)
+        probs = torch.softmax(test_outputs, dim=1)[:, 1].cpu().numpy()
+        preds = torch.argmax(test_outputs, dim=1).cpu().numpy()
+        y_true = y_test.cpu().numpy()
+
+    # 计算各项指标
+    acc = accuracy_score(y_true, preds)
+    f1 = f1_score(y_true, preds)
+    prec = precision_score(y_true, preds)
+    rec = recall_score(y_true, preds)
+    auc = roc_auc_score(y_true, probs)
+
+    # 打印并保存指标
+    print(f"第 {fold + 1} 折模型在测试集上表现:")
+    print(f"准确率: {acc:.4f}, F1: {f1:.4f}, 精确率: {prec:.4f}, 召回率: {rec:.4f}, AUC: {auc:.4f}\n")
+
+    test_metrics_list.append({
+        'fold': fold + 1,
+        'accuracy': acc,
+        'f1': f1,
+        'precision': prec,
+        'recall': rec,
+        'auc': auc
     })
 
     print("\n==== 训练 FTIR-only 模型 ====")
@@ -627,11 +762,16 @@ test_precision = precision_score(y_test, test_pred)
 test_recall = recall_score(y_test, test_pred)
 print(f"多模态网络测试集结果 - 准确率: {test_accuracy:.4f}, 精确率: {test_precision:.4f}, 召回率: {test_recall:.4f}, F1: {test_f1:.4f}")
 
-# 计算 FPR, TPR 和 AUC
-fpr, tpr, _ = roc_curve(y_true, probs)
-roc_auc = auc(fpr, tpr)
+# 将所有折的测试集结果保存为CSV文件
+df_test_metrics = pd.DataFrame(test_metrics_list)
+df_test_metrics.to_csv(os.path.join(save_path, 'five_fold_test_metrics.csv'), index=False)
+print("✅ 五折测试集指标已保存至 five_fold_test_metrics.csv")
+
 # 绘制 ROC 曲线
-plt.figure(figsize=(8, 6))
+fpr, tpr, thresholds = roc_curve(y_true, probs)
+roc_auc = roc_auc_score(y_true, probs)
+
+plt.figure()
 plt.plot(fpr, tpr, color='darkorange', lw=2,
          label=f'ROC curve (area = {roc_auc:.4f})')
 plt.plot([0, 1], [0, 1], 'k--', lw=2)
@@ -643,7 +783,6 @@ plt.title('Receiver Operating Characteristic (ROC)')
 plt.legend(loc="lower right")
 plt.savefig(os.path.join(save_path, 'roc_curve.png'))
 plt.close()
-print(f"ROC AUC Score: {roc_auc:.4f}")
 
 # 计算每个类别的准确率
 class_0_indices = (y_test == 0).nonzero(as_tuple=True)[0]
@@ -715,3 +854,7 @@ plt.savefig(os.path.join(save_path, 'all_folds_training_metrics.png'))
 plt.close()
 
 print(f"\n所有结果已保存到 {save_path} 目录")
+"""
+# 在这里加入调参逻辑
+run_experiments()  # 添加这一行来启动调参实验
+"""

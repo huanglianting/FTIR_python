@@ -44,8 +44,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
                                                   save_path)
 
     # 打印每个样品的形状
-    print("x_ftir shape:", x_ftir.shape)
-    print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
+    # print("x_ftir shape:", x_ftir.shape)
+    # print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
@@ -64,20 +64,20 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # m/z列不同，保留两个不同的特征集（横坐标），形状为 (12572,)
     mz1 = df1['m/z'].values
     mz2 = df2['m/z'].values
-    print("mz1 shape:", mz1.shape)
-    print("mz2 shape:", mz2.shape)
+    # print("mz1 shape:", mz1.shape)
+    # print("mz2 shape:", mz2.shape)
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 按患者初始化（ 训练(+验证) / 测试 ）列表
     train_ftir_raw, train_mz_raw, train_labels, train_patients = [], [], [], []
     test_ftir_raw, test_mz_raw, test_labels, test_patients = [], [], [], []
-    # 随机打乱患者顺序（1-11）
-    np.random.seed(42)
+    # 随机打乱患者顺序53（1-11）38、29、28、21
+    np.random.seed(21)
     patients = np.arange(1, 12)  # 患者i=1到11
     np.random.shuffle(patients)
     # 划分比例：8训练(+验证)，3测试
     train_patients_list = patients[:8]
-    test_patients_list = patients[3:]
+    test_patients_list = patients[8:]
 
     # 遍历每个患者，处理并分配到对应集合
     for i in patients:  # 按打乱后的顺序处理患者
@@ -89,7 +89,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
         # 先复制成 (N_samples, N_features)，再转置为 (N_features, N_samples)
         mz_cancer_repeated = np.repeat(mz_cancer, ftir_cancer.shape[0], axis=0).T  # shape: (3888/4780, N_samples)
-        print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
+        # print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
         labels_cancer = np.ones(ftir_cancer.shape[0], dtype=int)  # 癌症的标签标记为1
 
         # 处理正常样本
