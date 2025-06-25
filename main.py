@@ -31,7 +31,7 @@ def set_seed(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
 
 
-set_seed(42)  # 在程序最开始调用
+set_seed(4)  # 在程序最开始调用
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -324,23 +324,18 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.1, scaling_factor=0.1, shift_range=0, seed=None):
+def data_augmentation(x, noise_std=0.1, scaling_factor=0.1, shift_range=0.05, seed=None):
     if seed is not None:
         torch.manual_seed(seed)
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
     # 随机缩放
-    if abs(scaling_factor) > 1e-5:
-        scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
-        x_aug = x_aug * scale.clamp(min=0.9, max=1.1)
+    scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
+    x_aug= x_aug * scale.clamp(min=0.9, max=1.1)
     # 随机偏移
-    if shift_range > 0:
-        max_shift = int(x_aug.shape[1] * shift_range)
-        if max_shift > 0:  # 关键修改点：确保 max_shift > 0
-            shift = torch.randint(-max_shift, max_shift, (1,))
-            x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
-    # 如果 shift_range == 0，则跳过偏移操作
+    shift = torch.randint(-int(x_aug.shape[1] * shift_range), int(x_aug.shape[1] * shift_range), (1,))
+    x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
     return x_aug
 
 
@@ -519,162 +514,6 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batc
 
 
 # ==================主程序====================================
-def run_augmented_kfold(ftir_train, mz_train, y_train, patient_indices_train,
-                        ftir_test, mz_test, y_test,
-                        model_class, model_kwargs,
-                        param_grid=None, n_splits=5, epochs=100, batch_size=32):
-    """
-    遍历 data_augmentation 参数组合，进行完整的五折交叉验证，
-    并在测试集上评估最佳模型。
-    """
-    if param_grid is None:
-        param_grid = {
-            'noise_std': [0.0, 0.02, 0.05, 0.1, 0.15],
-            'scale_range': [
-                (0.85, 1.15),
-                (0.9, 1.1),
-                (0.93, 1.07),
-                (0.95, 1.05)
-            ],
-            'shift_range': [0.0, 0.02, 0.03, 0.05, 0.07]
-        }
-
-    all_params = list(itertools.product(
-        param_grid['noise_std'],
-        param_grid['scale_range'],
-        param_grid['shift_range']
-    ))
-
-    results = []
-
-    for i, (noise_std, scale_range, shift_range) in enumerate(all_params):
-        print(f"\n=== 数据增强实验 {i + 1}/{len(all_params)} ===")
-        print(f"参数: noise_std={noise_std}, scale_range={scale_range}, shift_range={shift_range}")
-
-        # 标准化（每个参数组合独立标准化）
-        scaler_ftir = StandardScaler()
-        ftir_scaled = scaler_ftir.fit_transform(ftir_train)
-        ftir_test_scaled = scaler_ftir.transform(ftir_test)
-
-        scaler_mz = StandardScaler()
-        mz_scaled = scaler_mz.fit_transform(mz_train)
-        mz_test_scaled = scaler_mz.transform(mz_test)
-
-        # 转为 tensor
-        full_dataset = TensorDataset(
-            torch.tensor(ftir_scaled, dtype=torch.float32),
-            torch.tensor(mz_scaled, dtype=torch.float32),
-            torch.tensor(y_train, dtype=torch.long)
-        )
-
-        test_data = TensorDataset(
-            torch.tensor(ftir_test_scaled, dtype=torch.float32),
-            torch.tensor(mz_test_scaled, dtype=torch.float32),
-            torch.tensor(y_test, dtype=torch.long)
-        )
-
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
-
-        # 五折交叉验证
-        sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-        fold_results = []
-
-        for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_scaled, y_train, groups=patient_indices_train)):
-            print(f"--- Fold {fold + 1} ---")
-
-            train_subsampler = torch.utils.data.SubsetRandomSampler(train_idx)
-            val_subsampler = torch.utils.data.SubsetRandomSampler(val_idx)
-
-            train_loader = DataLoader(full_dataset, batch_size=batch_size, sampler=train_subsampler)
-            val_loader = DataLoader(full_dataset, batch_size=batch_size, sampler=val_subsampler)
-
-            model = model_class(**model_kwargs)
-            criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-            optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
-            scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
-            early_stopping = EarlyStopping(patience=10)
-
-            best_acc = 0.0
-            best_model_state = None
-
-            def should_apply_augmentation(noise_std, scale_range, shift_range):
-                return noise_std > 0 or abs(scale_range[1] - scale_range[0]) > 1e-5 or shift_range > 0
-
-            for epoch in range(epochs):
-                model.train()
-                for inputs_ftir, inputs_mz, labels in train_loader:
-                    optimizer.zero_grad()
-                    if should_apply_augmentation(noise_std, scale_range, shift_range):
-                        ftir_noisy = data_augmentation(inputs_ftir, noise_std=noise_std,
-                                                       scaling_factor=scale_range[1] - scale_range[0],
-                                                       shift_range=shift_range, seed=42)
-                        mz_noisy = data_augmentation(inputs_mz, noise_std=noise_std,
-                                                     scaling_factor=scale_range[1] - scale_range[0],
-                                                     shift_range=shift_range, seed=42)
-                    else:
-                        ftir_noisy = inputs_ftir
-                        mz_noisy = inputs_mz
-                    outputs = model(ftir_noisy, mz_noisy)
-                    loss = criterion(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
-
-                # 验证
-                model.eval()
-                all_preds = []
-                with torch.no_grad():
-                    for inputs_ftir, inputs_mz, labels in val_loader:
-                        outputs = model(inputs_ftir, inputs_mz)
-                        preds = torch.argmax(outputs, dim=1).cpu().numpy()
-                        all_preds.extend(preds)
-
-                acc = accuracy_score(y_train[val_idx], all_preds)
-                if acc > best_acc:
-                    best_acc = acc
-                    best_model_state = model.state_dict()
-
-            print(f"Fold {fold+1} Best Acc: {best_acc:.4f}")
-            fold_results.append(best_acc)
-
-        avg_fold_acc = np.mean(fold_results)
-        print(f"平均准确率: {avg_fold_acc:.4f}")
-
-        # 测试集评估
-        final_model = model_class(**model_kwargs)
-        final_model.load_state_dict(best_model_state)
-        final_model.eval()
-        all_preds = []
-        with torch.no_grad():
-            for inputs_ftir, inputs_mz, _ in test_loader:
-                outputs = final_model(inputs_ftir, inputs_mz)
-                preds = torch.argmax(outputs, dim=1).cpu().numpy()
-                all_preds.extend(preds)
-
-        test_acc = accuracy_score(y_test, all_preds)
-        test_f1 = f1_score(y_test, all_preds)
-        test_prec = precision_score(y_test, all_preds)
-        test_rec = recall_score(y_test, all_preds)
-
-        results.append({
-            'noise_std': noise_std,
-            'scale_range': str(scale_range),
-            'shift_range': shift_range,
-            'val_avg_acc': avg_fold_acc,
-            'test_acc': test_acc,
-            'test_prec': test_prec,
-            'test_rec': test_rec,
-            'test_f1': test_f1
-        })
-
-    # 保存结果
-    df = pd.DataFrame(results)
-    df.sort_values(by='test_acc', ascending=False, inplace=True)
-    df.to_csv('augmentation_kfold_results.csv', index=False)
-    print("✅ 完整五折实验完成，结果已保存至 augmentation_kfold_results.csv")
-
-    return df
-
-
 def run_experiments():
     # 定义你要搜索的参数空间
     param_grid = {
@@ -779,7 +618,7 @@ def run_experiments():
     df.to_csv('hyperparameter_search_results.csv', index=False)
     print("\n✅ 所有实验完成，结果已保存至 hyperparameter_search_results.csv")
 
-# ========================== 正式实验 ============================================
+
 # 按患者级别实现五折交叉验证
 n_splits = 5
 fold_metrics = []
@@ -1015,24 +854,6 @@ plt.savefig(os.path.join(save_path, 'all_folds_training_metrics.png'))
 plt.close()
 
 print(f"\n所有结果已保存到 {save_path} 目录")
-'''
-input_dim_ftir = ftir_train.shape[1]
-input_dim_mz = mz_train.shape[1]
-
-run_augmented_kfold(
-    ftir_train=ftir_train.numpy(),
-    mz_train=mz_train.numpy(),
-    y_train=y_train.numpy(),
-    patient_indices_train=patient_indices_train.numpy(),
-    ftir_test=ftir_test.numpy(),
-    mz_test=mz_test.numpy(),
-    y_test=y_test.numpy(),
-    model_class=MultiModalModel,
-    model_kwargs={'ftir_input_dim': input_dim_ftir, 'mz_input_dim': input_dim_mz},
-    epochs=100,
-    batch_size=32
-)
-'''
 """
 # 在这里加入调参逻辑
 run_experiments()  # 添加这一行来启动调参实验
