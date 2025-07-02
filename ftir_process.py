@@ -5,9 +5,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from load_and_preprocess import load_and_preprocess
 from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks, plot_individual_spectrum_with_marked_peaks
-from split_dataset import split_dataset_ftir
-from perform_individual_model_analysis import train_pca_lda_model, test_pca_lda_model, train_pca_rf_model, \
-    test_pca_rf_model, train_svm_model, test_svm_model, train_cnn_model, test_cnn_model
 
 
 # 生成文件列表的通用函数

@@ -2,10 +2,9 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
-import seaborn as sns
 from torch.utils.data import DataLoader, TensorDataset
 from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
@@ -13,10 +12,11 @@ import random
 import os
 import matplotlib
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from sklearn.svm import SVC
-from sklearn.metrics import classification_report
 import itertools
 import pandas as pd
+from evaluation import evaluate_model
+from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, CoAttnOnlyFusion, SelfAttnOnlyFusion, SVMClassifier
+
 
 matplotlib.use('Agg')
 
@@ -31,7 +31,7 @@ def set_seed(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
 
 
-set_seed(4)  # 在程序最开始调用
+set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -70,225 +70,6 @@ y_test = torch.tensor(y_test, dtype=torch.long)
 patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 
-# ==================主模型定义====================================
-class SEBlock(nn.Module):
-    def __init__(self, channels, reduction=16):
-        super(SEBlock, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channels, channels // reduction, bias=False),
-            nn.ReLU(),
-            nn.Linear(channels // reduction, channels, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):  # [B, C, L]
-        y = self.avg_pool(x).view(x.size(0), x.size(1))
-        y = self.fc(y).view(x.size(0), x.size(1), 1)
-        return x * y.expand_as(x)
-
-
-# 定义模态特征提取的分支
-class FTIREncoder(nn.Module):
-    def __init__(self, input_dim):
-        super(FTIREncoder, self).__init__()
-        self.net = nn.Sequential(
-            nn.Unflatten(1, (1, -1)),
-            nn.Conv1d(1, 32, 7, stride=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            SEBlock(32),  # 添加 SE 注意力
-            nn.MaxPool1d(3, 2),
-            nn.Conv1d(32, 64, 5, stride=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
-            nn.Flatten(),
-            nn.Linear(64 * 64, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.5)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class MZEncoder(nn.Module):
-    def __init__(self, input_dim):
-        super(MZEncoder, self).__init__()
-        self.net = nn.Sequential(
-            nn.Unflatten(1, (1, -1)),
-            nn.Conv1d(1, 32, 5, stride=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            SEBlock(32),
-            nn.Conv1d(32, 64, 3, stride=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
-            nn.Flatten(),
-            nn.Linear(64 * 64, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.5)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class SimpleResidualBlock(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.BatchNorm1d(dim),
-            nn.ReLU(),
-            nn.Dropout(0.5)
-        )
-
-    def forward(self, x):
-        return x + self.net(x)
-
-
-class GatedFusion(nn.Module):
-    def __init__(self, dim=128):
-        super().__init__()
-        self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
-            nn.ReLU(),
-            nn.Linear(dim, 2),
-            nn.Softmax(dim=1)
-        )
-        self.bias = nn.Parameter(torch.tensor([0.5, 0.5]))  # 初始为平均融合
-
-    def forward(self, ftir_feat, mz_feat):
-        combined = torch.cat([ftir_feat, mz_feat], dim=1)
-        weights = self.gate(combined) * self.bias  # 加权融合
-        weights = weights / weights.sum(dim=1, keepdim=True)  # 归一化
-        fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
-        return fused.squeeze(1)
-
-
-class HybridFusion(nn.Module):
-    def __init__(self, dim=128, num_heads=4):
-        super().__init__()
-        # Gate Fusion
-        self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
-            nn.ReLU(),
-            nn.Linear(dim, 2),
-            nn.Softmax(dim=1)
-        )
-        self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
-
-        # Attention Fusion
-        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, batch_first=True)
-        self.proj = nn.Linear(dim, dim)
-        self.norm = nn.LayerNorm(dim)
-
-    def forward(self, ftir_feat, mz_feat):
-        # Gate Fusion Part
-        combined_gate = torch.cat([ftir_feat, mz_feat], dim=1)
-        weights = self.gate(combined_gate) * self.gate_bias
-        weights = weights / weights.sum(dim=1, keepdim=True)
-        gate_fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
-
-        # Attention Fusion Part
-        ftir_seq = ftir_feat.unsqueeze(1)
-        mz_seq = mz_feat.unsqueeze(1)
-        cross_ftir, _ = self.attn(ftir_seq, mz_seq, mz_seq)
-        cross_mz, _ = self.attn(mz_seq, ftir_seq, ftir_seq)
-        attn_fused = (cross_ftir + cross_mz).squeeze(1)
-
-        # 最终融合
-        final_fused = torch.cat([gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
-        # print("Gate weights:", weights.detach().cpu().numpy())
-        return final_fused
-
-
-# 多模态模型
-class MultiModalModel(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim):
-        super(MultiModalModel, self).__init__()
-        self.ftir_extractor = FTIREncoder(input_dim=ftir_input_dim)
-        self.mz_extractor = MZEncoder(input_dim=mz_input_dim)
-        self.fuser = HybridFusion(dim=128, num_heads=4)
-        self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2),
-            nn.Softmax(dim=1)
-        )
-
-    def forward(self, ftir, mz):
-        ftir_feat = self.ftir_extractor(ftir)
-        mz_feat = self.mz_extractor(mz)
-        combined = self.fuser(ftir_feat, mz_feat)
-        # combined = torch.cat([ftir_feat, mz_feat], dim=-1)
-        output = self.classifier(combined)  # [B, 2]
-        return output
-
-
-# 单模态模型
-class SingleFTIRModel(nn.Module):
-    def __init__(self, input_dim):
-        super(SingleFTIRModel, self).__init__()
-        self.encoder = FTIREncoder(input_dim=input_dim)
-        self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
-            nn.Softmax(dim=1)
-        )
-
-    def forward(self, x):
-        features = self.encoder(x)
-        output = self.classifier(features)
-        return output
-
-
-class SingleMZModel(nn.Module):
-    def __init__(self, input_dim):
-        super(SingleMZModel, self).__init__()
-        self.encoder = MZEncoder(input_dim=input_dim)
-        self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
-            nn.Softmax(dim=1)
-        )
-
-    def forward(self, x):
-        features = self.encoder(x)
-        output = self.classifier(features)
-        return output
-
-
-# 单模态模型评价指标函数
-def evaluate_model(model, x_test, y_test, name="Model"):
-    model.eval()
-    with torch.no_grad():
-        outputs = model(x_test)
-        _, predicted = torch.max(outputs, 1)
-        acc = accuracy_score(y_test, predicted)
-        f1 = f1_score(y_test, predicted)
-        prec = precision_score(y_test, predicted)
-        rec = recall_score(y_test, predicted)
-        print(f"{name} - 准确率: {acc:.4f}, 精确率: {prec:.4f}, 召回率: {rec:.4f}, F1: {f1:.4f}")
-    return acc, prec, rec, f1
-
-
 class EarlyStopping:
     def __init__(self, patience=10, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
@@ -307,7 +88,7 @@ class EarlyStopping:
             self.save_checkpoint(val_loss, model)
         elif score < self.best_score + self.delta:
             self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            # print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
@@ -491,10 +272,6 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batc
         val_accuracies.append(val_accuracy)
         scheduler.step(val_loss)
 
-        print(f'Epoch [{epoch + 1}/{epochs}], '
-              f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
-              f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
-
         # 写入 TensorBoard
         writer.add_scalar('Training Loss', train_loss, epoch)
         writer.add_scalar('Training Accuracy', train_accuracy, epoch)
@@ -571,7 +348,7 @@ def run_experiments():
 
         # 简化训练过程（可替换为完整五折交叉验证）
         best_acc = 0.0
-        for epoch in range(50):  # 快速训练，不跑满 200 epochs
+        for epoch in range(50):  # 快速训练，不跑满 100 epochs
             model.train()
             for ftir_batch, mz_batch, label_batch in train_loader:
                 ftir_noisy = data_augmentation(ftir_batch, noise_std=params['noise_std'])
@@ -619,11 +396,64 @@ def run_experiments():
     print("\n✅ 所有实验完成，结果已保存至 hyperparameter_search_results.csv")
 
 
+def train_and_evaluate_model(model_name, model_class, ftir_train, mz_train, y_train, ftir_test, mz_test, y_test, is_svm=False):
+    print(f"\n=== 训练 {model_name} ===")
+    if is_svm:
+        # 特征拼接用于 SVM
+        train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
+        test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()])
+        model = model_class(kernel='rbf')
+        model.fit(train_features, y_train.numpy())
+        preds = model.predict(test_features)
+        probs = model.predict_proba(test_features)[:, 1]
+    else:
+        writer = SummaryWriter(f'./runs/ablation_{model_name}')
+        model = model_class(ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
+        trained_model, _, _, _, _ = train_main_model(
+            model,
+            ftir_train, mz_train, y_train,
+            ftir_test, mz_test, y_test,
+            epochs=100,
+            batch_size=32,
+            writer=writer
+        )
+        writer.close()
+        # 测试集评估
+        model.eval()
+        with torch.no_grad():
+            outputs = model(ftir_test, mz_test)
+            probs = torch.softmax(outputs, dim=1)[:, 1].cpu().numpy()
+            preds = torch.argmax(outputs, dim=1).cpu().numpy()
+
+    # 统一评估
+    acc = accuracy_score(y_test, preds)
+    f1 = f1_score(y_test, preds)
+    prec = precision_score(y_test, preds)
+    rec = recall_score(y_test, preds)
+    auc = roc_auc_score(y_test, probs)
+
+    print(f"{model_name} 测试集表现:")
+    print(f"准确率: {acc:.4f}, F1: {f1:.4f}, 精确率: {prec:.4f}, 召回率: {rec:.4f}, AUC: {auc:.4f}\n")
+
+    return {
+        'model': model_name,
+        'accuracy': acc,
+        'f1': f1,
+        'precision': prec,
+        'recall': rec,
+        'auc': auc
+    }
+
+
 # 按患者级别实现五折交叉验证
 n_splits = 5
 fold_metrics = []
 fold_results = []
-test_metrics_list = []
+ftir_only_results = []
+mz_only_results = []
+multi_modal_results = []
+all_model_results = []
+ablation_all_results = []
 # 使用GroupKFold确保同一患者所有样本在同一折
 sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -656,12 +486,11 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         model,
         ftir_train_fold, mz_train_fold, y_train_fold,
         ftir_val_fold, mz_val_fold, y_val_fold,
-        epochs=200,
+        epochs=100,
         batch_size=32,
         writer=writer
     )
     writer.close()
-
     # 保存每个折的详细训练历史
     fold_results.append({
         'fold': fold + 1,
@@ -671,14 +500,12 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         'train_accuracies': train_accuracies,
         'val_accuracies': val_accuracies
     })
-
     final_accuracy = val_accuracies[-1]
     final_loss = val_losses[-1]
     fold_metrics.append({
         'accuracy': final_accuracy,
         'loss': final_loss
     })
-
     # 在测试集上评估该折模型
     model.eval()
     with torch.no_grad():
@@ -686,20 +513,14 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         probs = torch.softmax(test_outputs, dim=1)[:, 1].cpu().numpy()
         preds = torch.argmax(test_outputs, dim=1).cpu().numpy()
         y_true = y_test.cpu().numpy()
-
-    # 计算各项指标
     acc = accuracy_score(y_true, preds)
     f1 = f1_score(y_true, preds)
     prec = precision_score(y_true, preds)
     rec = recall_score(y_true, preds)
     auc = roc_auc_score(y_true, probs)
-
-    # 打印并保存指标
-    print(f"第 {fold + 1} 折模型在测试集上表现:")
-    print(f"准确率: {acc:.4f}, F1: {f1:.4f}, 精确率: {prec:.4f}, 召回率: {rec:.4f}, AUC: {auc:.4f}\n")
-
-    test_metrics_list.append({
+    all_model_results.append({
         'fold': fold + 1,
+        'model_type': 'MultiModal',
         'accuracy': acc,
         'f1': f1,
         'precision': prec,
@@ -707,7 +528,7 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         'auc': auc
     })
 
-    print("\n==== 训练 FTIR-only 模型 ====")
+    # 训练 FTIR-only 模型
     ftir_model = SingleFTIRModel(ftir_train.shape[1])
     ftir_writer = SummaryWriter('./runs/ftir_only')
     ftir_model, ftir_train_losses, ftir_val_losses, ftir_train_accs, ftir_val_accs = train_single_modal_model(
@@ -716,13 +537,33 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         y_train,
         ftir_test,
         y_test,
-        epochs=200,
+        epochs=100,
         batch_size=32,
         writer=ftir_writer
     )
     ftir_writer.close()
+    ftir_model.eval()
+    with torch.no_grad():
+        test_outputs = ftir_model(ftir_test)
+        probs = torch.softmax(test_outputs, dim=1)[:, 1].cpu().numpy()
+        preds = torch.argmax(test_outputs, dim=1).cpu().numpy()
+        y_true = y_test.cpu().numpy()
+    acc_ftir = accuracy_score(y_true, preds)
+    f1_ftir = f1_score(y_true, preds)
+    prec_ftir = precision_score(y_true, preds)
+    rec_ftir = recall_score(y_true, preds)
+    auc_ftir = roc_auc_score(y_true, probs)
+    all_model_results.append({
+        'fold': fold + 1,
+        'model_type': 'FTIR-only',
+        'accuracy': acc_ftir,
+        'f1': f1_ftir,
+        'precision': prec_ftir,
+        'recall': rec_ftir,
+        'auc': auc_ftir
+    })
 
-    print("\n==== 训练 mz-only 模型 ====")
+    # 训练 mz-only 模型
     mz_model = SingleMZModel(mz_train.shape[1])
     mz_writer = SummaryWriter('./runs/mz_only')
     mz_model, mz_train_losses, mz_val_losses, mz_train_accs, mz_val_accs = train_single_modal_model(
@@ -731,105 +572,65 @@ for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, grou
         y_train,
         mz_test,
         y_test,
-        epochs=200,
+        epochs=100,
         batch_size=32,
         writer=mz_writer
     )
     mz_writer.close()
+    mz_model.eval()
+    with torch.no_grad():
+        test_outputs = mz_model(mz_test)
+        probs = torch.softmax(test_outputs, dim=1)[:, 1].cpu().numpy()
+        preds = torch.argmax(test_outputs, dim=1).cpu().numpy()
+        y_true = y_test.cpu().numpy()
+    acc_mz = accuracy_score(y_true, preds)
+    f1_mz = f1_score(y_true, preds)
+    prec_mz = precision_score(y_true, preds)
+    rec_mz = recall_score(y_true, preds)
+    auc_mz = roc_auc_score(y_true, probs)
+    all_model_results.append({
+        'fold': fold + 1,
+        'model_type': 'mz-only',
+        'accuracy': acc_mz,
+        'f1': f1_mz,
+        'precision': prec_mz,
+        'recall': rec_mz,
+        'auc': auc_mz
+    })
 
-# 计算平均指标
-avg_accuracy = np.mean([m['accuracy'] for m in fold_metrics])
-avg_loss = np.mean([m['loss'] for m in fold_metrics])
-print(f"\n五折交叉验证平均 - 准确率: {avg_accuracy:.4f}, Loss: {avg_loss:.4f}")
+    # 训练其他消融试验模型
+    ablation_models_for_cv = {
+        "ConcatFusion": ConcatFusion,
+        "GateOnlyFusion": GateOnlyFusion,
+        "CoAttnOnlyFusion": CoAttnOnlyFusion,
+        "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+        "SVM": SVMClassifier
+    }
+    fold_ablation_results = []
+    for name, model_class in ablation_models_for_cv.items():
+        is_svm = name == "SVM"
+        result = train_and_evaluate_model(
+            model_name=name,
+            model_class=model_class,
+            ftir_train=ftir_train_fold,
+            mz_train=mz_train_fold,
+            y_train=y_train_fold,
+            ftir_test=ftir_val_fold,
+            mz_test=mz_val_fold,
+            y_test=y_val_fold,
+            is_svm=is_svm
+        )
+        result['fold'] = fold + 1
+        fold_ablation_results.append(result)
+    all_model_results.extend(fold_ablation_results)
 
-# 找出表现最好的折
-best_fold_idx = np.argmax([m['accuracy'] for m in fold_metrics])
-best_fold = best_fold_idx + 1
-print(f"\n表现最好的折: 第 {best_fold} 折")
-
-# 使用最佳折的模型在测试集上评估
-best_model = fold_results[best_fold_idx]['model']
-best_model.eval()
-with torch.no_grad():
-    test_outputs = best_model(ftir_test, mz_test)
-    _, test_pred = torch.max(test_outputs, 1)
-    probs = torch.softmax(test_outputs, dim=1)[:, 1].cpu().numpy()
-    y_true = y_test.cpu().numpy()
-
-test_accuracy = accuracy_score(y_test, test_pred)
-test_f1 = f1_score(y_test, test_pred)
-test_precision = precision_score(y_test, test_pred)
-test_recall = recall_score(y_test, test_pred)
-print(f"多模态网络测试集结果 - 准确率: {test_accuracy:.4f}, 精确率: {test_precision:.4f}, 召回率: {test_recall:.4f}, F1: {test_f1:.4f}")
-
-# 将所有折的测试集结果保存为CSV文件
-df_test_metrics = pd.DataFrame(test_metrics_list)
-df_test_metrics.to_csv(os.path.join(save_path, 'five_fold_test_metrics.csv'), index=False)
-print("✅ 五折测试集指标已保存至 five_fold_test_metrics.csv")
-
-# 绘制 ROC 曲线
-fpr, tpr, thresholds = roc_curve(y_true, probs)
-roc_auc = roc_auc_score(y_true, probs)
-
-plt.figure()
-plt.plot(fpr, tpr, color='darkorange', lw=2,
-         label=f'ROC curve (AUC = {roc_auc:.2f})')
-plt.plot([0, 1], [0, 1], 'k--', lw=2)
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver Operating Characteristic (ROC)')
-plt.legend(loc="lower right")
-plt.savefig(os.path.join(save_path, 'roc_curve.png'))
-plt.close()
-
-# 计算每个类别的准确率
-class_0_indices = (y_test == 0).nonzero(as_tuple=True)[0]
-class_1_indices = (y_test == 1).nonzero(as_tuple=True)[0]
-accuracy_class_0 = (test_pred[class_0_indices] == y_test[class_0_indices]).float().mean()
-accuracy_class_1 = (test_pred[class_1_indices] == y_test[class_1_indices]).float().mean()
-print(f'类别0准确率: {accuracy_class_0:.4f}')
-print(f'类别1准确率: {accuracy_class_1:.4f}')
-
-# 评估 FTIR-only 模型
-print("\n==== FTIR-only 模型测试结果 ====")
-evaluate_model(ftir_model, ftir_test, y_test, "FTIR-only")
-
-# 评估 mz-only 模型
-print("\n==== mz-only 模型测试结果 ====")
-evaluate_model(mz_model, mz_test, y_test, "mz-only")
-
-# 和SVM作对比，看看是当前神经网络效果如何
-train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
-test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()])
-y_labels = y_train.numpy()
-y_test_labels = y_test.numpy()
-
-# 训练 SVM 分类器
-clf = SVC(kernel='rbf', probability=True)
-clf.fit(train_features, y_labels)
-
-# 预测并输出报告
-preds = clf.predict(test_features)
-print("\nSVM 分类结果:")
-print(classification_report(y_test_labels, preds))
+# 导出所有模型结果到一张表中
+df_all = pd.DataFrame(all_model_results)
+df_all.to_csv(os.path.join(save_path, 'five_fold_all_models_comparison.csv'), index=False)
+print("所有模型五折结果已合并保存至 five_fold_all_models_comparison.csv")
 
 
-# 绘制混淆矩阵
-cm = confusion_matrix(y_test, test_pred)
-plt.figure(figsize=(8, 6))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-plt.xlabel('Predicted Labels')
-plt.ylabel('True Labels')
-plt.title('Confusion Matrix')
-plt.savefig('confusion_matrix.png')
-plt.close()
-
-# 保存最佳模型
-torch.save(best_model.state_dict(), os.path.join(save_path, 'best_model.pth'))
-
-# 绘制所有折的训练曲线
+# 绘制-多模态网络模型-所有折的训练曲线
 plt.figure(figsize=(12, 5))
 plt.subplot(1, 2, 1)
 for i, fold_result in enumerate(fold_results):
@@ -853,7 +654,19 @@ plt.tight_layout()
 plt.savefig(os.path.join(save_path, 'all_folds_training_metrics.png'))
 plt.close()
 
-print(f"\n所有结果已保存到 {save_path} 目录")
+
+# 找出表现最好的折
+best_fold_idx = np.argmax([m['accuracy'] for m in fold_metrics])
+best_fold = best_fold_idx + 1
+print(f"\n表现最好的折: 第 {best_fold} 折")
+
+# 使用最佳折的模型在测试集上评估
+best_model = fold_results[best_fold_idx]['model']
+print(f"多模态网络测试集结果:")
+multi_metrics = evaluate_model(best_model, (ftir_test, mz_test), y_test, name="MultiModal")
+# 保存最佳模型
+torch.save(best_model.state_dict(), os.path.join(save_path, 'best_model.pth'))
+
 """
 # 在这里加入调参逻辑
 run_experiments()  # 添加这一行来启动调参实验
