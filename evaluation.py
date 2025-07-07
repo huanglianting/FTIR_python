@@ -19,7 +19,7 @@ def evaluate_model(
         preds=None,
         probs=None,
         name="Model",
-        model_type="MultiModal",
+        model_type="undefined",
         fold=1,
         save_path='./result',
         is_svm=False
