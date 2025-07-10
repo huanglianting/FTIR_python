@@ -1,10 +1,12 @@
 import numpy as np
 import pandas as pd
 import scipy.io as sio
+from scipy.interpolate import interp1d
 import seaborn as sns
 from load_and_preprocess import load_and_preprocess
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+
 sns.set_style("whitegrid")
 
 
@@ -35,42 +37,102 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # 进行预处理
     normal_ftir, cancer_ftir = {}, {}
     x_ftir, normal_ftir['normal1'] = load_and_preprocess(normal_ftir_data['normal1'], threshold1, threshold2,
-                                                           order, frame_len, save_path)
+                                                         order, frame_len, save_path)
     for key in list(normal_ftir_data.keys())[1:]:
         _, normal_ftir[key] = load_and_preprocess(normal_ftir_data[key], threshold1, threshold2, order, frame_len,
-                                                   save_path)
+                                                  save_path)
     for key in cancer_ftir_data.keys():
         _, cancer_ftir[key] = load_and_preprocess(cancer_ftir_data[key], threshold1, threshold2, order, frame_len,
                                                   save_path)
 
     # 打印每个样品的形状
-    # print("x_ftir shape:", x_ftir.shape)
+    print("x_ftir shape:", x_ftir.shape)  # (467,)
     # print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
     df2 = pd.read_excel(mz_file_path2, header=1)
+
     # 两个文件的m/z列不一致
-    # 从第一个文件提取样本 (1-7)
-    cancer_columns1 = [col for col in df1.columns if 'cancer' in col.lower()]  # 分别提取每个癌症和正常样本
-    normal_columns1 = [col for col in df1.columns if 'normal' in col.lower()]
-    cancer_mz1 = {col: df1[col].values for col in cancer_columns1}
-    normal_mz1 = {col: df1[col].values for col in normal_columns1}
-    # 从第二个文件提取样本 (8-11)
-    cancer_columns2 = [col for col in df2.columns if 'cancer' in col.lower()]
-    normal_columns2 = [col for col in df2.columns if 'normal' in col.lower()]
-    cancer_mz2 = {col: df2[col].values for col in cancer_columns2}
-    normal_mz2 = {col: df2[col].values for col in normal_columns2}
-    # m/z列不同，保留两个不同的特征集（横坐标），形状为 (12572,)
-    mz1 = df1['m/z'].values
-    mz2 = df2['m/z'].values
-    # print("mz1 shape:", mz1.shape)
-    # print("mz2 shape:", mz2.shape)
+    def align_mz_values(mz1, mz2, tolerance=0.01):
+        aligned_mz2 = np.full_like(mz1, np.nan)  # 初始化对齐数组
+        common_indices = []
+        for i, mz_val in enumerate(mz2):
+            # 在mz1中寻找最接近的值
+            closest_idx = np.argmin(np.abs(mz1 - mz_val))
+            if np.abs(mz1[closest_idx] - mz_val) <= tolerance:
+                aligned_mz2[closest_idx] = mz_val
+                common_indices.append((closest_idx, i))
+        return aligned_mz2, common_indices
+
+    # 执行对齐
+    aligned_mz2, common_indices = align_mz_values(df1['m/z'].values, df2['m/z'].values)
+    # 提取共同m/z值 (取两者平均值)
+    common_mz = []
+    for mz1_idx, mz2_idx in common_indices:
+        avg_mz = (df1['m/z'].values[mz1_idx] + df2['m/z'].values[mz2_idx]) / 2
+        common_mz.append(avg_mz)
+    common_mz = np.array(common_mz)
+    print(f"找到的共同m/z特征数: {len(common_mz)}")
+    print(f"共同m/z范围: {common_mz.min():.2f} - {common_mz.max():.2f}")
+
+    # 重采样函数
+    def resample_data(df, orig_mz, common_mz):
+        resampled_df = pd.DataFrame()
+        resampled_df['m/z'] = common_mz  # 新的m/z列
+        for col in df.columns:
+            if col != 'm/z':  # 跳过m/z列本身
+                try:
+                    interp_func = interp1d(
+                        orig_mz,
+                        df[col].values,
+                        kind='linear',
+                        bounds_error=False,
+                        fill_value='extrapolate'  # 关键修改：允许外推
+                    )
+                    resampled_values = interp_func(common_mz)
+                    # 外推可能导致极端值，需限制在合理范围（例如非负）
+                    resampled_values = np.clip(resampled_values, a_min=0, a_max=None)
+                except Exception as e:
+                    print(f"列 {col} 外推失败，改用填充0: {str(e)}")
+                    resampled_values = np.zeros_like(common_mz)
+                resampled_df[col] = resampled_values
+        return resampled_df
+
+    # 对两个数据文件进行重采样
+    print("重采样df1...")
+    df1_resampled = resample_data(df1, df1['m/z'].values, common_mz)
+    print("重采样df2...")
+    df2_resampled = resample_data(df2, df2['m/z'].values, common_mz)
+    print("重采样后统计（前5个m/z点）:\n", df1_resampled.iloc[:5].describe())
+    print("NaN比例:", df1_resampled.isna().mean().mean())
+
+    cancer_mz = {}
+    normal_mz = {}
+    # 合并df1_resampled的样本 (患者1-7)
+    for col in df1_resampled.columns:
+        if 'cancer' in col.lower():
+            cancer_mz[col] = df1_resampled[col].values
+        elif 'normal' in col.lower():
+            normal_mz[col] = df1_resampled[col].values
+    # 合并df2_resampled的样本 (患者8-11)
+    for col in df2_resampled.columns:
+        if 'cancer' in col.lower():
+            cancer_mz[col] = df2_resampled[col].values
+        elif 'normal' in col.lower():
+            normal_mz[col] = df2_resampled[col].values
+    print("common_mz shape:", common_mz.shape)  # (2838,)
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 按患者初始化（ 训练(+验证) / 测试 ）列表
-    train_ftir_raw, train_mz_raw, train_labels, train_patients = [], [], [], []
-    test_ftir_raw, test_mz_raw, test_labels, test_patients = [], [], [], []
+    train_ftir = []
+    train_mz = []
+    train_labels = []
+    train_patient_ids = []
+    test_ftir = []
+    test_mz = []
+    test_labels = []
+    test_patient_ids = []
     # 随机打乱患者顺序（1-11）38、29、28、21、59
     np.random.seed(59)
     patients = np.arange(1, 12)  # 患者i=1到11
@@ -84,28 +146,33 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         # 处理癌症样本
         cancer_ftir_key = f'cancer{i}'
         cancer_mz_key = f'cancer_{i} [1]'
-        ftir_cancer = cancer_ftir[cancer_ftir_key].T  # shape: (xxxx, 467)
-        mz_cancer = cancer_mz1[cancer_mz_key].reshape(1, -1) if i <= 7 else cancer_mz2[cancer_mz_key].reshape(1, -1)
-        # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        # 先复制成 (N_samples, N_features)，再转置为 (N_features, N_samples)
-        mz_cancer_repeated = np.repeat(mz_cancer, ftir_cancer.shape[0], axis=0).T  # shape: (3888/4780, N_samples)
-        # print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
-        labels_cancer = np.ones(ftir_cancer.shape[0], dtype=int)  # 癌症的标签标记为1
+        ftir_cancer = cancer_ftir[cancer_ftir_key].T  # (48, 467)(N_samples, N_features)
+        mz_cancer = cancer_mz[cancer_mz_key].reshape(1, -1)  # (1, 3888/4780)
+        print(f"ftir_cancer shape: {ftir_cancer.shape}")
+        print(f"mz_cancer shape before repeat: {mz_cancer.shape}")
+        # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同，变成 (N_samples, N_features)
+        mz_cancer_repeated = np.repeat(mz_cancer, ftir_cancer.shape[0], axis=0)  # shape: (48, 2838)
+        print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
+        labels_cancer = np.ones(ftir_cancer.shape[0], dtype=int)  # (48,), 癌症的标签标记为1
+        print("labels_cancer shape:", labels_cancer.shape)
 
         # 处理正常样本
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
         ftir_normal = normal_ftir[normal_ftir_key].T
-        mz_normal = normal_mz1[normal_mz_key].reshape(1, -1) if i <= 7 else normal_mz2[normal_mz_key].reshape(1, -1)
+        mz_normal = normal_mz[normal_mz_key].reshape(1, -1)
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        mz_normal_repeated = np.repeat(mz_normal, ftir_normal.shape[0], axis=0).T
+        mz_normal_repeated = np.repeat(mz_normal, ftir_normal.shape[0], axis=0)
         labels_normal = np.zeros(ftir_normal.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
 
         # 合并患者i的所有样本
         ftir_all = np.vstack([ftir_cancer, ftir_normal])
         mz_all = np.vstack([mz_cancer_repeated, mz_normal_repeated])
         labels_all = np.hstack([labels_cancer, labels_normal])
-        patient_ids = np.full_like(labels_all, i)   # 为每个样本添加患者ID
+        patient_ids = np.full_like(labels_all, i)  # 为每个样本添加患者ID
+        print(f"[患者 {i}] ftir_all shape:", ftir_all.shape)
+        print(f"[患者 {i}] mz_all shape:", mz_all.shape)
+        print(f"[患者 {i}] labels_all shape:", labels_all.shape)
 
         # 打乱单个患者内的癌症/正常顺序，不然都是010101
         # 生成打乱索引
@@ -117,24 +184,34 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         mz_shuffled = mz_all[indices]
         labels_shuffled = labels_all[indices]
         patient_ids_shuffled = np.full_like(labels_shuffled, i)
+        print(f"[患者 {i}] ftir_shuffled shape:", ftir_shuffled.shape)
+        print(f"[患者 {i}] mz_shuffled shape:", mz_shuffled.shape)
+        print(f"[患者 {i}] labels_shuffled shape:", labels_shuffled.shape)
+        print(f"[患者 {i}] patient_ids_shuffled shape:", patient_ids_shuffled.shape)
+
         # 根据患者i所在训练/测试集分配打乱后的数据
         if i in train_patients_list:
-            train_ftir_raw.append(ftir_shuffled)
-            train_mz_raw.append(mz_shuffled)
+            train_ftir.append(ftir_shuffled)
+            train_mz.append(mz_shuffled)
             train_labels.append(labels_shuffled)
-            train_patients.extend(patient_ids_shuffled)
+            train_patient_ids.append(patient_ids_shuffled)
         else:
-            test_ftir_raw.append(ftir_shuffled)
-            test_mz_raw.append(mz_shuffled)
+            test_ftir.append(ftir_shuffled)
+            test_mz.append(mz_shuffled)
             test_labels.append(labels_shuffled)
-            test_patients.extend(patient_ids_shuffled)
+            test_patient_ids.append(patient_ids_shuffled)
 
-    # 合并训练集数据
-    ftir_train_raw = np.vstack(train_ftir_raw) if train_ftir_raw else np.array([])
-    mz_train_raw = np.vstack(train_mz_raw) if train_mz_raw else np.array([])
-    y_train = np.hstack(train_labels) if train_labels else np.array([])
-    patient_indices_train = np.array(train_patients)
+    # 堆叠所有患者的数据
+    train_ftir = np.vstack(train_ftir)  # (8*96, 467) = (768, 467)
+    train_mz = np.vstack(train_mz)  # (768, 2838)
+    train_labels = np.hstack(train_labels)  # (768,)
+    train_patient_ids = np.hstack(train_patient_ids)  # (768,)
+    test_ftir = np.vstack(test_ftir)  # (3*96, 467) = (288, 467)
+    test_mz = np.vstack(test_mz)  # (288, 2838)
+    test_labels = np.hstack(test_labels)  # (288,)
+    test_patient_ids = np.hstack(test_patient_ids)  # (288,)
 
+    """
     # FTIR train raw 的 PCA 图
     pca = PCA(n_components=2)
     ftir_pca = pca.fit_transform(ftir_train_raw)
@@ -150,11 +227,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     plt.title("FTIR Data Distribution")
     plt.savefig('FTIR_Data_Distribution.png')
     plt.close()
-
-    # 合并测试集数据
-    ftir_test_raw = np.vstack(test_ftir_raw) if test_ftir_raw else np.array([])
-    mz_test_raw = np.vstack(test_mz_raw) if test_mz_raw else np.array([])
-    y_test = np.hstack(test_labels) if test_labels else np.array([])
-    patient_indices_test = np.array(test_patients)
-
-    return ftir_train_raw, mz_train_raw, y_train, patient_indices_train, ftir_test_raw, mz_test_raw, y_test, patient_indices_test
+    """
+    return train_ftir, train_mz, train_labels, train_patient_ids, \
+        test_ftir, test_mz, test_labels, test_patient_ids, \
+        x_ftir, common_mz

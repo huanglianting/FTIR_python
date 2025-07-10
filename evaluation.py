@@ -89,9 +89,9 @@ def evaluate_model(
 
     # 绘制并保存 ROC 曲线
     fpr, tpr, _ = roc_curve(y_true, probs)
-    plt.figure()
-    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'{name} ROC curve (AUC = {auc:.2f})')
-    plt.plot([0, 1], [0, 1], 'k--', lw=2)
+    plt.figure(figsize=(6, 6))  # 设置图形大小为1:1
+    plt.plot(fpr, tpr, color='#6495ED', lw=2, label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
+    plt.plot([0, 1], [0, 1], color='#CD5C5C', linestyle='--', lw=2)  # 红色虚线
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
@@ -121,8 +121,8 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
         vmax=100,
         linewidths=0.5,  # 设置单元格之间的线宽
         linecolor='black',  # 设置线条颜色为黑色
-        xticklabels=['Benign', 'Cancer'],
-        yticklabels=['Benign', 'Cancer']
+        xticklabels=['Benign', 'Malignant'],
+        yticklabels=['Benign', 'Malignant']
     )
     # 为热力图添加外部黑色边框
     for _, spine in ax.spines.items():

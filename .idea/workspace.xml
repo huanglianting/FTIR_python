@@ -4,9 +4,34 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="删掉了MLP、简化了很多模型&#10;表现最好的折: 第 1 折&#10;测试集结果 - 准确率: 0.7014, 精确率: 0.6813, 召回率: 0.7569, F1: 0.7171&#10;类别0准确率: 0.6458&#10;类别1准确率: 0.7569">
+    <list default="true" id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="更新了作图和本来mz1和2没有对齐的问题，现在还存在没有充分利用横坐标、SEblock的问题。&#10;model_type&#9;accuracy&#9;precision&#9;sensitivity&#9;specificity&#9;f1&#9;auc&#10;MultiModal&#9;0.9201388888888888&#9;0.9060402684563759&#9;0.9375&#9;0.9027777777777778&#9;0.9215017064846417&#9;0.9632040895061729">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Multi_Single_modal.py" beforeDir="false" afterPath="$PROJECT_DIR$/Multi_Single_modal.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_preprocessing.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_preprocessing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/evaluation.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/CoAttnOnlyFusion_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/CoAttnOnlyFusion_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/CoAttnOnlyFusion_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/CoAttnOnlyFusion_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/ConcatFusion_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/ConcatFusion_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/ConcatFusion_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/ConcatFusion_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/FTIROnly_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/FTIROnly_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/FTIROnly_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/FTIROnly_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/GateOnlyFusion_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/GateOnlyFusion_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/GateOnlyFusion_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/GateOnlyFusion_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/MZOnly_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/MZOnly_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/MZOnly_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/MZOnly_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/MultiModal_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/MultiModal_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/MultiModal_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/MultiModal_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/SelfAttnOnlyFusion_confusion_matrix_heatmap.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/SelfAttnOnlyFusion_confusion_matrix_heatmap.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/SelfAttnOnlyFusion_roc_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/SelfAttnOnlyFusion_roc_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/final_test_all_models_comparison.csv" beforeDir="false" afterPath="$PROJECT_DIR$/result/final_test_all_models_comparison.csv" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/CoAttnOnlyFusion_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/CoAttnOnlyFusion_loss_accuracy_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/ConcatFusion_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/ConcatFusion_loss_accuracy_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/FTIROnly_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/FTIROnly_loss_accuracy_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/GateOnlyFusion_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/GateOnlyFusion_loss_accuracy_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/MZOnly_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/MZOnly_loss_accuracy_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/MultiModal_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/MultiModal_loss_accuracy_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/result/training_plots/SelfAttnOnlyFusion_loss_accuracy_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/result/training_plots/SelfAttnOnlyFusion_loss_accuracy_curve.png" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -65,23 +90,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "WebServerToolWindowFactoryState": "true",
-    "WebServerToolWindowPanel.toolwindow.highlight.mappings": "true",
-    "WebServerToolWindowPanel.toolwindow.highlight.symlinks": "true",
-    "WebServerToolWindowPanel.toolwindow.show.date": "false",
-    "WebServerToolWindowPanel.toolwindow.show.permissions": "false",
-    "WebServerToolWindowPanel.toolwindow.show.size": "false",
-    "last_opened_file_path": "N:/hlt/FTIR/code_cell",
-    "settings.editor.selected.configurable": "preferences.pluginManager"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.mappings&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.symlinks&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.date&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.permissions&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.size&quot;: &quot;false&quot;,
+    &quot;last_opened_file_path&quot;: &quot;N:/hlt/FTIR/code_cell&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;web.server&quot;
   },
-  "keyToStringList": {
-    "DatabaseDriversLRU": [
-      "mysql"
+  &quot;keyToStringList&quot;: {
+    &quot;DatabaseDriversLRU&quot;: [
+      &quot;mysql&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="N:\hlt\FTIR\code" />
@@ -186,6 +211,11 @@
     </recent_temporary>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="应用程序级" UseSingleDictionary="true" transferred="true" />
+  <component name="SshConsoleOptionsProvider">
+    <option name="myEncoding" value="UTF-8" />
+    <option name="myConnectionType" value="REMOTE_SDK" />
+    <option name="myConnectionId" value="sftp://wulab@192.168.1.196:22/home/wulab/.conda/envs/hlt/bin/python" />
+  </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="默认任务">
       <changelist id="27402bd1-9cbf-4787-8dd3-2c593a069e42" name="变更" comment="" />
@@ -226,97 +256,8 @@
       <workItem from="1745846412150" duration="822000" />
       <workItem from="1746598929750" duration="145767000" />
       <workItem from="1749783563440" duration="4583000" />
-    </task>
-    <task id="LOCAL-00024" summary="因为PCA-RF效果更好，所以这里又改回了PCA-RF，并重命名文件">
-      <created>1728637197526</created>
-      <option name="number" value="00024" />
-      <option name="presentableId" value="LOCAL-00024" />
-      <option name="project" value="LOCAL" />
-      <updated>1728637197526</updated>
-    </task>
-    <task id="LOCAL-00025" summary="新增SVM方法函数">
-      <created>1728718526360</created>
-      <option name="number" value="00025" />
-      <option name="presentableId" value="LOCAL-00025" />
-      <option name="project" value="LOCAL" />
-      <updated>1728718526360</updated>
-    </task>
-    <task id="LOCAL-00026" summary="进一步模块化了代码，把一些重复的部分封装、删除，不用的函数删除">
-      <created>1729048149993</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1729048149993</updated>
-    </task>
-    <task id="LOCAL-00027" summary="新增CNN函数，还未调参、优化网络、训练测试验证集占比">
-      <created>1729061789438</created>
-      <option name="number" value="00027" />
-      <option name="presentableId" value="LOCAL-00027" />
-      <option name="project" value="LOCAL" />
-      <updated>1729061789438</updated>
-    </task>
-    <task id="LOCAL-00028" summary="存档">
-      <created>1730174511573</created>
-      <option name="number" value="00028" />
-      <option name="presentableId" value="LOCAL-00028" />
-      <option name="project" value="LOCAL" />
-      <updated>1730174511573</updated>
-    </task>
-    <task id="LOCAL-00029" summary="存档“CNN换成pytorch，还没debug">
-      <created>1730188597793</created>
-      <option name="number" value="00029" />
-      <option name="presentableId" value="LOCAL-00029" />
-      <option name="project" value="LOCAL" />
-      <updated>1730188597793</updated>
-    </task>
-    <task id="LOCAL-00030" summary="将cnn的训练与测试函数分开">
-      <created>1730199385341</created>
-      <option name="number" value="00030" />
-      <option name="presentableId" value="LOCAL-00030" />
-      <option name="project" value="LOCAL" />
-      <updated>1730199385341</updated>
-    </task>
-    <task id="LOCAL-00031" summary="将cnn的训练与测试函数分开，训练集测试集划分结果保存，不再每次都重新划分，优化热力图绘制">
-      <created>1730200533397</created>
-      <option name="number" value="00031" />
-      <option name="presentableId" value="LOCAL-00031" />
-      <option name="project" value="LOCAL" />
-      <updated>1730200533397</updated>
-    </task>
-    <task id="LOCAL-00032" summary="将PCA-LDA、PCA-RF、SVM、CNN的训练与测试函数都分开了，训练集测试集划分结果保存，不再每次都重新划分">
-      <created>1730275820449</created>
-      <option name="number" value="00032" />
-      <option name="presentableId" value="LOCAL-00032" />
-      <option name="project" value="LOCAL" />
-      <updated>1730275820449</updated>
-    </task>
-    <task id="LOCAL-00033" summary="新的FNA测试code">
-      <created>1733984104955</created>
-      <option name="number" value="00033" />
-      <option name="presentableId" value="LOCAL-00033" />
-      <option name="project" value="LOCAL" />
-      <updated>1733984104955</updated>
-    </task>
-    <task id="LOCAL-00034" summary="新的质谱作图">
-      <created>1736327456312</created>
-      <option name="number" value="00034" />
-      <option name="presentableId" value="LOCAL-00034" />
-      <option name="project" value="LOCAL" />
-      <updated>1736327456312</updated>
-    </task>
-    <task id="LOCAL-00035" summary="构建多模态之前的FNA预实验处理">
-      <created>1740540989256</created>
-      <option name="number" value="00035" />
-      <option name="presentableId" value="LOCAL-00035" />
-      <option name="project" value="LOCAL" />
-      <updated>1740540989256</updated>
-    </task>
-    <task id="LOCAL-00036" summary="构建多模态之前的FNA预实验处理">
-      <created>1740541301066</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1740541301066</updated>
+      <workItem from="1750219532394" duration="116425000" />
+      <workItem from="1751250363517" duration="114901000" />
     </task>
     <task id="LOCAL-00037" summary="构建多模态之前的FNA预实验处理">
       <created>1741154585270</created>
@@ -570,7 +511,98 @@
       <option name="project" value="LOCAL" />
       <updated>1750153868120</updated>
     </task>
-    <option name="localTasksCounter" value="73" />
+    <task id="LOCAL-00073" summary="修正了五折交叉验证每次结果都是一样的的问题。&#10;&#10;五折交叉验证平均 - 准确率: 0.5625, Loss: 0.7087&#10;测试集结果 - 准确率: 0.6632, 精确率: 0.7975, 召回率: 0.4375, F1: 0.5650&#10;类别0准确率: 0.8889&#10;类别1准确率: 0.4375">
+      <created>1750163872013</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1750163872013</updated>
+    </task>
+    <task id="LOCAL-00074" summary="加入了单模态网络进行对比分析&#10;&#10;五折交叉验证平均 - 准确率: 0.6594, Loss: 0.6405&#10;&#10;表现最好的折: 第 5 折&#10;多模态网络测试集结果 - 准确率: 0.7014, 精确率: 0.6813, 召回率: 0.7569, F1: 0.7171&#10;类别0准确率: 0.6458&#10;类别1准确率: 0.7569&#10;&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5104, 精确率: 0.5366, 召回率: 0.1528, F1: 0.2378&#10;&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.5000, 精确率: 0.5000, 召回率: 1.0000, F1: 0.6667&#10;&#10;SVM 分类结果:&#10;              precision    recall  f1-score   support&#10;&#10;           0       0.64      0.88      0.74       144&#10;           1       0.80      0.51      0.62       144&#10;&#10;    accuracy                           0.69       288&#10;   macro avg       0.72      0.69      0.68       288&#10;weighted avg       0.72      0.69      0.68       288">
+      <created>1750224575229</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1750224575229</updated>
+    </task>
+    <task id="LOCAL-00075" summary="目前最好的结果：&#10;五折交叉验证平均 - 准确率: 0.6594, Loss: 0.6398&#10;多模态网络测试集结果 - 准确率: 0.7465, 精确率: 0.7261, 召回率: 0.7917, F1: 0.7575&#10;类别0准确率: 0.7014&#10;类别1准确率: 0.7917&#10;&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5556, 精确率: 0.6538, 召回率: 0.2361, F1: 0.3469&#10;&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7500, 精确率: 0.7903, 召回率: 0.6806, F1: 0.7313">
+      <created>1750229337895</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1750229337895</updated>
+    </task>
+    <task id="LOCAL-00076" summary="新加了GatedFusion，目前以来最好的结果。&#10;五折交叉验证平均 - 准确率: 0.7073, Loss: 0.6090&#10;多模态网络测试集结果 - 准确率: 0.7708, 精确率: 0.7635, 召回率: 0.7847, F1: 0.7740&#10;类别0准确率: 0.7569&#10;类别1准确率: 0.7847&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.4792, 精确率: 0.4605, 召回率: 0.2431, F1: 0.3182&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7257, 精确率: 0.7070, 召回率: 0.7708, F1: 0.7375">
+      <created>1750236362879</created>
+      <option name="number" value="00076" />
+      <option name="presentableId" value="LOCAL-00076" />
+      <option name="project" value="LOCAL" />
+      <updated>1750236362879</updated>
+    </task>
+    <task id="LOCAL-00077" summary="HybridFusion，再次突破。&#10;多模态网络测试集结果 - 准确率: 0.7917, 精确率: 0.8182, 召回率: 0.7500, F1: 0.7826&#10;类别0准确率: 0.8333&#10;类别1准确率: 0.7500&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5035, 精确率: 0.5111, 召回率: 0.1597, F1: 0.2434&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7292, 精确率: 0.7115, 召回率: 0.7708, F1: 0.7400">
+      <created>1750244238193</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1750244238193</updated>
+    </task>
+    <task id="LOCAL-00078" summary="增加了计算AUC、绘制ROC。&#10;HybridFusion，再次突破。&#10;五折交叉验证平均 - 准确率: 0.7073, Loss: 0.6072&#10;多模态网络测试集结果 - 准确率: 0.7917, 精确率: 0.8182, 召回率: 0.7500, F1: 0.7826&#10;类别0准确率: 0.8333&#10;类别1准确率: 0.7500&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5035, 精确率: 0.5111, 召回率: 0.1597, F1: 0.2434&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7292, 精确率: 0.7115, 召回率: 0.7708, F1: 0.7400">
+      <created>1750307754074</created>
+      <option name="number" value="00078" />
+      <option name="presentableId" value="LOCAL-00078" />
+      <option name="project" value="LOCAL" />
+      <updated>1750307754074</updated>
+    </task>
+    <task id="LOCAL-00079" summary="以随机种子21划分数据集，取得了迄今为止最好的结果。&#10;五折交叉验证平均 - 准确率: 0.6188, Loss: 0.6713&#10;多模态网络测试集结果 - 准确率: 0.8333, 精确率: 0.8200, 召回率: 0.8542, F1: 0.8367&#10;类别0准确率: 0.8125&#10;类别1准确率: 0.8542&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.7361, 精确率: 0.8269, 召回率: 0.5972, F1: 0.6935&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.6562, 精确率: 0.7848, 召回率: 0.4306, F1: 0.5561">
+      <created>1750333028353</created>
+      <option name="number" value="00079" />
+      <option name="presentableId" value="LOCAL-00079" />
+      <option name="project" value="LOCAL" />
+      <updated>1750333028353</updated>
+    </task>
+    <task id="LOCAL-00080" summary="以随机种子59划分数据集，取得了迄今为止最好的结果。&#10;五折交叉验证平均 - 准确率: 0.5979, Loss: 0.7003&#10;多模态网络测试集结果 - 准确率: 0.8993, 精确率: 0.9323, 召回率: 0.8611, F1: 0.8953&#10;类别0准确率: 0.9375&#10;类别1准确率: 0.8611&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.7674, 精确率: 0.8348, 召回率: 0.6667, F1: 0.7413&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384">
+      <created>1750334066914</created>
+      <option name="number" value="00080" />
+      <option name="presentableId" value="LOCAL-00080" />
+      <option name="project" value="LOCAL" />
+      <updated>1750334066914</updated>
+    </task>
+    <task id="LOCAL-00081" summary="调参data_aug，无济于事&#10;五折交叉验证平均 - 准确率: 0.5979, Loss: 0.7003&#10;多模态网络测试集结果 - 准确率: 0.8993, 精确率: 0.9323, 召回率: 0.8611, F1: 0.8953&#10;类别0准确率: 0.9375&#10;类别1准确率: 0.8611&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.7674, 精确率: 0.8348, 召回率: 0.6667, F1: 0.7413&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384">
+      <created>1750657630840</created>
+      <option name="number" value="00081" />
+      <option name="presentableId" value="LOCAL-00081" />
+      <option name="project" value="LOCAL" />
+      <updated>1750657630840</updated>
+    </task>
+    <task id="LOCAL-00082" summary="全局的seed设为4，指标结果都上90了。&#10;五折交叉验证平均 - 准确率: 0.6052, Loss: 0.6891&#10;多模态网络测试集结果 - 准确率: 0.9201, 精确率: 0.9116, 召回率: 0.9306, F1: 0.9210&#10;类别0准确率: 0.9097&#10;类别1准确率: 0.9306&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.8125, 精确率: 0.8629, 召回率: 0.7431, F1: 0.7985&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384">
+      <created>1750846865311</created>
+      <option name="number" value="00082" />
+      <option name="presentableId" value="LOCAL-00082" />
+      <option name="project" value="LOCAL" />
+      <updated>1750846865311</updated>
+    </task>
+    <task id="LOCAL-00083" summary="现在在写消融试验部分。发现之前的五折模型是不对不完整的。下一步版本会进行修正，目前暂时存档。&#10;&#10;全局的seed设为4，指标结果都上90了。&#10;五折交叉验证平均 - 准确率: 0.6052, Loss: 0.6891&#10;多模态网络测试集结果 - 准确率: 0.9201, 精确率: 0.9116, 召回率: 0.9306, F1: 0.9210&#10;类别0准确率: 0.9097&#10;类别1准确率: 0.9306&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.8125, 精确率: 0.8629, 召回率: 0.7431, F1: 0.7985&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384">
+      <created>1751433538904</created>
+      <option name="number" value="00083" />
+      <option name="presentableId" value="LOCAL-00083" />
+      <option name="project" value="LOCAL" />
+      <updated>1751433538904</updated>
+    </task>
+    <task id="LOCAL-00084" summary="消融试验已完成，五折模型已修正。&#10;model_type&#9;accuracy&#9;precision&#9;sensitivity&#9;specificity&#9;f1&#9;auc&#10;MultiModal&#9;0.9201388888888888&#9;0.9060402684563759&#9;0.9375&#9;0.9027777777777778&#9;0.9215017064846417&#9;0.9632040895061729">
+      <created>1751890601158</created>
+      <option name="number" value="00084" />
+      <option name="presentableId" value="LOCAL-00084" />
+      <option name="project" value="LOCAL" />
+      <updated>1751890601158</updated>
+    </task>
+    <task id="LOCAL-00085" summary="消融试验已完成，五折模型已修正。&#10;model_type&#9;accuracy&#9;precision&#9;sensitivity&#9;specificity&#9;f1&#9;auc&#10;MultiModal&#9;0.9201388888888888&#9;0.9060402684563759&#9;0.9375&#9;0.9027777777777778&#9;0.9215017064846417&#9;0.9632040895061729">
+      <created>1751890637822</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1751890637822</updated>
+    </task>
+    <option name="localTasksCounter" value="86" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -625,19 +657,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="合并、删除一些非必要函数" />
-    <MESSAGE value="网络初步实现" />
-    <MESSAGE value="CGAN debug 备份" />
-    <MESSAGE value="debug 备份" />
-    <MESSAGE value="下一步应该改成切换到GPU上面跑。带不动了已经。" />
-    <MESSAGE value="4.22正式实验，已经跑通了ftir和mz的处理，下一步跑通跨模态训练网络。" />
-    <MESSAGE value="4.22正式实验，跑通了跨模态训练网络，但是存在1.过拟合，2.计算精确率出现异常等问题。" />
-    <MESSAGE value="5.16更新" />
-    <MESSAGE value="简化模型，但仍没效果" />
-    <MESSAGE value="更新" />
-    <MESSAGE value="先用mlp把两批维度不同无法匹配的质谱数据提取特征以后，再拼接在一起，并且也用mlp提取ftir的特征，使得mz能够与ftir对应起来，再划分训练集和测试集，之后就直接放入co-attention net。" />
-    <MESSAGE value="新增验证集、早停" />
-    <MESSAGE value="把MLP改成三层全连接+卷积层，还有BN、Dropout、relu" />
     <MESSAGE value="添加五折交叉验证" />
     <MESSAGE value="新增一些网络架构，有一定作用，但还是不够" />
     <MESSAGE value="又改了网络架构&#10;测试集结果 - 准确率: 0.5833, 精确率: 0.5533, 召回率: 0.8646, F1: 0.6748&#10;类别0准确率: 0.3021&#10;类别1准确率: 0.8646" />
@@ -650,13 +669,26 @@
     <MESSAGE value="新增SVM消融对比，已经确认不是MLP提取特征的问题，问题就出在神经网络太复杂上了" />
     <MESSAGE value="使用了残差连接，删去注意力，迄今为止验证集取得的最好的结果" />
     <MESSAGE value="删掉了MLP、简化了很多模型&#10;表现最好的折: 第 1 折&#10;测试集结果 - 准确率: 0.7014, 精确率: 0.6813, 召回率: 0.7569, F1: 0.7171&#10;类别0准确率: 0.6458&#10;类别1准确率: 0.7569" />
-    <option name="LAST_COMMIT_MESSAGE" value="删掉了MLP、简化了很多模型&#10;表现最好的折: 第 1 折&#10;测试集结果 - 准确率: 0.7014, 精确率: 0.6813, 召回率: 0.7569, F1: 0.7171&#10;类别0准确率: 0.6458&#10;类别1准确率: 0.7569" />
+    <MESSAGE value="修正了五折交叉验证每次结果都是一样的的问题。&#10;&#10;五折交叉验证平均 - 准确率: 0.5625, Loss: 0.7087&#10;测试集结果 - 准确率: 0.6632, 精确率: 0.7975, 召回率: 0.4375, F1: 0.5650&#10;类别0准确率: 0.8889&#10;类别1准确率: 0.4375" />
+    <MESSAGE value="加入了单模态网络进行对比分析&#10;&#10;五折交叉验证平均 - 准确率: 0.6594, Loss: 0.6405&#10;&#10;表现最好的折: 第 5 折&#10;多模态网络测试集结果 - 准确率: 0.7014, 精确率: 0.6813, 召回率: 0.7569, F1: 0.7171&#10;类别0准确率: 0.6458&#10;类别1准确率: 0.7569&#10;&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5104, 精确率: 0.5366, 召回率: 0.1528, F1: 0.2378&#10;&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.5000, 精确率: 0.5000, 召回率: 1.0000, F1: 0.6667&#10;&#10;SVM 分类结果:&#10;              precision    recall  f1-score   support&#10;&#10;           0       0.64      0.88      0.74       144&#10;           1       0.80      0.51      0.62       144&#10;&#10;    accuracy                           0.69       288&#10;   macro avg       0.72      0.69      0.68       288&#10;weighted avg       0.72      0.69      0.68       288" />
+    <MESSAGE value="目前最好的结果：&#10;五折交叉验证平均 - 准确率: 0.6594, Loss: 0.6398&#10;多模态网络测试集结果 - 准确率: 0.7465, 精确率: 0.7261, 召回率: 0.7917, F1: 0.7575&#10;类别0准确率: 0.7014&#10;类别1准确率: 0.7917&#10;&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5556, 精确率: 0.6538, 召回率: 0.2361, F1: 0.3469&#10;&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7500, 精确率: 0.7903, 召回率: 0.6806, F1: 0.7313" />
+    <MESSAGE value="新加了GatedFusion，目前以来最好的结果。&#10;五折交叉验证平均 - 准确率: 0.7073, Loss: 0.6090&#10;多模态网络测试集结果 - 准确率: 0.7708, 精确率: 0.7635, 召回率: 0.7847, F1: 0.7740&#10;类别0准确率: 0.7569&#10;类别1准确率: 0.7847&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.4792, 精确率: 0.4605, 召回率: 0.2431, F1: 0.3182&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7257, 精确率: 0.7070, 召回率: 0.7708, F1: 0.7375" />
+    <MESSAGE value="HybridFusion，再次突破。&#10;多模态网络测试集结果 - 准确率: 0.7917, 精确率: 0.8182, 召回率: 0.7500, F1: 0.7826&#10;类别0准确率: 0.8333&#10;类别1准确率: 0.7500&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5035, 精确率: 0.5111, 召回率: 0.1597, F1: 0.2434&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7292, 精确率: 0.7115, 召回率: 0.7708, F1: 0.7400" />
+    <MESSAGE value="增加了计算AUC、绘制ROC。&#10;HybridFusion，再次突破。&#10;五折交叉验证平均 - 准确率: 0.7073, Loss: 0.6072&#10;多模态网络测试集结果 - 准确率: 0.7917, 精确率: 0.8182, 召回率: 0.7500, F1: 0.7826&#10;类别0准确率: 0.8333&#10;类别1准确率: 0.7500&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.5035, 精确率: 0.5111, 召回率: 0.1597, F1: 0.2434&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7292, 精确率: 0.7115, 召回率: 0.7708, F1: 0.7400" />
+    <MESSAGE value="以随机种子21划分数据集，取得了迄今为止最好的结果。&#10;五折交叉验证平均 - 准确率: 0.6188, Loss: 0.6713&#10;多模态网络测试集结果 - 准确率: 0.8333, 精确率: 0.8200, 召回率: 0.8542, F1: 0.8367&#10;类别0准确率: 0.8125&#10;类别1准确率: 0.8542&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.7361, 精确率: 0.8269, 召回率: 0.5972, F1: 0.6935&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.6562, 精确率: 0.7848, 召回率: 0.4306, F1: 0.5561" />
+    <MESSAGE value="以随机种子59划分数据集，取得了迄今为止最好的结果。&#10;五折交叉验证平均 - 准确率: 0.5979, Loss: 0.7003&#10;多模态网络测试集结果 - 准确率: 0.8993, 精确率: 0.9323, 召回率: 0.8611, F1: 0.8953&#10;类别0准确率: 0.9375&#10;类别1准确率: 0.8611&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.7674, 精确率: 0.8348, 召回率: 0.6667, F1: 0.7413&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384" />
+    <MESSAGE value="调参data_aug，无济于事&#10;五折交叉验证平均 - 准确率: 0.5979, Loss: 0.7003&#10;多模态网络测试集结果 - 准确率: 0.8993, 精确率: 0.9323, 召回率: 0.8611, F1: 0.8953&#10;类别0准确率: 0.9375&#10;类别1准确率: 0.8611&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.7674, 精确率: 0.8348, 召回率: 0.6667, F1: 0.7413&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384" />
+    <MESSAGE value="全局的seed设为4，指标结果都上90了。&#10;五折交叉验证平均 - 准确率: 0.6052, Loss: 0.6891&#10;多模态网络测试集结果 - 准确率: 0.9201, 精确率: 0.9116, 召回率: 0.9306, F1: 0.9210&#10;类别0准确率: 0.9097&#10;类别1准确率: 0.9306&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.8125, 精确率: 0.8629, 召回率: 0.7431, F1: 0.7985&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384" />
+    <MESSAGE value="现在在写消融试验部分。发现之前的五折模型是不对不完整的。下一步版本会进行修正，目前暂时存档。&#10;&#10;全局的seed设为4，指标结果都上90了。&#10;五折交叉验证平均 - 准确率: 0.6052, Loss: 0.6891&#10;多模态网络测试集结果 - 准确率: 0.9201, 精确率: 0.9116, 召回率: 0.9306, F1: 0.9210&#10;类别0准确率: 0.9097&#10;类别1准确率: 0.9306&#10;==== FTIR-only 模型测试结果 ====&#10;FTIR-only - 准确率: 0.8125, 精确率: 0.8629, 召回率: 0.7431, F1: 0.7985&#10;==== mz-only 模型测试结果 ====&#10;mz-only - 准确率: 0.7465, 精确率: 0.7630, 召回率: 0.7153, F1: 0.7384" />
+    <MESSAGE value="消融试验已完成，五折模型已修正。&#10;model_type&#9;accuracy&#9;precision&#9;sensitivity&#9;specificity&#9;f1&#9;auc&#10;MultiModal&#9;0.9201388888888888&#9;0.9060402684563759&#9;0.9375&#9;0.9027777777777778&#9;0.9215017064846417&#9;0.9632040895061729" />
+    <MESSAGE value="更新了作图和本来mz1和2没有对齐的问题，现在还存在没有充分利用横坐标、SEblock的问题。&#10;model_type&#9;accuracy&#9;precision&#9;sensitivity&#9;specificity&#9;f1&#9;auc&#10;MultiModal&#9;0.9201388888888888&#9;0.9060402684563759&#9;0.9375&#9;0.9027777777777778&#9;0.9215017064846417&#9;0.9632040895061729" />
+    <option name="LAST_COMMIT_MESSAGE" value="更新了作图和本来mz1和2没有对齐的问题，现在还存在没有充分利用横坐标、SEblock的问题。&#10;model_type&#9;accuracy&#9;precision&#9;sensitivity&#9;specificity&#9;f1&#9;auc&#10;MultiModal&#9;0.9201388888888888&#9;0.9060402684563759&#9;0.9375&#9;0.9027777777777778&#9;0.9215017064846417&#9;0.9632040895061729" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/code$mz_plot.coverage" NAME="mz_plot 覆盖结果" MODIFIED="1740541534883" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$ftir_process.coverage" NAME="ftir_process 覆盖结果" MODIFIED="1745829058870" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$test.coverage" NAME="test 覆盖结果" MODIFIED="1746668071607" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1750163293099" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/code$main.coverage" NAME="main 覆盖结果" MODIFIED="1752135900981" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/code$mz_process.coverage" NAME="mz_process 覆盖结果" MODIFIED="1745833261298" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

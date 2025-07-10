@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
@@ -45,10 +46,16 @@ os.makedirs('./checkpoints', exist_ok=True)
 # 调用预处理函数
 train_folder = os.path.join(save_path, 'train')
 test_folder = os.path.join(save_path, 'test')
-ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, _ = preprocess_data(
+ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test, ftir_x, mz_x = preprocess_data(
     ftir_file_path, mz_file_path1,
     mz_file_path2, train_folder,
     test_folder, save_path)
+
+print(ftir_train.shape)  # (768, 467)
+print(mz_train.shape)  # (768, 2838)
+print(y_train.shape)  # (768,)
+print(ftir_x.shape)  # (467,)
+print(mz_x.shape)  # (2838,)
 # 打印训练集和测试集的类别分布
 print("训练集类别分布:", np.bincount(y_train))
 print("测试集类别分布:", np.bincount(y_test))
@@ -69,6 +76,12 @@ ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
 patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
+
+# 验证标准化后的数据形状
+print("标准化后 ftir_train 形状:", ftir_train.shape)
+print("标准化后 mz_train 形状:", mz_train.shape)
+print("标准化后 ftir_test 形状:", ftir_test.shape)
+print("标准化后 mz_test 形状:", mz_test.shape)
 
 
 class EarlyStopping:
@@ -309,7 +322,7 @@ param_grid = {
     'label_smoothing': [0.0, 0.1],
     'noise_std': [0.0, 0.05],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [10]
+    'early_stop_patience': [10, 15, 20, 25, 30]
 }
 all_params = [dict(zip(param_grid.keys(), values)) for values in itertools.product(*param_grid.values())]
 
@@ -318,7 +331,8 @@ best_params = None
 grid_search_results = []  # 用于保存所有参数的五折结果
 
 
-def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, patient_indices_train, param_grid):
+def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, patient_indices_train,
+                              param_grid):
     all_params = [dict(zip(param_grid.keys(), values)) for values in itertools.product(*param_grid.values())]
     results = []
     for params in all_params:
@@ -481,7 +495,6 @@ for model_name, model_class in models_to_evaluate.items():
     all_results_df.to_csv(os.path.join(save_path, 'all_models_grid_search_results.csv'), index=False)
     print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
 
-
 # 加载 Grid Search 结果
 all_results_df = pd.read_csv(os.path.join(save_path, 'all_models_grid_search_results.csv'))
 # 找出每个模型的最佳参数（按 avg_accuracy）
@@ -619,27 +632,69 @@ print("所有模型最终测试结果已保存至 final_test_all_models_comparis
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
 plot_dir = os.path.join(save_path, 'training_plots')
 os.makedirs(plot_dir, exist_ok=True)
+soft_blue = '#6495ED'  # 柔和的蓝色
+soft_red = '#CD5C5C'  # 柔和的红色
 for model_name, data in training_history.items():
     # 绘制 Loss 曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(data['train_losses'], label='Train Loss', marker='o', linestyle='-')
-    plt.plot(data['test_losses'], label='Test Loss', marker='x', linestyle='--')
+    plt.plot(data['train_losses'], label='Train Loss', color=soft_blue, linestyle='-')
+    plt.plot(data['test_losses'], label='Test Loss', color=soft_red, linestyle='-')
     plt.title(f'{model_name} - Training and Test Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss value')
-    plt.legend()
+    plt.legend(loc='upper right')  # 设置固定位置的图例
+    # 设置坐标轴为黑色实线
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)  # 加粗坐标轴
+    # 设置刻度小短线
+    ax.tick_params(axis='both', which='major', length=5, width=1, direction='out')
+    # 设置 x 轴刻度（每 5 个 epoch 显示一个）
+    max_epochs_loss = max(len(data['train_losses']), len(data['test_losses']))
+    plt.xticks(np.arange(0, max_epochs_loss, 5))
+    # 固定 y 轴范围并确保起始刻度可以标注
+    plt.ylim(0.4, 0.7)  # 固定 y 轴范围
+    yticks_loss = np.arange(0.4, 0.71, 0.05)  # 每 0.05 一个刻度
+    plt.yticks(yticks_loss)
+    # 添加网格线
+    ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
+    ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
+    ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
+    ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
+    ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
 
     # 绘制 Accuracy 曲线
     plt.subplot(1, 2, 2)
-    plt.plot(data['train_accuracies'], label='Train Accuracy', marker='o', linestyle='-')
-    plt.plot(data['test_accuracies'], label='Test Accuracy', marker='x', linestyle='--')
+    plt.plot(data['train_accuracies'], label='Train Accuracy', color=soft_blue, linestyle='-')
+    plt.plot(data['test_accuracies'], label='Test Accuracy', color=soft_red, linestyle='-')
     plt.title(f'{model_name} - Training and Test Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
-    plt.legend()
+    plt.legend(loc='upper right')  # 设置固定位置的图例
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)  # 加粗坐标轴
+    ax.tick_params(axis='both', which='major', length=5, width=1, direction='out')  # 设置刻度小短线
+    # 设置 x 轴刻度（每 5 个 epoch 显示一个）
+    max_epochs_acc = len(data['train_accuracies'])
+    plt.xticks(np.arange(0, max_epochs_acc, 5))
+    # 固定 y 轴范围并确保起始刻度可以标注
+    plt.ylim(0.5, 1.0)  # 固定 y 轴范围
+    yticks_acc = np.arange(0.6, 0.91, 0.05)  # 每 0.05 一个刻度
+    plt.yticks(yticks_acc)
+    # 添加网格线
+    ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
+    ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
+    ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
+    ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
+    ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
 
+    # 调整子图间距
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.3)  # 调整子图之间的水平间距
     plt.savefig(os.path.join(plot_dir, f'{model_name}_loss_accuracy_curve.png'))
     plt.close()
 

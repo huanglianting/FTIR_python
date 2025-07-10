@@ -16,6 +16,8 @@ class SEBlock(nn.Module):
         )
 
     def forward(self, x):  # [B, C, L]
+        # Channels：特征通道数，例如经过 Conv1d(1, 32, ...) 后变为 32
+        # Length：光谱数据的时间步/采样点数量（例如经过池化后变成不同长度），取决于输入长度和卷积参数
         y = self.avg_pool(x).view(x.size(0), x.size(1))
         y = self.fc(y).view(x.size(0), x.size(1), 1)
         return x * y.expand_as(x)
@@ -23,14 +25,14 @@ class SEBlock(nn.Module):
 
 # 定义模态特征提取的分支
 class FTIREncoder(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim):   # 输入 x: [B, input_dim]，样本数*特征数
         super(FTIREncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Unflatten(1, (1, -1)),
-            nn.Conv1d(1, 32, 7, stride=2),
+            nn.Unflatten(1, (1, -1)),   # 输出: [B, 1, input_dim]，添加通道维度，变为 [Batch, Channel, Length]
+            nn.Conv1d(1, 32, 7, stride=2),   # 输出: [B, 32, L1]， L1 = floor((input_dim - 7) / 2 + 1)
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            SEBlock(32),  # 添加 SE 注意力
+            SEBlock(32),  # 添加 SE 注意力，输出保持: [B, 32, L1]
             nn.MaxPool1d(3, 2),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
