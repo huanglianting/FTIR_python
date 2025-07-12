@@ -85,7 +85,7 @@ class FTIREncoder(nn.Module):
         # 构造 freqs_cis（只在第一次运行时计算）
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
-                feat_axis.shape[0], dim=self.dim)
+                feat_axis.shape[0], dim=128)
         # 将 feat_axis 转为位置编码（RoPE）
         feat = feat.unsqueeze(1)
         freqs_cis = self.freqs_cis.to(feat.device)
@@ -122,7 +122,7 @@ class MZEncoder(nn.Module):
         # 构造 freqs_cis（只在第一次运行时计算）
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
-                feat_axis.shape[0], dim=self.dim)
+                feat_axis.shape[0], dim=128)
         # 将 feat_axis 转为位置编码（RoPE）
         feat = feat.unsqueeze(1)
         freqs_cis = self.freqs_cis.to(feat.device)
