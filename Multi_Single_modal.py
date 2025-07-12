@@ -76,18 +76,18 @@ class FTIREncoder(nn.Module):
         self.freqs_cis = None  # 缓存预计算的 freqs_cis
 
     def forward(self, feat, feat_axis):
-        # 提取基础特征
-        feat = feat.unsqueeze(1)    # [B,1,467]
-        feat = self.net(feat)   # [B,128]
-        # 构造 freqs_cis（只在第一次运行时计算）
-        if self.freqs_cis is None:
+        feat = feat.unsqueeze(1)  # [B, 1, 467]
+        # 预计算位置编码(使用原始序列长度)
+        if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
-                dim=128, end=1)  # 固定seq_len=1
-        # 将 feat_axis 转为位置编码（RoPE）
-        feat = feat.unsqueeze(1)  # [B,1,128]
-        freqs_cis = self.freqs_cis[:1].to(feat.device)
-        feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
-        feat = feat.squeeze(1)    # [B,128]
+                dim=feat.shape[-1],  # 使用原始维度467
+                end=feat_axis.shape[0]
+            )
+        # 应用位置编码到原始光谱数据
+        freqs_cis = self.freqs_cis.to(feat.device)
+        feat = apply_rotary_emb(feat, freqs_cis)  # [B, 1, 467]
+        # 通过特征提取网络
+        feat = self.net(feat)  # [B, 128]
         return feat
 
 
@@ -113,18 +113,18 @@ class MZEncoder(nn.Module):
         self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        # 提取基础特征
-        feat = feat.unsqueeze(1)    # [B,1,467]
-        feat = self.net(feat)   # [B,128]
-        # 构造 freqs_cis（只在第一次运行时计算）
-        if self.freqs_cis is None:
+        feat = feat.unsqueeze(1)  # [B, 1, 467]
+        # 预计算位置编码(使用原始序列长度)
+        if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
-                dim=128, end=1)  # 固定seq_len=1
-        # 将 feat_axis 转为位置编码（RoPE）
-        feat = feat.unsqueeze(1)  # [B,1,128]
-        freqs_cis = self.freqs_cis[:1].to(feat.device)
-        feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
-        feat = feat.squeeze(1)    # [B,128]
+                dim=feat.shape[-1],  # 使用原始维度467
+                end=feat_axis.shape[0]
+            )
+        # 应用位置编码到原始光谱数据
+        freqs_cis = self.freqs_cis.to(feat.device)
+        feat = apply_rotary_emb(feat, freqs_cis)  # [B, 1, 467]
+        # 通过特征提取网络
+        feat = self.net(feat)  # [B, 128]
         return feat
 
 
