@@ -1,9 +1,38 @@
+import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torch.fft as fft
 from sklearn.svm import SVC
 
 
 # ==================模块定义====================================
+def precompute_freqs_rotary(dim: int, end: int, theta: float = 10000.0):
+    """
+    预计算旋转角度 freqs，用于后续生成旋转矩阵。
+    dim: 嵌入维度的一半
+    end: 序列长度
+    """
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[:dim//2].float() / dim))
+    t = torch.arange(end, device=freqs.device)
+    freqs = torch.outer(t, freqs)  # [seq_len, dim // 2]
+    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
+    return freqs_cis
+
+
+def apply_rotary_emb(x, freqs_cis):
+    """
+    对输入 x 应用 RoPE 编码
+    x: [B, seq_len, D]
+    freqs_cis: [seq_len, D/2] 复数形式
+    """
+    x_complex = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+    freqs_cis = freqs_cis.unsqueeze(0).expand(x.shape[0], *freqs_cis.shape)
+    x_rotated = x_complex * freqs_cis
+    x_out = torch.view_as_real(x_rotated).flatten(2)
+    return x_out.type(x.dtype)
+
+
 class SEBlock(nn.Module):
     def __init__(self, channels, reduction=16):
         super(SEBlock, self).__init__()
@@ -46,11 +75,25 @@ class FTIREncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5)
         )
+        # RoPE 参数
+        self.freqs_cis = None  # 缓存预计算的 freqs_cis
 
     def forward(self, feat, feat_axis):
         # 特征加权（乘法）：feat [B, 467] * feature_axis [467] -> [B, 467]
-        weighted_feat = feat * feat_axis.abs()  # 用绝对值确保权重非负
-        return self.net(weighted_feat)
+        feat = feat * feat_axis.abs()  # 用绝对值确保权重非负
+        # 提取基础特征
+        feat = feat.unsqueeze(1)  # [B, 1, 467]
+        feat = self.net(feat)
+        # 构造 freqs_cis（只在第一次运行时计算）
+        if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
+            self.freqs_cis = precompute_freqs_rotary(
+                feat_axis.shape[0], dim=self.dim)
+        # 将 feat_axis 转为位置编码（RoPE）
+        feat = feat.unsqueeze(1)
+        freqs_cis = self.freqs_cis.to(x.device)
+        feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
+        feat = feat.squeeze(1)
+        return feat
 
 
 class MZEncoder(nn.Module):
@@ -72,10 +115,24 @@ class MZEncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5)
         )
+        self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        weighted_feat = feat * feat_axis.abs()  # 用绝对值确保权重非负
-        return self.net(weighted_feat)
+        # 特征加权（乘法）：feat [B, 467] * feature_axis [467] -> [B, 467]
+        feat = feat * feat_axis.abs()  # 用绝对值确保权重非负
+        # 提取基础特征
+        feat = feat.unsqueeze(1)  # [B, 1, 467]
+        feat = self.net(feat)
+        # 构造 freqs_cis（只在第一次运行时计算）
+        if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
+            self.freqs_cis = precompute_freqs_rotary(
+                feat_axis.shape[0], dim=self.dim)
+        # 将 feat_axis 转为位置编码（RoPE）
+        feat = feat.unsqueeze(1)
+        freqs_cis = self.freqs_cis.to(x.device)
+        feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
+        feat = feat.squeeze(1)
+        return feat
 
 
 class SimpleResidualBlock(nn.Module):

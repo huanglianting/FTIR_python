@@ -342,7 +342,7 @@ param_grid = {
     'label_smoothing': [0.1],
     'noise_std': [0.05],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [10, 20]
+    'early_stop_patience': [10, 15]
 }
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
