@@ -34,10 +34,6 @@ def set_seed(seed):
 
 set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
 
-# 检测设备
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-
 # 定义基础路径
 ftir_file_path = './data/'
 mz_file_path1 = r'./data/compound_measurements.xlsx'
@@ -81,8 +77,8 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
-ftir_x_tensor = torch.tensor(ftir_x_scaled, dtype=torch.float32)  # 形状: [467]
-mz_x_tensor = torch.tensor(mz_x_scaled, dtype=torch.float32)      # 形状: [2838]
+ftir_x = torch.tensor(ftir_x_scaled, dtype=torch.float32)  # 形状: [467]
+mz_x = torch.tensor(mz_x_scaled, dtype=torch.float32)      # 形状: [2838]
 patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 # 验证标准化后的数据形状
@@ -90,6 +86,8 @@ print("标准化后 ftir_train 形状:", ftir_train.shape)
 print("标准化后 mz_train 形状:", mz_train.shape)
 print("标准化后 ftir_test 形状:", ftir_test.shape)
 print("标准化后 mz_test 形状:", mz_test.shape)
+print("标准化后 ftir_x 形状:", ftir_x.shape)
+print("标准化后 mz_x 形状:", mz_x.shape)
 
 
 class EarlyStopping:
@@ -338,13 +336,13 @@ n_splits = 4
 sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 param_grid = {
-    'lr': [1e-4, 3e-4],
-    'weight_decay': [0, 1e-4],
+    'lr': [3e-4],
+    'weight_decay': [1e-4],
     'batch_size': [16, 32],
-    'label_smoothing': [0.0, 0.1],
-    'noise_std': [0.0, 0.05],
+    'label_smoothing': [0.1],
+    'noise_std': [0.05],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [10, 15, 20, 25, 30]
+    'early_stop_patience': [10, 20]
 }
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
