@@ -56,14 +56,11 @@ class SEBlock(nn.Module):
 class FTIREncoder(nn.Module):
     def __init__(self, input_dim):
         super(FTIREncoder, self).__init__()
-        self.net = nn.Sequential(      # 输入: [B, input_dim]，样本数*特征数
-            # 输出: [B, 1, input_dim]，添加通道维度，变为 [Batch, Channel, Length]
-            nn.Unflatten(1, (1, -1)),
-            # 输出: [B, 32, L1]， L1 = floor((input_dim - 7) / 2 + 1)
-            nn.Conv1d(1, 32, 7, stride=2),
+        self.net = nn.Sequential(
+            nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            SEBlock(32),  # 添加 SE 注意力，输出保持: [B, 32, L1]
+            SEBlock(32),
             nn.MaxPool1d(3, 2),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
@@ -98,12 +95,12 @@ class MZEncoder(nn.Module):
     def __init__(self, input_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Unflatten(1, (1, -1)),
-            nn.Conv1d(1, 32, 5, stride=2),
+            nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
             SEBlock(32),
-            nn.Conv1d(32, 64, 3, stride=2),
+            nn.MaxPool1d(3, 2),
+            nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
