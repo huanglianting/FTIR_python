@@ -7,30 +7,27 @@ from sklearn.svm import SVC
 
 
 # ==================模块定义====================================
-def precompute_freqs_rotary(dim: int, end: int, theta: float = 10000.0):
-    """
-    预计算旋转角度 freqs，用于后续生成旋转矩阵。
-    dim: 嵌入维度的一半
-    end: 序列长度
-    """
+# 使用位置序列预计算旋转角度
+def precompute_freqs_rotary(feat_axis: torch.Tensor, dim: int, theta: float = 10000.0):
+    # 归一化位置序列到[0,1]范围
+    normalized_axis = (feat_axis - feat_axis.min()) / \
+        (feat_axis.max() - feat_axis.min() + 1e-6)
+    # 计算频率因子 (1/(theta^(2i/dim)) for i in [0, dim//2-1])
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[:dim//2].float() / dim))
-    t = torch.arange(end, device=freqs.device)
-    freqs = torch.outer(t, freqs)  # [seq_len, dim // 2]
-    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
+    # 生成复数形式的旋转角度
+    freqs = torch.outer(normalized_axis, freqs)  # [L, dim//2]
+    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # e^(i*freqs)
     return freqs_cis
 
 
-def apply_rotary_emb(x, freqs_cis):
-    """
-    对输入 x 应用 RoPE 编码
-    x: [B, seq_len, D]
-    freqs_cis: [seq_len, D/2] 复数形式
-    """
-    x_complex = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-    freqs_cis = freqs_cis.unsqueeze(0).expand(x.shape[0], *freqs_cis.shape)
-    x_rotated = x_complex * freqs_cis
-    x_out = torch.view_as_real(x_rotated).flatten(2)
-    return x_out.type(x.dtype)
+# 对特征应用 RoPE 位置编码
+def apply_rotary_emb(feat, freqs_cis):
+    feat_complex = torch.view_as_complex(
+        feat.float().reshape(*feat.shape[:-1], -1, 2))
+    freqs_cis = freqs_cis.unsqueeze(0).expand(feat.shape[0], *freqs_cis.shape)
+    feat_rotated = feat_complex * freqs_cis
+    feat_out = torch.view_as_real(feat_rotated).flatten(2)
+    return feat_out.type(feat.dtype)
 
 
 class SEBlock(nn.Module):
@@ -72,22 +69,18 @@ class FTIREncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5)
         )
-        # RoPE 参数
-        self.freqs_cis = None  # 缓存预计算的 freqs_cis
+        self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
         feat = feat.unsqueeze(1)  # [B, 1, 467]
-        # 预计算位置编码(使用原始序列长度)
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
-                dim=feat.shape[-1],  # 使用原始维度467
-                end=feat_axis.shape[0]
+                feat_axis=feat_axis,
+                dim=feat.shape[-1]    # 467
             )
-        # 应用位置编码到原始光谱数据
         freqs_cis = self.freqs_cis.to(feat.device)
-        feat = apply_rotary_emb(feat, freqs_cis)  # [B, 1, 467]
-        # 通过特征提取网络
-        feat = self.net(feat)  # [B, 128]
+        feat = apply_rotary_emb(feat, freqs_cis)
+        feat = self.net(feat)
         return feat
 
 
@@ -113,18 +106,15 @@ class MZEncoder(nn.Module):
         self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)  # [B, 1, 467]
-        # 预计算位置编码(使用原始序列长度)
+        feat = feat.unsqueeze(1)
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
-                dim=feat.shape[-1],  # 使用原始维度467
-                end=feat_axis.shape[0]
+                feat_axis=feat_axis,
+                dim=feat.shape[-1]
             )
-        # 应用位置编码到原始光谱数据
         freqs_cis = self.freqs_cis.to(feat.device)
-        feat = apply_rotary_emb(feat, freqs_cis)  # [B, 1, 467]
-        # 通过特征提取网络
-        feat = self.net(feat)  # [B, 128]
+        feat = apply_rotary_emb(feat, freqs_cis)
+        feat = self.net(feat)
         return feat
 
 
