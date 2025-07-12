@@ -1,41 +1,11 @@
-import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.fft as fft
 from sklearn.svm import SVC
 
 
 # ==================模块定义====================================
-# 使用位置序列预计算旋转角度
-def precompute_freqs_rotary(feat_axis: torch.Tensor, dim: int, theta: float = 10000.0):
-    # 归一化位置序列到[0,1]范围
-    normalized_axis = (feat_axis - feat_axis.min()) / \
-        (feat_axis.max() - feat_axis.min() + 1e-6)
-    # 计算频率因子 (1/(theta^(2i/dim)) for i in [0, dim//2-1])
-    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[:dim//2].float() / dim))
-    # 生成复数形式的旋转角度
-    freqs = torch.outer(normalized_axis, freqs)  # [L, dim//2]
-    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # e^(i*freqs)
-    return freqs_cis
-
-
-# 对特征应用 RoPE 位置编码
-def apply_rotary_emb(feat, freqs_cis):
-    # 添加padding使维度为偶数
-    if feat.shape[-1] % 2 != 0:
-        feat = F.pad(feat, (0, 1))  # 在最后一维补零
-    feat_complex = torch.view_as_complex(
-        feat.float().reshape(*feat.shape[:-1], -1, 2))
-    freqs_cis = freqs_cis.unsqueeze(0).expand(feat.shape[0], *freqs_cis.shape)
-    feat_rotated = feat_complex * freqs_cis
-    feat_out = torch.view_as_real(feat_rotated).flatten(2)
-    # 移除padding
-    return feat_out[..., :-1].type(feat.dtype) if feat.shape[-1] % 2 != 0 else feat_out.type(feat.dtype)
-
-
 class SEBlock(nn.Module):
-    def __init__(self, channels, reduction=16):
+    def __init__(self, channels, axis_dim, reduction=16):
         super(SEBlock, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Sequential(
@@ -44,81 +14,79 @@ class SEBlock(nn.Module):
             nn.Linear(channels // reduction, channels, bias=False),
             nn.Sigmoid()
         )
+        self.axis_proj = nn.Sequential(
+            nn.Linear(axis_dim, channels // reduction),
+            nn.ReLU(),
+            nn.Linear(channels // reduction, channels),
+            nn.Sigmoid()
+        )
 
-    def forward(self, x):  # [B, C, L]
+    def forward(self, feat, feat_axis):  # [B, C, L]
         # Channels：特征通道数，例如经过 Conv1d(1, 32, ...) 后变为 32
-        # Length：光谱数据的时间步/采样点数量（例如经过池化后变成不同长度），取决于输入长度和卷积参数
-        y = self.avg_pool(x).view(x.size(0), x.size(1))
-        y = self.fc(y).view(x.size(0), x.size(1), 1)
-        return x * y.expand_as(x)
+        # Length：经过池化后变成不同长度，取决于输入长度和卷积参数
+        y = self.avg_pool(feat).view(feat.size(0), feat.size(1))
+        y = self.fc(y)
+        axis_weight = self.axis_proj(feat_axis)  # [B, C]
+        y = y * axis_weight  # 通道级融合
+        return feat * y.view(feat.size(0), feat.size(1), 1)  # [B, C, L]
 
 
 # 定义模态特征提取的分支
 class FTIREncoder(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()
         self.net = nn.Sequential(
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            SEBlock(32),
+            SEBlock(32, axis_dim=axis_dim),
             nn.MaxPool1d(3, 2),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(54),
+            nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 54, 128),
+            nn.Linear(64 * 64, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
-        self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)  # [B, 1, 467]
-        if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
-            self.freqs_cis = precompute_freqs_rotary(
-                feat_axis=feat_axis,
-                dim=feat.shape[-1]    # 467
-            )
-        freqs_cis = self.freqs_cis.to(feat.device)
-        feat = apply_rotary_emb(feat, freqs_cis)
-        feat = self.net(feat)
+        for layer in self.net:
+            if isinstance(layer, SEBlock):
+                feat = layer(feat, feat_axis)  # 自动处理轴编码
+            else:
+                feat = layer(feat)
         return feat
 
 
 class MZEncoder(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            SEBlock(32),
+            SEBlock(32, axis_dim=axis_dim),
             nn.MaxPool1d(3, 2),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(54),
+            nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 54, 128),
+            nn.Linear(64 * 64, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
-        self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)
-        if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
-            self.freqs_cis = precompute_freqs_rotary(
-                feat_axis=feat_axis,
-                dim=feat.shape[-1]
-            )
-        freqs_cis = self.freqs_cis.to(feat.device)
-        feat = apply_rotary_emb(feat, freqs_cis)
-        feat = self.net(feat)
+        for layer in self.net:
+            if isinstance(layer, SEBlock):
+                feat = layer(feat, feat_axis)  # 自动处理轴编码
+            else:
+                feat = layer(feat)
         return feat
 
 
