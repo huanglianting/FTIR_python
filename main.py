@@ -338,7 +338,7 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 param_grid = {
     'lr': [3e-4],
     'weight_decay': [1e-4],
-    'batch_size': [16, 32],
+    'batch_size': [32],
     'label_smoothing': [0.1],
     'noise_std': [0.05],
     'scheduler_factor': [0.5],

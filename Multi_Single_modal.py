@@ -90,7 +90,7 @@ class FTIREncoder(nn.Module):
                 feat_axis.shape[0], dim=self.dim)
         # 将 feat_axis 转为位置编码（RoPE）
         feat = feat.unsqueeze(1)
-        freqs_cis = self.freqs_cis.to(x.device)
+        freqs_cis = self.freqs_cis.to(feat.device)
         feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
         feat = feat.squeeze(1)
         return feat
@@ -129,7 +129,7 @@ class MZEncoder(nn.Module):
                 feat_axis.shape[0], dim=self.dim)
         # 将 feat_axis 转为位置编码（RoPE）
         feat = feat.unsqueeze(1)
-        freqs_cis = self.freqs_cis.to(x.device)
+        freqs_cis = self.freqs_cis.to(feat.device)
         feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
         feat = feat.squeeze(1)
         return feat
