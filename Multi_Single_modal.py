@@ -22,12 +22,16 @@ def precompute_freqs_rotary(feat_axis: torch.Tensor, dim: int, theta: float = 10
 
 # 对特征应用 RoPE 位置编码
 def apply_rotary_emb(feat, freqs_cis):
+    # 添加padding使维度为偶数
+    if feat.shape[-1] % 2 != 0:
+        feat = F.pad(feat, (0, 1))  # 在最后一维补零
     feat_complex = torch.view_as_complex(
         feat.float().reshape(*feat.shape[:-1], -1, 2))
     freqs_cis = freqs_cis.unsqueeze(0).expand(feat.shape[0], *freqs_cis.shape)
     feat_rotated = feat_complex * freqs_cis
     feat_out = torch.view_as_real(feat_rotated).flatten(2)
-    return feat_out.type(feat.dtype)
+    # 移除padding
+    return feat_out[..., :-1].type(feat.dtype) if feat.shape[-1] % 2 != 0 else feat_out.type(feat.dtype)
 
 
 class SEBlock(nn.Module):
