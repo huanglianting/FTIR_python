@@ -68,9 +68,11 @@ print("测试集类别分布:", np.bincount(y_test))
 scaler_ftir = StandardScaler()
 ftir_train = scaler_ftir.fit_transform(ftir_train)
 ftir_test = scaler_ftir.transform(ftir_test)
+ftir_x_scaled = scaler_ftir.transform(ftir_x.reshape(1, -1)).squeeze()
 scaler_mz = StandardScaler()
 mz_train = scaler_mz.fit_transform(mz_train)
 mz_test = scaler_mz.transform(mz_test)
+mz_x_scaled = scaler_mz.transform(mz_x.reshape(1, -1)).squeeze()
 
 # 转换为PyTorch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
@@ -79,6 +81,8 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
+ftir_x_tensor = torch.tensor(ftir_x_scaled, dtype=torch.float32)  # 形状: [467]
+mz_x_tensor = torch.tensor(mz_x_scaled, dtype=torch.float32)      # 形状: [2838]
 patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 # 验证标准化后的数据形状
