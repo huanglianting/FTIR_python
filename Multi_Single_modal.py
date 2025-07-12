@@ -131,9 +131,10 @@ class HybridFusion(nn.Module):
         super().__init__()
         # Gate Fusion
         self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
-            nn.ReLU(),
-            nn.Linear(dim, 2),
+            nn.Linear(dim * 2, dim * 4),
+            nn.LeakyReLU(0.2),
+            nn.Dropout(0.3),
+            nn.Linear(dim * 4, 2),
             nn.Softmax(dim=1)
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
