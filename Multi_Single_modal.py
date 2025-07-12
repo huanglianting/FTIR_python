@@ -79,10 +79,8 @@ class FTIREncoder(nn.Module):
         self.freqs_cis = None  # 缓存预计算的 freqs_cis
 
     def forward(self, feat, feat_axis):
-        # 特征加权（乘法）：feat [B, 467] * feature_axis [467] -> [B, 467]
-        feat = feat * feat_axis.abs()  # 用绝对值确保权重非负
         # 提取基础特征
-        feat = feat.unsqueeze(1)  # [B, 1, 467]
+        feat = feat.unsqueeze(1)
         feat = self.net(feat)
         # 构造 freqs_cis（只在第一次运行时计算）
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
@@ -118,8 +116,6 @@ class MZEncoder(nn.Module):
         self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        # 特征加权（乘法）：feat [B, 467] * feature_axis [467] -> [B, 467]
-        feat = feat * feat_axis.abs()  # 用绝对值确保权重非负
         # 提取基础特征
         feat = feat.unsqueeze(1)  # [B, 1, 467]
         feat = self.net(feat)
