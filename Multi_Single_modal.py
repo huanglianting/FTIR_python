@@ -46,8 +46,8 @@ class FTIREncoder(nn.Module):
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 64, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(64 * 64, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
@@ -76,8 +76,8 @@ class MZEncoder(nn.Module):
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 64, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(64 * 64, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
@@ -152,11 +152,11 @@ class MultiModalModel(nn.Module):
         self.mz_extractor = MZEncoder(mz_input_dim)
         self.fuser = HybridFusion(dim=128, num_heads=4)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 64),
+            SimpleResidualBlock(256),
+            nn.Linear(256, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 2),
