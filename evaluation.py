@@ -11,38 +11,29 @@ import seaborn as sns
 import pandas as pd
 
 
-def evaluate_model(
-        model=None,
-        ftir_test=None,
-        mz_test=None,
-        y_test=None,
-        preds=None,
-        probs=None,
-        name="Model",
-        model_type="undefined",
-        fold=1,
-        save_path='./result',
-        is_svm=False
-):
-
+def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
+                   preds=None, probs=None, name="Model", model_type="undefined",
+                   fold=1, save_path='./result', is_svm=False):
     y_true = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
     # 如果没有提供 preds 和 probs
     if preds is None or probs is None:
         if is_svm:
-            test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()]) \
-                if (isinstance(ftir_test, torch.Tensor) and isinstance(mz_test, torch.Tensor)) \
-                else np.hstack([ftir_test, mz_test])
+            ftir_test_np = ftir_test.numpy() if isinstance(ftir_test, torch.Tensor) else ftir_test
+            mz_test_np = mz_test.numpy() if isinstance(mz_test, torch.Tensor) else mz_test
+            ftir_axis_batch = np.tile(ftir_axis.numpy(), (ftir_test_np.shape[0], 1))  # [batch, 467]
+            mz_axis_batch = np.tile(mz_axis.numpy(), (mz_test_np.shape[0], 1))  # [batch, 2838]
+            test_features = np.hstack([ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
             preds = model.predict(test_features)
             probs = model.predict_proba(test_features)[:, 1]
         else:
             model.eval()
             with torch.no_grad():
                 if isinstance(ftir_test, torch.Tensor) and isinstance(mz_test, torch.Tensor):
-                    outputs = model(ftir_test, mz_test)
+                    outputs = model(ftir_test, mz_test, ftir_axis, mz_axis)
                 elif isinstance(ftir_test, torch.Tensor):  # FTIR-only
-                    outputs = model(ftir_test)
+                    outputs = model(ftir_test, ftir_axis)
                 elif isinstance(mz_test, torch.Tensor):  # mz-only
-                    outputs = model(mz_test)
+                    outputs = model(mz_test, mz_axis)
                 else:
                     raise ValueError("Invalid input type for model prediction.")
                 probs = torch.softmax(outputs, dim=1)[:, 1].cpu().numpy()
@@ -88,16 +79,22 @@ def evaluate_model(
     save_confusion_matrix_heatmap(cm, save_path=save_path, method_name=name, show_plot=False)
 
     # 绘制并保存 ROC 曲线
-    fpr, tpr, _ = roc_curve(y_true, probs)
+    fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)  # drop_intermediate=False 保留所有点
     plt.figure(figsize=(6, 6))  # 设置图形大小为1:1
-    plt.plot(fpr, tpr, color='#6495ED', lw=2, label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
-    plt.plot([0, 1], [0, 1], color='#CD5C5C', linestyle='--', lw=2)  # 红色虚线
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
+    plt.plot(fpr, tpr, color='#6495ED', label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
+    plt.plot([0, 1], [0, 1], color='#EEEEEE', linestyle='--')  # 灰色虚线
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title(f'{name} Receiver Operating Characteristic (ROC) Curve')
     plt.legend(loc="lower right")
+    plt.grid(False)
+    # 设置坐标轴为黑色实线
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)  # 加粗坐标轴
     plt.savefig(os.path.join(save_path, f'{name}_roc_curve.png'))
     plt.close()
 
@@ -146,3 +143,4 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
         plt.show()
     plt.close()
     print(f"Heatmap has been saved to {image_path}")
+    
