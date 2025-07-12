@@ -66,9 +66,9 @@ class FTIREncoder(nn.Module):
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
+            nn.AdaptiveAvgPool1d(54),
             nn.Flatten(),
-            nn.Linear(64 * 64, 128),
+            nn.Linear(64 * 54, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5)
@@ -100,9 +100,9 @@ class MZEncoder(nn.Module):
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
+            nn.AdaptiveAvgPool1d(54),
             nn.Flatten(),
-            nn.Linear(64 * 64, 128),
+            nn.Linear(64 * 54, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5)
