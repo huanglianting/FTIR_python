@@ -53,6 +53,9 @@ class FTIREncoder(nn.Module):
         )
 
     def forward(self, feat, feat_axis):
+        print(f"\n[FTIR Encoder] Input feat shape: {feat.shape}")
+        feat = feat.unsqueeze(1)
+        print(f"After unsqueeze(1): {feat.shape}")
         for layer in self.net:
             if isinstance(layer, SEBlock):
                 feat = layer(feat, feat_axis)  # 自动处理轴编码
@@ -82,6 +85,9 @@ class MZEncoder(nn.Module):
         )
 
     def forward(self, feat, feat_axis):
+        print(f"\n[MZ Encoder] Input feat shape: {feat.shape}")
+        feat = feat.unsqueeze(1)
+        print(f"After unsqueeze(1): {feat.shape}")
         for layer in self.net:
             if isinstance(layer, SEBlock):
                 feat = layer(feat, feat_axis)  # 自动处理轴编码
