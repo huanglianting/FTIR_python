@@ -76,18 +76,26 @@ class FTIREncoder(nn.Module):
         self.freqs_cis = None  # 缓存预计算的 freqs_cis
 
     def forward(self, feat, feat_axis):
+        print(f"\n[FTIREncoder] 输入 feat shape: {feat.shape}")  # 应该是 [B, 467]
         # 提取基础特征
         feat = feat.unsqueeze(1)
+        print(f"unsqueeze后 feat shape: {feat.shape}")
         feat = self.net(feat)
+        print(f"net后 feat shape: {feat.shape}")  # 应该是 [B, 128]
         # 构造 freqs_cis（只在第一次运行时计算）
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
+            print(f"feat_axis shape: {feat_axis.shape}")  # 应该是 [467]
             self.freqs_cis = precompute_freqs_rotary(
                 dim=128, end=feat_axis.shape[0])
+            print(f"freqs_cis shape: {self.freqs_cis.shape}")  # 应该是 [467, 64]
         # 将 feat_axis 转为位置编码（RoPE）
         feat = feat.unsqueeze(1)
+        print(f"unsqueeze for RoPE后 feat shape: {feat.shape}")
         freqs_cis = self.freqs_cis.to(feat.device)
         feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
+        print(f"apply_rotary_emb后 feat shape: {feat.shape}")  # 应该是 [B,1,128]
         feat = feat.squeeze(1)
+        print(f"最终输出 feat shape: {feat.shape}\n")
         return feat
 
 
@@ -113,14 +121,11 @@ class MZEncoder(nn.Module):
         self.freqs_cis = None
 
     def forward(self, feat, feat_axis):
-        # 提取基础特征
         feat = feat.unsqueeze(1)  # [B, 1, 467]
         feat = self.net(feat)
-        # 构造 freqs_cis（只在第一次运行时计算）
         if self.freqs_cis is None or self.freqs_cis.shape[0] != feat_axis.shape[0]:
             self.freqs_cis = precompute_freqs_rotary(
                 dim=128, end=feat_axis.shape[0])
-        # 将 feat_axis 转为位置编码（RoPE）
         feat = feat.unsqueeze(1)
         freqs_cis = self.freqs_cis.to(feat.device)
         feat = apply_rotary_emb(feat, freqs_cis)  # 注入位置信息
