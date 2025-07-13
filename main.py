@@ -126,7 +126,7 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.1, shift_range=0.05, seed=None):
+def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02, seed=None):
     if seed is not None:
         torch.manual_seed(seed)
     B, L = x.shape  # 批量大小和特征长度
@@ -137,9 +137,6 @@ def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.1, shift_range=0.
     # 随机缩放
     scale = 1 + (torch.rand(B, 1, device=x.device) * 2 - 1) * scaling_factor
     x_aug = x_aug * scale
-    axis = axis * scale
-    # scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
-    # x_aug = x_aug * scale.clamp(min=0.9, max=1.1)
     # 随机偏移
     max_shift = int(L * shift_range)
     shifts = torch.randint(-max_shift, max_shift+1, (B,), device=x.device)
@@ -148,8 +145,6 @@ def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.1, shift_range=0.
         for i in range(B)
     ])
     axis = axis + (shifts.float() / L).unsqueeze(1)
-    # shift = torch.randint(-int(x_aug.shape[1] * shift_range),int(x_aug.shape[1] * shift_range), (1,))
-    # x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
     return x_aug, axis
 
 
