@@ -106,16 +106,35 @@ class SimpleResidualBlock(nn.Module):
         return x + self.net(x)
 
 
+class GatedFusion(nn.Module):
+    def __init__(self, dim=128):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.Linear(dim * 2, dim),
+            nn.ReLU(),
+            nn.Linear(dim, 2),
+            nn.Softmax(dim=1)
+        )
+        self.bias = nn.Parameter(torch.tensor([0.5, 0.5]))  # 初始为平均融合
+
+    def forward(self, ftir_feat, mz_feat):
+        combined = torch.cat([ftir_feat, mz_feat], dim=1)
+        weights = self.gate(combined) * self.bias  # 加权融合
+        weights = weights / weights.sum(dim=1, keepdim=True)  # 归一化
+        fused = weights[:, 0].unsqueeze(
+            1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
+        return fused.squeeze(1)
+
+
 class HybridFusion(nn.Module):
     def __init__(self, dim=128, num_heads=4):
         super().__init__()
         # Gate Fusion
         self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim * 4),
-            nn.LeakyReLU(negative_slope=0.1),  # 更平缓的负斜率
-            nn.Dropout(0.3),
-            nn.Linear(dim * 4, 2),
-            nn.Sigmoid()
+            nn.Linear(dim * 2, dim),
+            nn.ReLU(),
+            nn.Linear(dim, 2),
+            nn.Softmax(dim=1)
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
@@ -244,10 +263,9 @@ class GateOnlyFusion(nn.Module):
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
         self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim * 4),
-            nn.LeakyReLU(0.2),
-            nn.Dropout(0.3),
-            nn.Linear(dim * 4, 2),
+            nn.Linear(dim * 2, dim),
+            nn.ReLU(),
+            nn.Linear(dim, 2),
             nn.Softmax(dim=1)
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
@@ -311,10 +329,9 @@ class SelfAttnFusion(nn.Module):
         self.mz_extractor = MZEncoder(mz_input_dim)
         # Gate Fusion
         self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim * 4),
-            nn.LeakyReLU(0.2),
-            nn.Dropout(0.3),
-            nn.Linear(dim * 4, 2),
+            nn.Linear(dim * 2, dim),
+            nn.ReLU(),
+            nn.Linear(dim, 2),
             nn.Softmax(dim=1)
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))

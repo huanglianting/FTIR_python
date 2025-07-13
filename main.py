@@ -32,7 +32,7 @@ def set_seed(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
 
 
-set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
+set_seed(3)  # 枚举到13。在程序最开始调用。best：4。
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -126,20 +126,31 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.1, scaling_factor=0.1, shift_range=0.05, seed=None):
+def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.1, shift_range=0.05, seed=None):
     if seed is not None:
         torch.manual_seed(seed)
+    B, L = x.shape  # 批量大小和特征长度
+    axis = axis.squeeze().expand(B, -1)
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
     # 随机缩放
-    scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
-    x_aug = x_aug * scale.clamp(min=0.9, max=1.1)
+    scale = 1 + (torch.rand(B, 1, device=x.device) * 2 - 1) * scaling_factor
+    x_aug = x_aug * scale
+    axis = axis * scale
+    # scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
+    # x_aug = x_aug * scale.clamp(min=0.9, max=1.1)
     # 随机偏移
-    shift = torch.randint(-int(x_aug.shape[1] * shift_range),
-                          int(x_aug.shape[1] * shift_range), (1,))
-    x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
-    return x_aug
+    max_shift = int(L * shift_range)
+    shifts = torch.randint(-max_shift, max_shift+1, (B,), device=x.device)
+    x_aug = torch.stack([
+        torch.roll(x_aug[i], shifts=shifts[i].item(), dims=-1)
+        for i in range(B)
+    ])
+    axis = axis + (shifts.float() / L).unsqueeze(1)
+    # shift = torch.randint(-int(x_aug.shape[1] * shift_range),int(x_aug.shape[1] * shift_range), (1,))
+    # x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
+    return x_aug, axis
 
 
 # ==================主模型训练====================================
@@ -178,8 +189,10 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         total = 0
         for ftir_batch, mz_batch, label_batch in train_dataloader:
             optimizer.zero_grad()
-            ftir_noisy = data_augmentation(ftir_batch)
-            mz_noisy = data_augmentation(mz_batch)
+            ftir_noisy, ftir_axis = data_augmentation(
+                ftir_batch, ftir_axis)
+            mz_noisy, mz_axis = data_augmentation(
+                mz_batch, mz_axis)
             outputs = model(ftir_noisy, mz_noisy, ftir_axis, mz_axis)
             loss = criterion(outputs, label_batch)
             loss.backward()
@@ -276,7 +289,8 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
         total = 0
         for inputs, labels in train_dataloader:
             optimizer.zero_grad()
-            inputs_noisy = data_augmentation(inputs)
+            inputs_noisy, axis = data_augmentation(
+                inputs, axis)
             outputs = model(inputs_noisy, axis)
             loss = criterion(outputs, labels)
             loss.backward()
@@ -340,9 +354,8 @@ param_grid = {
     'weight_decay': [1e-4],
     'batch_size': [32],
     'label_smoothing': [0.1],
-    'noise_std': [0.05],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [15]
+    'early_stop_patience': [15, 30]
 }
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
