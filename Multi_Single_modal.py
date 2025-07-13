@@ -46,8 +46,8 @@ class FTIREncoder(nn.Module):
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 64, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(64 * 64, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
@@ -66,7 +66,7 @@ class MZEncoder(nn.Module):
     def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv1d(1, 32, 15, stride=4),  # 输入 [B,1,467] -> [B,32,230]
+            nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
             SEBlock(32, axis_dim=axis_dim),
@@ -76,8 +76,8 @@ class MZEncoder(nn.Module):
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 64, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(64 * 64, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
@@ -112,10 +112,10 @@ class HybridFusion(nn.Module):
         # Gate Fusion
         self.gate = nn.Sequential(
             nn.Linear(dim * 2, dim * 4),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(negative_slope=0.1),  # 更平缓的负斜率
             nn.Dropout(0.3),
             nn.Linear(dim * 4, 2),
-            nn.Softmax(dim=1)
+            nn.Sigmoid()
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
@@ -152,11 +152,11 @@ class MultiModalModel(nn.Module):
         self.mz_extractor = MZEncoder(mz_input_dim)
         self.fuser = HybridFusion(dim=128, num_heads=4)
         self.classifier = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(256),
-            nn.Linear(256, 64),
+            SimpleResidualBlock(128),
+            nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 2),

@@ -498,8 +498,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
     # "GateOnlyFusion": GateOnlyFusion,
     # "CoAttnOnlyFusion": CoAttnOnlyFusion,
