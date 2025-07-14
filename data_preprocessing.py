@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import scipy.io as sio
@@ -6,8 +7,46 @@ import seaborn as sns
 from load_and_preprocess import load_and_preprocess
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
 
 sns.set_style("whitegrid")
+
+
+# 创建患者-代谢物矩阵
+def prepare_heatmap_data(cancer_mz, normal_mz, common_mz):
+    # 合并所有样本数据
+    samples = []
+    data = []
+    groups = []
+
+    # 添加癌症样本
+    for col in cancer_mz:
+        samples.append(col.replace('_', ' ').replace('[1]', '').strip())
+        data.append(cancer_mz[col])
+        groups.append(1)  # 癌症组标记为1
+
+    # 添加正常样本
+    for col in normal_mz:
+        samples.append(col.replace('_', ' ').replace('[1]', '').strip())
+        data.append(normal_mz[col])
+        groups.append(0)  # 正常组标记为0
+
+    # 创建数据框
+    heatmap_df = pd.DataFrame(
+        data,
+        index=samples,
+        columns=[f'm/z={mz:.2f}' for mz in common_mz]
+    )
+
+    return heatmap_df, np.array(groups)
+
+
+# 筛选差异显著的代谢物（使用方差分析）
+def select_significant_features(data, labels, n_features=50):
+    from sklearn.feature_selection import f_classif
+    f_values, p_values = f_classif(data, labels)
+    sig_indices = np.argsort(p_values)[:n_features]
+    return sig_indices
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -88,7 +127,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
                         df[col].values,
                         kind='linear',
                         bounds_error=False,
-                        fill_value='extrapolate'  # 关键修改：允许外推
+                        fill_value='extrapolate'  # 允许外推
                     )
                     resampled_values = interp_func(common_mz)
                     # 外推可能导致极端值，需限制在合理范围（例如非负）
@@ -122,6 +161,47 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         elif 'normal' in col.lower():
             normal_mz[col] = df2_resampled[col].values
     print("common_mz shape:", common_mz.shape)  # (2838,)
+
+    heatmap_df, group_labels = prepare_heatmap_data(
+        cancer_mz, normal_mz, common_mz)
+    sig_indices = select_significant_features(heatmap_df.values, group_labels)
+    filtered_df = heatmap_df.iloc[:, sig_indices]
+    # 绘制热图
+    plt.figure(figsize=(18, 12))
+    sns.set(font_scale=0.8)
+    # 创建颜色映射
+    group_palette = sns.color_palette("Set1", 2)
+    group_colors = [group_palette[x] for x in group_labels]
+    # 绘制聚类热图
+    g = sns.clustermap(
+        filtered_df.T,  # 转置为 (代谢物 x 样本)
+        method='average',
+        metric='euclidean',
+        z_score=0,  # 按行(代谢物)标准化
+        cmap='coolwarm',  # 红蓝配色
+        row_cluster=True,
+        col_cluster=True,
+        col_colors=group_colors,  # 样本分组颜色
+        figsize=(18, 12),
+        dendrogram_ratio=(0.1, 0.1),
+        cbar_pos=(0.02, 0.85, 0.03, 0.1)
+    )
+    # 添加图例
+    for i, label in enumerate(['Normal', 'Cancer']):
+        g.ax_col_dendrogram.bar(
+            0, 0, color=group_palette[i], label=label, linewidth=0)
+    g.ax_col_dendrogram.legend(
+        loc='upper left', ncol=2, bbox_to_anchor=(0.8, 0.9))
+    # 优化布局
+    plt.suptitle(
+        'Clustering Heatmap of Significant m/z Features (Cancer vs Normal)', y=1.02, fontsize=14)
+    g.ax_heatmap.set_xlabel('Patients')
+    g.ax_heatmap.set_ylabel('m/z Features')
+    # 保存图像
+    output_path = os.path.join(save_path, 'metabolomics_heatmap.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"热图已保存至: {output_path}")
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 按患者初始化（ 训练(+验证) / 测试 ）列表
@@ -229,5 +309,5 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     plt.close()
     """
     return train_ftir, train_mz, train_labels, train_patient_ids, \
-        test_ftir, test_mz, test_labels, test_patient_ids, \
-        x_ftir, common_mz
+           test_ftir, test_mz, test_labels, test_patient_ids, \
+           x_ftir, common_mz

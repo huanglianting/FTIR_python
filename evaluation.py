@@ -11,38 +11,29 @@ import seaborn as sns
 import pandas as pd
 
 
-def evaluate_model(
-        model=None,
-        ftir_test=None,
-        mz_test=None,
-        y_test=None,
-        preds=None,
-        probs=None,
-        name="Model",
-        model_type="undefined",
-        fold=1,
-        save_path='./result',
-        is_svm=False
-):
-
+def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
+                   preds=None, probs=None, name="Model", model_type="undefined",
+                   fold=1, save_path='./result', is_svm=False):
     y_true = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
     # 如果没有提供 preds 和 probs
     if preds is None or probs is None:
         if is_svm:
-            test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()]) \
-                if (isinstance(ftir_test, torch.Tensor) and isinstance(mz_test, torch.Tensor)) \
-                else np.hstack([ftir_test, mz_test])
+            ftir_test_np = ftir_test.numpy() if isinstance(ftir_test, torch.Tensor) else ftir_test
+            mz_test_np = mz_test.numpy() if isinstance(mz_test, torch.Tensor) else mz_test
+            ftir_axis_batch = np.tile(ftir_axis.numpy(), (ftir_test_np.shape[0], 1))  # [batch, 467]
+            mz_axis_batch = np.tile(mz_axis.numpy(), (mz_test_np.shape[0], 1))  # [batch, 2838]
+            test_features = np.hstack([ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
             preds = model.predict(test_features)
             probs = model.predict_proba(test_features)[:, 1]
         else:
             model.eval()
             with torch.no_grad():
                 if isinstance(ftir_test, torch.Tensor) and isinstance(mz_test, torch.Tensor):
-                    outputs = model(ftir_test, mz_test)
+                    outputs = model(ftir_test, mz_test, ftir_axis, mz_axis)
                 elif isinstance(ftir_test, torch.Tensor):  # FTIR-only
-                    outputs = model(ftir_test)
+                    outputs = model(ftir_test, ftir_axis)
                 elif isinstance(mz_test, torch.Tensor):  # mz-only
-                    outputs = model(mz_test)
+                    outputs = model(mz_test, mz_axis)
                 else:
                     raise ValueError("Invalid input type for model prediction.")
                 probs = torch.softmax(outputs, dim=1)[:, 1].cpu().numpy()
@@ -88,20 +79,79 @@ def evaluate_model(
     save_confusion_matrix_heatmap(cm, save_path=save_path, method_name=name, show_plot=False)
 
     # 绘制并保存 ROC 曲线
-    fpr, tpr, _ = roc_curve(y_true, probs)
+    fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)  # drop_intermediate=False 保留所有点
     plt.figure(figsize=(6, 6))  # 设置图形大小为1:1
-    plt.plot(fpr, tpr, color='#6495ED', lw=2, label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
-    plt.plot([0, 1], [0, 1], color='#CD5C5C', linestyle='--', lw=2)  # 红色虚线
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
+    plt.plot(fpr, tpr, color='#6495ED', label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
+    plt.plot([0, 1], [0, 1], color='#EEEEEE', linestyle='--')  # 灰色虚线
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title(f'{name} Receiver Operating Characteristic (ROC) Curve')
     plt.legend(loc="lower right")
+    plt.grid(False)
+    # 设置坐标轴为黑色实线
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)  # 加粗坐标轴
     plt.savefig(os.path.join(save_path, f'{name}_roc_curve.png'))
     plt.close()
 
+    # ========== t-SNE 可视化 ==========
+    if name == "MultiModal":
+        with torch.no_grad():
+            # FTIR单模态特征
+            ftir_feat = model.ftir_extractor(ftir_test, ftir_axis) if hasattr(model, 'ftir_extractor') else None
+            # MZ单模态特征
+            mz_feat = model.mz_extractor(mz_test, mz_axis) if hasattr(model, 'mz_extractor') else None
+            # 融合特征
+            fused_feat = model.fuser(ftir_feat, mz_feat) if hasattr(model, 'fuser') else None
+        # 执行 t-SNE 降维
+        from sklearn.manifold import TSNE
+        tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+        # 可视化各层次特征
+        plot_tsne_features(
+            tsne=tsne,
+            ftir_feat=ftir_feat.cpu().numpy() if ftir_feat is not None else None,
+            mz_feat=mz_feat.cpu().numpy() if mz_feat is not None else None,
+            fused_feat=fused_feat.cpu().numpy() if fused_feat is not None else None,
+            y_true=y_true,
+            save_path=save_path,
+            model_name=name
+        )
+
     return result_dict
+
+
+def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, model_name):
+    plt.figure(figsize=(15, 5))
+    feature_types = [
+        ("FTIR Features", ftir_feat),
+        ("MZ Features", mz_feat),
+        ("Fused Features", fused_feat)
+    ]
+    for idx, (title, feat) in enumerate(feature_types, start=1):
+        if feat is None:
+            continue
+        # 降维并绘制
+        reduced = tsne.fit_transform(feat)
+        plt.subplot(1, 3, idx)
+        sns.scatterplot(
+            x=reduced[:, 0], y=reduced[:, 1],
+            hue=y_true,
+            palette={0: "blue", 1: "red"},
+            alpha=0.7,
+            s=40
+        )
+        plt.title(f"{title} (t-SNE)")
+        plt.xlabel("t-SNE Dimension 1")
+        plt.ylabel("t-SNE Dimension 2")
+        plt.legend(title='Class', labels=['Benign', 'Malignant'])
+    # 保存结果
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_path, f"{model_name}_tsne_comparison.png"), dpi=300)
+    plt.close()
 
 
 def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=True):

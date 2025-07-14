@@ -32,7 +32,7 @@ def set_seed(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
 
 
-set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
+set_seed(3)  # 枚举到13。在程序最开始调用。best：4。
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -64,9 +64,11 @@ print("测试集类别分布:", np.bincount(y_test))
 scaler_ftir = StandardScaler()
 ftir_train = scaler_ftir.fit_transform(ftir_train)
 ftir_test = scaler_ftir.transform(ftir_test)
+ftir_x_scaled = scaler_ftir.transform(ftir_x.reshape(1, -1)).squeeze()
 scaler_mz = StandardScaler()
 mz_train = scaler_mz.fit_transform(mz_train)
 mz_test = scaler_mz.transform(mz_test)
+mz_x_scaled = scaler_mz.transform(mz_x.reshape(1, -1)).squeeze()
 
 # 转换为PyTorch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
@@ -75,6 +77,8 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
+ftir_x = torch.tensor(ftir_x_scaled, dtype=torch.float32)  # 形状: [467]
+mz_x = torch.tensor(mz_x_scaled, dtype=torch.float32)      # 形状: [2838]
 patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 # 验证标准化后的数据形状
@@ -82,6 +86,8 @@ print("标准化后 ftir_train 形状:", ftir_train.shape)
 print("标准化后 mz_train 形状:", mz_train.shape)
 print("标准化后 ftir_test 形状:", ftir_test.shape)
 print("标准化后 mz_test 形状:", mz_test.shape)
+print("标准化后 ftir_x 形状:", ftir_x.shape)
+print("标准化后 mz_x 形状:", mz_x.shape)
 
 
 class EarlyStopping:
@@ -119,24 +125,32 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, noise_std=0.1, scaling_factor=0.1, shift_range=0.05, seed=None):
+def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02, seed=None):
     if seed is not None:
         torch.manual_seed(seed)
+    B, L = x.shape  # 批量大小和特征长度
+    axis = axis.squeeze().expand(B, -1)
     # 高斯噪声
     noise = torch.randn_like(x) * noise_std
     x_aug = x + noise
     # 随机缩放
-    scale = 1 + torch.rand(1) * scaling_factor * torch.randint(-1, 2, (1,))
-    x_aug = x_aug * scale.clamp(min=0.9, max=1.1)
+    scale = 1 + (torch.rand(B, 1, device=x.device) * 2 - 1) * scaling_factor
+    x_aug = x_aug * scale
     # 随机偏移
-    shift = torch.randint(-int(x_aug.shape[1] * shift_range), int(x_aug.shape[1] * shift_range), (1,))
-    x_aug = torch.roll(x_aug, shifts=shift.item(), dims=1)
-    return x_aug
+    max_shift = int(L * shift_range)
+    shifts = torch.randint(-max_shift, max_shift+1, (B,), device=x.device)
+    x_aug = torch.stack([
+        torch.roll(x_aug[i], shifts=shifts[i].item(), dims=-1)
+        for i in range(B)
+    ])
+    axis = axis + (shifts.float() / L).unsqueeze(1)
+    return x_aug, axis
 
 
 # ==================主模型训练====================================
 # 多模态模型训练
-def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val, epochs, batch_size, writer,
+def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_val,
+                     ftir_axis, mz_axis, epochs, batch_size, writer,
                      lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
@@ -165,9 +179,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         total = 0
         for ftir_batch, mz_batch, label_batch in train_dataloader:
             optimizer.zero_grad()
-            ftir_noisy = data_augmentation(ftir_batch)
-            mz_noisy = data_augmentation(mz_batch)
-            outputs = model(ftir_noisy, mz_noisy)
+            ftir_noisy, ftir_axis = data_augmentation(ftir_batch, ftir_axis)
+            mz_noisy, mz_axis = data_augmentation(mz_batch, mz_axis)
+            outputs = model(ftir_noisy, mz_noisy, ftir_axis, mz_axis)
             loss = criterion(outputs, label_batch)
             loss.backward()
             optimizer.step()
@@ -189,7 +203,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         all_targets = []
         with torch.no_grad():
             for ftir_batch, mz_batch, label_batch in val_dataloader:
-                outputs = model(ftir_batch, mz_batch)
+                outputs = model(ftir_batch, mz_batch, ftir_axis, mz_axis)
                 loss = criterion(outputs, label_batch)
                 val_loss += loss.item()
                 _, predicted = torch.max(outputs.data, 1)
@@ -229,7 +243,8 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
 
 
 # 单模态模型训练
-def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batch_size, writer,
+def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
+                             epochs, batch_size, writer,
                              lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                              scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
@@ -257,8 +272,8 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batc
         total = 0
         for inputs, labels in train_dataloader:
             optimizer.zero_grad()
-            inputs_noisy = data_augmentation(inputs)
-            outputs = model(inputs_noisy)
+            inputs_noisy, axis = data_augmentation(inputs, axis)
+            outputs = model(inputs_noisy, axis)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -279,7 +294,7 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batc
         total = 0
         with torch.no_grad():
             for inputs, labels in val_dataloader:
-                outputs = model(inputs)
+                outputs = model(inputs, axis)
                 loss = criterion(outputs, labels)
                 val_loss += loss.item()
                 _, predicted = torch.max(outputs.data, 1)
@@ -310,30 +325,29 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, epochs, batc
 
 
 # ==================主程序====================================
-# 按患者级别实现五折交叉验证
-n_splits = 5
+# 按患者级别实现四折交叉验证
+n_splits = 4
 # 使用GroupKFold确保同一患者所有样本在同一折
 sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 param_grid = {
-    'lr': [1e-4, 3e-4],
-    'weight_decay': [0, 1e-4],
-    'batch_size': [16, 32],
-    'label_smoothing': [0.0, 0.1],
-    'noise_std': [0.0, 0.05],
+    'lr': [3e-4],
+    'weight_decay': [1e-4],
+    'batch_size': [32],
+    'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [10, 15, 20, 25, 30]
+    'early_stop_patience': [15, 30]
 }
-all_params = [dict(zip(param_grid.keys(), values)) for values in itertools.product(*param_grid.values())]
+all_params = [dict(zip(param_grid.keys(), values))for values in itertools.product(*param_grid.values())]
 
 best_avg_auc = 0.0
 best_params = None
-grid_search_results = []  # 用于保存所有参数的五折结果
+grid_search_results = []  # 用于保存所有参数的四折结果
 
 
-def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, patient_indices_train,
-                              param_grid):
-    all_params = [dict(zip(param_grid.keys(), values)) for values in itertools.product(*param_grid.values())]
+def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, ftir_axis, mz_axis,
+                              patient_indices_train, param_grid):
+    all_params = [dict(zip(param_grid.keys(), values))for values in itertools.product(*param_grid.values())]
     results = []
     for params in all_params:
         print(f"\n=== [{model_name}] 测试参数组合: {params} ===")
@@ -367,6 +381,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     model,
                     ftir_train_fold, mz_train_fold, y_train_fold,
                     ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
                     epochs=100,
                     batch_size=params['batch_size'],
                     writer=writer,
@@ -386,6 +401,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     model,
                     ftir_train_fold, y_train_fold,
                     ftir_val_fold, y_val_fold,
+                    ftir_axis,
                     epochs=100,
                     batch_size=params['batch_size'],
                     writer=writer,
@@ -405,6 +421,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     model,
                     mz_train_fold, y_train_fold,
                     mz_val_fold, y_val_fold,
+                    mz_axis,
                     epochs=100,
                     batch_size=params['batch_size'],
                     writer=writer,
@@ -428,15 +445,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 model.fit(train_features, y_train_fold.numpy())
                 preds = model.predict(test_features)
                 probs = model.predict_proba(test_features)[:, 1]
-                metrics = evaluate_model(model,
-                                         ftir_test=ftir_val_fold,
-                                         mz_test=mz_val_fold,
-                                         y_test=y_val_fold,
-                                         preds=preds,
-                                         probs=probs,
-                                         name=model_name,
-                                         model_type=model_name,
-                                         is_svm=True)
+                metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
+                                         name=model_name, model_type=model_name, is_svm=True)
                 val_accs = [metrics['accuracy']]
 
             elif "fusion" in model_name.lower():
@@ -447,6 +457,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     model,
                     ftir_train_fold, mz_train_fold, y_train_fold,
                     ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
                     epochs=100,
                     batch_size=params['batch_size'],
                     writer=writer,
@@ -487,21 +498,24 @@ for model_name, model_class in models_to_evaluate.items():
     if model_name == "SVM":
         pass
     else:
-        df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, patient_indices_train,
-                                       param_grid)
+        df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
+                                       ftir_x, mz_x, patient_indices_train, param_grid)
     all_model_dfs.append(df)
     # 合并所有模型结果
     all_results_df = pd.concat(all_model_dfs, ignore_index=True)
-    all_results_df.to_csv(os.path.join(save_path, 'all_models_grid_search_results.csv'), index=False)
+    all_results_df.to_csv(os.path.join(
+        save_path, 'all_models_grid_search_results.csv'), index=False)
     print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
 
 # 加载 Grid Search 结果
-all_results_df = pd.read_csv(os.path.join(save_path, 'all_models_grid_search_results.csv'))
+all_results_df = pd.read_csv(os.path.join(
+    save_path, 'all_models_grid_search_results.csv'))
 # 找出每个模型的最佳参数（按 avg_accuracy）
 best_params_per_model = {}
 for model_type in all_results_df['model_type'].unique():
     df_model = all_results_df[all_results_df['model_type'] == model_type]
-    best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]  # 按 accuracy 找最优
+    # 按 accuracy 找最优
+    best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
     best_params = eval(best_row['params'])  # 字符串转字典
     best_params_per_model[model_type] = best_params
     print(f"[{model_type}] 最佳参数: {best_params}")
@@ -512,12 +526,14 @@ training_history = {}
 for model_name, params in best_params_per_model.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
-        model = MultiModalModel(ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
+        model = MultiModalModel(
+            ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
             ftir_train, mz_train, y_train,
             ftir_test, mz_test, y_test,
+            ftir_x, mz_x,
             epochs=100,
             batch_size=params['batch_size'],
             writer=writer,
@@ -529,8 +545,8 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
-        metrics = evaluate_model(trained_model, ftir_test=ftir_test, mz_test=mz_test, y_test=y_test, name=model_name,
-                                 model_type=model_name)
+        metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train.shape[1])
@@ -539,6 +555,7 @@ for model_name, params in best_params_per_model.items():
             model,
             ftir_train, y_train,
             ftir_test, y_test,
+            ftir_x,
             epochs=100,
             batch_size=params['batch_size'],
             writer=writer,
@@ -550,8 +567,8 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
-        metrics = evaluate_model(trained_model, ftir_test=ftir_test, mz_test=None, y_test=y_test, name=model_name,
-                                 model_type=model_name)
+        metrics = evaluate_model(trained_model, ftir_test, None, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "MZOnly":
         model = SingleMZModel(input_dim=mz_train.shape[1])
@@ -560,6 +577,7 @@ for model_name, params in best_params_per_model.items():
             model,
             mz_train, y_train,
             mz_test, y_test,
+            mz_x,
             epochs=100,
             batch_size=params['batch_size'],
             writer=writer,
@@ -571,10 +589,30 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
-        metrics = evaluate_model(trained_model, ftir_test=None, mz_test=mz_test, y_test=y_test, name=model_name,
-                                 model_type=model_name)
+        metrics = evaluate_model(trained_model, None, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
 
-    elif model_name in ["ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnOnlyFusion"]:
+    elif model_name == "SVM":
+        # 将 ftir_axis 和 mz_axis 扩展为与当前数据相同的 batch 维度，并拼接至特征维度
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1),  # [batch_size, 467]
+            mz_x.repeat(mz_train.shape[0], 1)  # [batch_size, 2838]
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
+        model = SVMClassifier(kernel='rbf')
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1]
+        metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name, is_svm=True)
+        continue
+
+    else:
         model_class = eval(model_name)
         model = model_class(ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
         writer = SummaryWriter(f'./runs/final_{model_name}')
@@ -582,6 +620,7 @@ for model_name, params in best_params_per_model.items():
             model,
             ftir_train, mz_train, y_train,
             ftir_test, mz_test, y_test,
+            ftir_x, mz_x,
             epochs=100,
             batch_size=params['batch_size'],
             writer=writer,
@@ -593,20 +632,8 @@ for model_name, params in best_params_per_model.items():
             model_type='fusion'
         )
         writer.close()
-        metrics = evaluate_model(trained_model, ftir_test=ftir_test, mz_test=mz_test, y_test=y_test, name=model_name,
-                                 model_type=model_name)
-
-    elif model_name == "SVM":
-        train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
-        test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()])
-        model = SVMClassifier(kernel='rbf')
-        model.fit(train_features, y_train.numpy())
-        metrics = evaluate_model(model, ftir_test=ftir_test, mz_test=mz_test, y_test=y_test, name=model_name,
-                                 model_type=model_name, is_svm=True)
-        continue
-
-    else:
-        continue
+        metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
 
     training_history[model_name] = {
         'train_losses': train_losses,
@@ -658,13 +685,15 @@ for model_name, data in training_history.items():
     plt.ylim(0.4, 0.7)  # 固定 y 轴范围
     yticks_loss = np.arange(0.4, 0.71, 0.05)  # 每 0.05 一个刻度
     plt.yticks(yticks_loss)
+    plt.grid(False)
+    """
     # 添加网格线
     ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
     ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
     ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
     ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
     ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
-
+    """
     # 绘制 Accuracy 曲线
     plt.subplot(1, 2, 2)
     plt.plot(data['train_accuracies'], label='Train Accuracy', color=soft_blue, linestyle='-')
@@ -679,19 +708,20 @@ for model_name, data in training_history.items():
         spine.set_linewidth(1.2)  # 加粗坐标轴
     ax.tick_params(axis='both', which='major', length=5, width=1, direction='out')  # 设置刻度小短线
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    max_epochs_acc = len(data['train_accuracies'])
-    plt.xticks(np.arange(0, max_epochs_acc, 5))
+    plt.xticks(np.arange(0, 30, 5))
     # 固定 y 轴范围并确保起始刻度可以标注
     plt.ylim(0.5, 1.0)  # 固定 y 轴范围
     yticks_acc = np.arange(0.6, 0.91, 0.05)  # 每 0.05 一个刻度
     plt.yticks(yticks_acc)
+    plt.grid(False)
+    """
     # 添加网格线
     ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
     ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
     ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
     ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
     ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
-
+    """
     # 调整子图间距
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.3)  # 调整子图之间的水平间距
