@@ -11,7 +11,8 @@ from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks, plo
 def generate_file_lists(prefixes, num_files, ftir_file_path):
     all_file_lists = {}
     for prefix in prefixes:
-        file_list = [f'{ftir_file_path}{prefix}_{i}.mat' for i in range(1, num_files + 1)]
+        file_list = [
+            f'{ftir_file_path}{prefix}_{i}.mat' for i in range(1, num_files + 1)]
         all_file_lists[prefix] = file_list
     return all_file_lists
 
@@ -24,13 +25,15 @@ plt.rcParams['font.sans-serif'] = ['SimHei']  # 用黑体显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
 
 # 单独处理FTIR
-save_path = 'N:\\hlt\\FTIR\\result\\FNA'  # 保存图片的路径
+save_path = './result/FNA'  # 保存图片的路径
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
 # 读取数据
-cancer_data_files = [f'N:\\hlt\\FTIR\\data\\cancer{i}_{j}.mat' for i in range(1, 8) for j in range(1, 4)]
-normal_data_files = [f'N:\\hlt\\FTIR\\data\\normal{i}_{j}.mat' for i in range(1, 8) for j in range(1, 4)]
+cancer_data_files = [f'./data/cancer{i}_{j}.mat' for i in range(
+    1, 8) for j in range(1, 4)]
+normal_data_files = [f'./data/normal{i}_{j}.mat' for i in range(
+    1, 8) for j in range(1, 4)]
 normal_data = [sio.loadmat(file) for file in normal_data_files]
 cancer_data = [sio.loadmat(file) for file in cancer_data_files]
 
@@ -39,13 +42,17 @@ threshold1 = 900  # 过滤掉小于threshold1的噪声
 threshold2 = 1800  # 过滤掉大于threshold2的噪声
 order = 2  # 多项式阶数
 frame_len = 13  # 窗口长度（帧长度）
-x_cancer, spectrum_cancer = load_and_preprocess(cancer_data, threshold1, threshold2, order, frame_len, save_path)
-x_normal, spectrum_normal = load_and_preprocess(normal_data, threshold1, threshold2, order, frame_len, save_path)
+x_cancer, spectrum_cancer = load_and_preprocess(
+    cancer_data, threshold1, threshold2, order, frame_len, save_path)
+x_normal, spectrum_normal = load_and_preprocess(
+    normal_data, threshold1, threshold2, order, frame_len, save_path)
 
 # 指定需要标注的波数点
 # peak_wavenumbers = [1030, 1075, 1103, 1148, 1198, 1238, 1316, 1409, 1453, 1546, 1653, 1740]
-peak_wavenumbers = [987, 1032, 1078, 1105, 1151, 1198, 1257, 1313, 1361, 1414, 1466, 1589, 1637, 1740]
-plot_spectrum_with_marked_peaks(x_normal, spectrum_normal, spectrum_cancer, save_path, peak_wavenumbers)
+peak_wavenumbers = [987, 1032, 1078, 1105, 1151, 1198,
+                    1257, 1313, 1361, 1414, 1466, 1589, 1637, 1740]
+plot_spectrum_with_marked_peaks(
+    x_normal, spectrum_normal, spectrum_cancer, save_path, peak_wavenumbers)
 # plot_individual_spectrum_with_marked_peaks(x_normal, spectrum_normal, 'normal', 'green', save_path, peak_wavenumbers)
 # plot_individual_spectrum_with_marked_peaks(x_cancer, spectrum_cancer, 'cancer', 'red', save_path, peak_wavenumbers)
 

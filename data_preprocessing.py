@@ -55,18 +55,23 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     def generate_file_lists(prefixes, num_files, ftir_file_path):
         all_file_lists = {}
         for prefix in prefixes:
-            file_list = [f'{ftir_file_path}{prefix}_{i}.mat' for i in range(1, num_files + 1)]
+            file_list = [
+                f'{ftir_file_path}{prefix}_{i}.mat' for i in range(1, num_files + 1)]
             all_file_lists[prefix] = file_list
         return all_file_lists
 
     # 生成cancer和normal的文件列表
-    cancer_prefixes = [f'cancer{i}' for i in range(1, 12)]  # 一共有cancer1到cancer11，总计11个样品
+    # 一共有cancer1到cancer11，总计11个样品
+    cancer_prefixes = [f'cancer{i}' for i in range(1, 12)]
     normal_prefixes = [f'normal{i}' for i in range(1, 12)]
-    cancer_file_lists = generate_file_lists(cancer_prefixes, 3, ftir_file_path)  # 对于FTIR，每个样品重复三次滴加到基底
+    cancer_file_lists = generate_file_lists(
+        cancer_prefixes, 3, ftir_file_path)  # 对于FTIR，每个样品重复三次滴加到基底
     normal_file_lists = generate_file_lists(normal_prefixes, 3, ftir_file_path)
     # 加载数据
-    cancer_ftir_data = {k: [sio.loadmat(f) for f in v] for k, v in cancer_file_lists.items()}
-    normal_ftir_data = {k: [sio.loadmat(f) for f in v] for k, v in normal_file_lists.items()}
+    cancer_ftir_data = {k: [sio.loadmat(f) for f in v]
+                        for k, v in cancer_file_lists.items()}
+    normal_ftir_data = {k: [sio.loadmat(f) for f in v]
+                        for k, v in normal_file_lists.items()}
 
     # FTIR光谱预处理相关参数
     threshold1 = 900  # 过滤掉小于threshold1的噪声
@@ -105,7 +110,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         return aligned_mz2, common_indices
 
     # 执行对齐
-    aligned_mz2, common_indices = align_mz_values(df1['m/z'].values, df2['m/z'].values)
+    aligned_mz2, common_indices = align_mz_values(
+        df1['m/z'].values, df2['m/z'].values)
     # 提取共同m/z值 (取两者平均值)
     common_mz = []
     for mz1_idx, mz2_idx in common_indices:
@@ -131,7 +137,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
                     )
                     resampled_values = interp_func(common_mz)
                     # 外推可能导致极端值，需限制在合理范围（例如非负）
-                    resampled_values = np.clip(resampled_values, a_min=0, a_max=None)
+                    resampled_values = np.clip(
+                        resampled_values, a_min=0, a_max=None)
                 except Exception as e:
                     print(f"列 {col} 外推失败，改用填充0: {str(e)}")
                     resampled_values = np.zeros_like(common_mz)
@@ -226,14 +233,17 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         # 处理癌症样本
         cancer_ftir_key = f'cancer{i}'
         cancer_mz_key = f'cancer_{i} [1]'
-        ftir_cancer = cancer_ftir[cancer_ftir_key].T  # (48, 467)(N_samples, N_features)
+        # (48, 467)(N_samples, N_features)
+        ftir_cancer = cancer_ftir[cancer_ftir_key].T
         mz_cancer = cancer_mz[cancer_mz_key].reshape(1, -1)  # (1, 3888/4780)
         print(f"ftir_cancer shape: {ftir_cancer.shape}")
         print(f"mz_cancer shape before repeat: {mz_cancer.shape}")
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同，变成 (N_samples, N_features)
-        mz_cancer_repeated = np.repeat(mz_cancer, ftir_cancer.shape[0], axis=0)  # shape: (48, 2838)
+        mz_cancer_repeated = np.repeat(
+            mz_cancer, ftir_cancer.shape[0], axis=0)  # shape: (48, 2838)
         print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
-        labels_cancer = np.ones(ftir_cancer.shape[0], dtype=int)  # (48,), 癌症的标签标记为1
+        labels_cancer = np.ones(
+            ftir_cancer.shape[0], dtype=int)  # (48,), 癌症的标签标记为1
         print("labels_cancer shape:", labels_cancer.shape)
 
         # 处理正常样本
@@ -243,7 +253,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         mz_normal = normal_mz[normal_mz_key].reshape(1, -1)
         # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
         mz_normal_repeated = np.repeat(mz_normal, ftir_normal.shape[0], axis=0)
-        labels_normal = np.zeros(ftir_normal.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
+        labels_normal = np.zeros(
+            ftir_normal.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
 
         # 合并患者i的所有样本
         ftir_all = np.vstack([ftir_cancer, ftir_normal])
@@ -267,7 +278,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         print(f"[患者 {i}] ftir_shuffled shape:", ftir_shuffled.shape)
         print(f"[患者 {i}] mz_shuffled shape:", mz_shuffled.shape)
         print(f"[患者 {i}] labels_shuffled shape:", labels_shuffled.shape)
-        print(f"[患者 {i}] patient_ids_shuffled shape:", patient_ids_shuffled.shape)
+        print(f"[患者 {i}] patient_ids_shuffled shape:",
+              patient_ids_shuffled.shape)
 
         # 根据患者i所在训练/测试集分配打乱后的数据
         if i in train_patients_list:
