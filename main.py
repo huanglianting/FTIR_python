@@ -126,9 +126,8 @@ class EarlyStopping:
 
 
 # ==================数据增强====================================
-def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02, seed=None):
-    if seed is not None:
-        torch.manual_seed(seed)
+def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
+    torch.manual_seed(41)
     B, L = x.shape  # 批量大小和特征长度
     axis = axis.squeeze().expand(B, -1)
     # 高斯噪声
@@ -681,6 +680,15 @@ print("所有模型最终测试结果已保存至 final_test_all_models_comparis
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
 plot_dir = os.path.join(save_path, 'training_plots')
 os.makedirs(plot_dir, exist_ok=True)
+# 设置全局样式
+plt.style.use('default')
+plt.rcParams.update({
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'savefig.facecolor': 'white',
+    'axes.edgecolor': 'black',
+    'axes.linewidth': 1.2
+})
 soft_blue = '#6495ED'  # 柔和的蓝色
 soft_red = '#CD5C5C'  # 柔和的红色
 for model_name, data in training_history.items():
@@ -695,7 +703,6 @@ for model_name, data in training_history.items():
     plt.xlabel('Epochs')
     plt.ylabel('Loss value')
     plt.legend(loc='upper right')  # 设置固定位置的图例
-
     # 设置坐标轴为黑色实线
     ax = plt.gca()
     for spine in ax.spines.values():
@@ -705,11 +712,9 @@ for model_name, data in training_history.items():
     ax.tick_params(axis='both', which='major',
                    length=5, width=1, direction='out')
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    plt.xticks(np.arange(0, 30, 5))
-    # 固定 y 轴范围并确保起始刻度可以标注
-    plt.ylim(0.4, 0.7)  # 固定 y 轴范围
-    plt.yticks(np.arange(0.4, 0.71, 0.05))
+    plt.xticks(np.arange(0, 35, 5))
     plt.grid(False)
+
     # 绘制 Accuracy 曲线
     plt.subplot(1, 2, 2)
     plt.plot(data['train_accuracies'], label='Train Accuracy',
@@ -727,10 +732,7 @@ for model_name, data in training_history.items():
     ax.tick_params(axis='both', which='major', length=5,
                    width=1, direction='out')  # 设置刻度小短线
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    plt.xticks(np.arange(0, 30, 5))
-    # 固定 y 轴范围并确保起始刻度可以标注
-    plt.ylim(0.5, 1.0)
-    plt.yticks(np.arange(0.6, 0.91, 0.05))
+    plt.xticks(np.arange(0, 35, 5))
     plt.grid(False)
     """
     # 添加网格线

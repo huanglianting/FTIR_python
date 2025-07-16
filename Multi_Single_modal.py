@@ -134,10 +134,7 @@ class MultiModalModel(nn.Module):
             nn.BatchNorm1d(256),
             nn.ReLU(),
             SimpleResidualBlock(256),
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Linear(128, 2),
+            nn.Linear(256, 2),
             nn.Softmax(dim=1)
         )
 
