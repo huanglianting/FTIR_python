@@ -119,7 +119,8 @@ class EarlyStopping:
     def save_checkpoint(self, val_loss, model):
         # 当验证损失降低时保存模型
         if self.verbose:
-            print(f'Validation loss 下降 ({self.val_loss_min:.6f} --> {val_loss:.6f}).  保存模型 ...')
+            print(
+                f'Validation loss 下降 ({self.val_loss_min:.6f} --> {val_loss:.6f}).  保存模型 ...')
         torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
 
@@ -154,17 +155,21 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=scheduler_factor, patience=3)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = ReduceLROnPlateau(
+        optimizer, mode='min', factor=scheduler_factor, patience=3)
     early_stopping = EarlyStopping(patience=early_stop_patience, verbose=True,
                                    path=f'./checkpoints/{model_type}_best_model.pth')
 
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     g = torch.Generator()
     g.manual_seed(42)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=g)
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, generator=g)
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False)
 
     train_losses = []
     val_losses = []
@@ -238,7 +243,8 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    model.load_state_dict(torch.load(f'./checkpoints/{model_type}_best_model.pth'))
+    model.load_state_dict(torch.load(
+        f'./checkpoints/{model_type}_best_model.pth'))
     return model, train_losses, val_losses, train_accuracies, val_accuracies
 
 
@@ -248,17 +254,21 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
                              lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                              scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=scheduler_factor, patience=3)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = ReduceLROnPlateau(
+        optimizer, mode='min', factor=scheduler_factor, patience=3)
     early_stopping = EarlyStopping(patience=early_stop_patience, verbose=True,
                                    path=f'./checkpoints/{model_type}_best_model.pth')
 
     train_dataset = TensorDataset(x_train, y_train)
     g = torch.Generator()
     g.manual_seed(42)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=g)
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, generator=g)
     val_dataset = TensorDataset(x_val, y_val)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False)
 
     train_losses = []
     val_losses = []
@@ -320,7 +330,8 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    model.load_state_dict(torch.load(f'./checkpoints/{model_type}_best_model.pth'))
+    model.load_state_dict(torch.load(
+        f'./checkpoints/{model_type}_best_model.pth'))
     return model, train_losses, val_losses, train_accuracies, val_accuracies
 
 
@@ -336,9 +347,10 @@ param_grid = {
     'batch_size': [32],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [15, 30]
+    'early_stop_patience': [15]
 }
-all_params = [dict(zip(param_grid.keys(), values))for values in itertools.product(*param_grid.values())]
+all_params = [dict(zip(param_grid.keys(), values))
+              for values in itertools.product(*param_grid.values())]
 
 best_avg_auc = 0.0
 best_params = None
@@ -347,7 +359,8 @@ grid_search_results = []  # 用于保存所有参数的四折结果
 
 def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, ftir_axis, mz_axis,
                               patient_indices_train, param_grid):
-    all_params = [dict(zip(param_grid.keys(), values))for values in itertools.product(*param_grid.values())]
+    all_params = [dict(zip(param_grid.keys(), values))
+                  for values in itertools.product(*param_grid.values())]
     results = []
     for params in all_params:
         print(f"\n=== [{model_name}] 测试参数组合: {params} ===")
@@ -361,7 +374,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
             train_patients_unique = np.unique(train_patients)
             val_patients_unique = np.unique(val_patients)
             # 确保训练集与验证集无交集
-            assert len(set(train_patients_unique) & set(val_patients_unique)) == 0, "患者跨折泄漏"
+            assert len(set(train_patients_unique) & set(
+                val_patients_unique)) == 0, "患者跨折泄漏"
             print(f"Fold {fold} 训练患者ID: {train_patients_unique}")
             print(f"Fold {fold} 验证患者ID: {val_patients_unique}")
             # 提取训练集和验证集
@@ -375,8 +389,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
             print(f"验证集标签分布: {np.bincount(y_val_fold)}")
 
             if model_name == "MultiModal":
-                model = MultiModalModel(ftir_train_fold.shape[1], mz_train_fold.shape[1])
-                writer = SummaryWriter(f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                model = MultiModalModel(
+                    ftir_train_fold.shape[1], mz_train_fold.shape[1])
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_main_model(
                     model,
                     ftir_train_fold, mz_train_fold, y_train_fold,
@@ -396,7 +412,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
             elif model_name == "FTIROnly":
                 model = SingleFTIRModel(ftir_train.shape[1])
-                writer = SummaryWriter(f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_single_modal_model(
                     model,
                     ftir_train_fold, y_train_fold,
@@ -416,7 +433,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
             elif model_name == "MZOnly":
                 model = SingleMZModel(mz_train.shape[1])
-                writer = SummaryWriter(f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_single_modal_model(
                     model,
                     mz_train_fold, y_train_fold,
@@ -451,8 +469,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
             elif "fusion" in model_name.lower():
                 # ConcatFusion、GateOnlyFusion、SelfAttnOnlyFusion 等
-                model = model_class(ftir_input_dim=ftir_train_fold.shape[1], mz_input_dim=mz_train_fold.shape[1])
-                writer = SummaryWriter(f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                model = model_class(
+                    ftir_input_dim=ftir_train_fold.shape[1], mz_input_dim=mz_train_fold.shape[1])
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_main_model(
                     model,
                     ftir_train_fold, mz_train_fold, y_train_fold,
@@ -483,14 +503,14 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
-    "ConcatFusion": ConcatFusion,
-    "GateOnlyFusion": GateOnlyFusion,
-    "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
-    "SelfAttnFusion": SelfAttnFusion,
-    "SVM": SVMClassifier
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
+    # "ConcatFusion": ConcatFusion,
+    # "GateOnlyFusion": GateOnlyFusion,
+    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    # "SelfAttnFusion": SelfAttnFusion,
+    # "SVM": SVMClassifier
 }
 all_model_dfs = []
 for model_name, model_class in models_to_evaluate.items():
@@ -614,7 +634,8 @@ for model_name, params in best_params_per_model.items():
 
     else:
         model_class = eval(model_name)
-        model = model_class(ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
+        model = model_class(
+            ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
@@ -653,7 +674,8 @@ for model_name, params in best_params_per_model.items():
 
 # 导出最终结果
 df_final = pd.DataFrame(final_test_results)
-df_final.to_csv(os.path.join(save_path, 'final_test_all_models_comparison.csv'), index=False)
+df_final.to_csv(os.path.join(
+    save_path, 'final_test_all_models_comparison.csv'), index=False)
 print("所有模型最终测试结果已保存至 final_test_all_models_comparison.csv")
 
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
@@ -665,39 +687,35 @@ for model_name, data in training_history.items():
     # 绘制 Loss 曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(data['train_losses'], label='Train Loss', color=soft_blue, linestyle='-')
-    plt.plot(data['test_losses'], label='Test Loss', color=soft_red, linestyle='-')
+    plt.plot(data['train_losses'], label='Train Loss',
+             color=soft_blue, linestyle='-')
+    plt.plot(data['test_losses'], label='Test Loss',
+             color=soft_red, linestyle='-')
     plt.title(f'{model_name} - Training and Test Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss value')
     plt.legend(loc='upper right')  # 设置固定位置的图例
+
     # 设置坐标轴为黑色实线
     ax = plt.gca()
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)  # 加粗坐标轴
     # 设置刻度小短线
-    ax.tick_params(axis='both', which='major', length=5, width=1, direction='out')
+    ax.tick_params(axis='both', which='major',
+                   length=5, width=1, direction='out')
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    max_epochs_loss = max(len(data['train_losses']), len(data['test_losses']))
-    plt.xticks(np.arange(0, max_epochs_loss, 5))
+    plt.xticks(np.arange(0, 30, 5))
     # 固定 y 轴范围并确保起始刻度可以标注
     plt.ylim(0.4, 0.7)  # 固定 y 轴范围
-    yticks_loss = np.arange(0.4, 0.71, 0.05)  # 每 0.05 一个刻度
-    plt.yticks(yticks_loss)
+    plt.yticks(np.arange(0.4, 0.71, 0.05))
     plt.grid(False)
-    """
-    # 添加网格线
-    ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
-    ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
-    ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
-    ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
-    ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
-    """
     # 绘制 Accuracy 曲线
     plt.subplot(1, 2, 2)
-    plt.plot(data['train_accuracies'], label='Train Accuracy', color=soft_blue, linestyle='-')
-    plt.plot(data['test_accuracies'], label='Test Accuracy', color=soft_red, linestyle='-')
+    plt.plot(data['train_accuracies'], label='Train Accuracy',
+             color=soft_blue, linestyle='-')
+    plt.plot(data['test_accuracies'], label='Test Accuracy',
+             color=soft_red, linestyle='-')
     plt.title(f'{model_name} - Training and Test Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
@@ -706,13 +724,13 @@ for model_name, data in training_history.items():
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)  # 加粗坐标轴
-    ax.tick_params(axis='both', which='major', length=5, width=1, direction='out')  # 设置刻度小短线
+    ax.tick_params(axis='both', which='major', length=5,
+                   width=1, direction='out')  # 设置刻度小短线
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
     plt.xticks(np.arange(0, 30, 5))
     # 固定 y 轴范围并确保起始刻度可以标注
-    plt.ylim(0.5, 1.0)  # 固定 y 轴范围
-    yticks_acc = np.arange(0.6, 0.91, 0.05)  # 每 0.05 一个刻度
-    plt.yticks(yticks_acc)
+    plt.ylim(0.5, 1.0)
+    plt.yticks(np.arange(0.6, 0.91, 0.05))
     plt.grid(False)
     """
     # 添加网格线
@@ -724,8 +742,9 @@ for model_name, data in training_history.items():
     """
     # 调整子图间距
     plt.tight_layout()
-    plt.subplots_adjust(wspace=0.3)  # 调整子图之间的水平间距
-    plt.savefig(os.path.join(plot_dir, f'{model_name}_loss_accuracy_curve.png'))
+    plt.subplots_adjust(wspace=0.3)
+    plt.savefig(os.path.join(
+        plot_dir, f'{model_name}_loss_accuracy_curve.png'))
     plt.close()
 
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")

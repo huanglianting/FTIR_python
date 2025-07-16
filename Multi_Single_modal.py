@@ -5,7 +5,7 @@ from sklearn.svm import SVC
 
 # ==================模块定义====================================
 class SEBlock(nn.Module):
-    def __init__(self, channels, axis_dim, reduction=16):
+    def __init__(self, channels, reduction=16):
         super(SEBlock, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Sequential(
@@ -14,24 +14,15 @@ class SEBlock(nn.Module):
             nn.Linear(channels // reduction, channels, bias=False),
             nn.Sigmoid()
         )
-        self.axis_proj = nn.Sequential(
-            nn.Linear(axis_dim, channels // reduction),
-            nn.ReLU(),
-            nn.Linear(channels // reduction, channels),
-            nn.Sigmoid()
-        )
 
-    def forward(self, feat, feat_axis):  # [B, C, L]
+    def forward(self, feat):  # [B, C, L]
         # Channels：特征通道数，例如经过 Conv1d(1, 32, ...) 后变为 32
         # Length：经过池化后变成不同长度，取决于输入长度和卷积参数
-        y = self.avg_pool(feat).view(feat.size(0), feat.size(1))
-        y = self.fc(y)
-        axis_weight = self.axis_proj(feat_axis)  # [B, C]
-        y = y * axis_weight  # 通道级融合
-        return feat * y.view(feat.size(0), feat.size(1), 1)  # [B, C, L]
+        y_avg = self.avg_pool(feat).view(feat.size(0), feat.size(1))
+        w_channel = self.fc(y_avg)
+        return feat * w_channel.view(feat.size(0), feat.size(1), 1)
 
 
-# 定义模态特征提取的分支
 # 定义模态特征提取的分支
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
@@ -40,26 +31,21 @@ class FTIREncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            SEBlock(32, axis_dim=axis_dim),
-            nn.MaxPool1d(3, 2),
+            SEBlock(32),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 64, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(64 * 64, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Dropout(0.3)
         )
 
     def forward(self, feat, feat_axis):
         feat = feat.unsqueeze(1)    # (32,467) -> (32,1,467)
-        for layer in self.net:
-            if isinstance(layer, SEBlock):
-                feat = layer(feat, feat_axis)  # 自动处理轴编码
-            else:
-                feat = layer(feat)
+        feat = self.net(feat)
         return feat
 
 
@@ -67,29 +53,24 @@ class MZEncoder(nn.Module):
     def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
+            nn.Conv1d(1, 32, 7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            SEBlock(32, axis_dim=axis_dim),
-            nn.MaxPool1d(3, 2),
+            SEBlock(32),
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(64),
             nn.Flatten(),
-            nn.Linear(64 * 64, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(64 * 64, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Dropout(0.3)
         )
 
     def forward(self, feat, feat_axis):
         feat = feat.unsqueeze(1)    # (32,2838) -> (32,1,2838)
-        for layer in self.net:
-            if isinstance(layer, SEBlock):
-                feat = layer(feat, feat_axis)  # 自动处理轴编码
-            else:
-                feat = layer(feat)
+        feat = self.net(feat)
         return feat
 
 
@@ -107,25 +88,6 @@ class SimpleResidualBlock(nn.Module):
         return x + self.net(x)
 
 
-class GatedFusion(nn.Module):
-    def __init__(self, dim=128):
-        super().__init__()
-        self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
-            nn.ReLU(),
-            nn.Linear(dim, 2),
-            nn.Softmax(dim=1)
-        )
-        self.bias = nn.Parameter(torch.tensor([0.5, 0.5]))  # 初始为平均融合
-
-    def forward(self, ftir_feat, mz_feat):
-        combined = torch.cat([ftir_feat, mz_feat], dim=1)
-        weights = self.gate(combined) * self.bias  # 加权融合
-        weights = weights / weights.sum(dim=1, keepdim=True)  # 归一化
-        fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
-        return fused.squeeze(1)
-
-
 class HybridFusion(nn.Module):
     def __init__(self, dim=128, num_heads=4):
         super().__init__()
@@ -138,7 +100,8 @@ class HybridFusion(nn.Module):
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
-        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=dim, num_heads=num_heads, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
 
@@ -147,7 +110,8 @@ class HybridFusion(nn.Module):
         combined_gate = torch.cat([ftir_feat, mz_feat], dim=1)
         weights = self.gate(combined_gate) * self.gate_bias
         weights = weights / weights.sum(dim=1, keepdim=True)
-        gate_fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
+        gate_fused = weights[:, 0].unsqueeze(
+            1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
         # Attention Fusion Part
         ftir_seq = ftir_feat.unsqueeze(1)
         mz_seq = mz_feat.unsqueeze(1)
@@ -155,7 +119,8 @@ class HybridFusion(nn.Module):
         cross_mz, _ = self.attn(mz_seq, ftir_seq, ftir_seq)
         attn_fused = (cross_ftir + cross_mz).squeeze(1)
         # 最终融合
-        final_fused = torch.cat([gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
+        final_fused = torch.cat(
+            [gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
         return final_fused
 
 
@@ -165,16 +130,16 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=128, num_heads=4)
+        self.fuser = HybridFusion(dim=256, num_heads=4)
         self.classifier = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            SimpleResidualBlock(256),
             nn.Linear(256, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2),
+            nn.Linear(128, 2),
             nn.Softmax(dim=1)
         )
 
@@ -280,7 +245,8 @@ class GateOnlyFusion(nn.Module):
         combined = torch.cat([ftir_feat, mz_feat], dim=1)
         weights = self.gate(combined) * self.gate_bias
         weights = weights / weights.sum(dim=1, keepdim=True)
-        gate_fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat  # [B, 128]
+        gate_fused = weights[:, 0].unsqueeze(
+            1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat  # [B, 128]
         output = self.classifier(gate_fused)  # [B, 2]
         return output
 
@@ -291,7 +257,8 @@ class CoAttnOnlyFusion(nn.Module):
         super(CoAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=dim, num_heads=num_heads, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
@@ -330,7 +297,8 @@ class SelfAttnFusion(nn.Module):
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
-        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=dim, num_heads=num_heads, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
@@ -352,7 +320,8 @@ class SelfAttnFusion(nn.Module):
         combined_gate = torch.cat([ftir_feat, mz_feat], dim=1)
         weights = self.gate(combined_gate) * self.gate_bias
         weights = weights / weights.sum(dim=1, keepdim=True)
-        gate_fused = weights[:, 0].unsqueeze(1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
+        gate_fused = weights[:, 0].unsqueeze(
+            1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat
         # Attention Fusion
         ftir_seq = ftir_feat.unsqueeze(1)
         mz_seq = mz_feat.unsqueeze(1)
@@ -360,7 +329,8 @@ class SelfAttnFusion(nn.Module):
         mz_attn, _ = self.attn(mz_seq, mz_seq, mz_seq)
         attn_fused = (ftir_attn + mz_attn).squeeze(1)
         # 最终融合
-        final_fused = torch.cat([gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
+        final_fused = torch.cat(
+            [gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
         output = self.classifier(final_fused)  # [B, 2]
         return output
 
@@ -371,7 +341,8 @@ class SelfAttnOnlyFusion(nn.Module):
         super(SelfAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=dim, num_heads=num_heads, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
