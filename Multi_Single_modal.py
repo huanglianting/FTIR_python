@@ -152,11 +152,11 @@ class SingleFTIRModel(nn.Module):
         super(SingleFTIRModel, self).__init__()
         self.ftir_extractor = FTIREncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(128),
+            nn.Linear(128, 2),
             nn.Softmax(dim=1)
         )
 
@@ -171,11 +171,11 @@ class SingleMZModel(nn.Module):
         super(SingleMZModel, self).__init__()
         self.mz_extractor = MZEncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(128),
+            nn.Linear(128, 2),
             nn.Softmax(dim=1)
         )
 
@@ -193,21 +193,18 @@ class ConcatFusion(nn.Module):
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(256),
+            nn.Linear(256, 2),
             nn.Softmax(dim=1)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)
-        combined = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, 256]
+        combined = torch.cat([ftir_feat, mz_feat], dim=-1)  # [B, 512]
         output = self.classifier(combined)  # [B, 2]
         return output
 
@@ -226,11 +223,11 @@ class GateOnlyFusion(nn.Module):
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(128),
+            nn.Linear(128, 2),
             nn.Softmax(dim=1)
         )
 
@@ -241,7 +238,7 @@ class GateOnlyFusion(nn.Module):
         weights = self.gate(combined) * self.gate_bias
         weights = weights / weights.sum(dim=1, keepdim=True)
         gate_fused = weights[:, 0].unsqueeze(
-            1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat  # [B, 128]
+            1) * ftir_feat + weights[:, 1].unsqueeze(1) * mz_feat  # [B, 256]
         output = self.classifier(gate_fused)  # [B, 2]
         return output
 
@@ -257,11 +254,11 @@ class CoAttnOnlyFusion(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(128),
+            nn.Linear(128, 2),
             nn.Softmax(dim=1)
         )
 
@@ -272,7 +269,7 @@ class CoAttnOnlyFusion(nn.Module):
         mz_seq = mz_feat.unsqueeze(1)
         cross_ftir, _ = self.attn(ftir_seq, mz_seq, mz_seq)
         cross_mz, _ = self.attn(mz_seq, ftir_seq, ftir_seq)
-        attn_fused = (cross_ftir + cross_mz).squeeze(1)  # [B, 128]
+        attn_fused = (cross_ftir + cross_mz).squeeze(1)  # [B, 256]
         output = self.classifier(attn_fused)  # [B, 2]
         return output
 
@@ -297,14 +294,11 @@ class SelfAttnFusion(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(256),
+            nn.Linear(256, 2),
             nn.Softmax(dim=1)
         )
 
@@ -325,7 +319,7 @@ class SelfAttnFusion(nn.Module):
         attn_fused = (ftir_attn + mz_attn).squeeze(1)
         # 最终融合
         final_fused = torch.cat(
-            [gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
+            [gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 512]
         output = self.classifier(final_fused)  # [B, 2]
         return output
 
@@ -341,11 +335,11 @@ class SelfAttnOnlyFusion(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            SimpleResidualBlock(64),
-            nn.Linear(64, 2),
+            SimpleResidualBlock(128),
+            nn.Linear(128, 2),
             nn.Softmax(dim=1)
         )
 
@@ -356,7 +350,7 @@ class SelfAttnOnlyFusion(nn.Module):
         mz_seq = mz_feat.unsqueeze(1)
         ftir_attn, _ = self.attn(ftir_seq, ftir_seq, ftir_seq)
         mz_attn, _ = self.attn(mz_seq, mz_seq, mz_seq)
-        attn_fused = (ftir_attn + mz_attn).squeeze(1)  # [B, 128]
+        attn_fused = (ftir_attn + mz_attn).squeeze(1)  # [B, 256]
         output = self.classifier(attn_fused)  # [B, 2]
         return output
 

@@ -80,6 +80,15 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
 
     # 绘制并保存 ROC 曲线
     fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)  # drop_intermediate=False 保留所有点
+    # 设置全局样式
+    plt.style.use('default')
+    plt.rcParams.update({
+        'figure.facecolor': 'white',
+        'axes.facecolor': 'white',
+        'savefig.facecolor': 'white',
+        'axes.edgecolor': 'black',
+        'axes.linewidth': 1.2
+    })
     plt.figure(figsize=(6, 6))  # 设置图形大小为1:1
     plt.plot(fpr, tpr, color='#6495ED', label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
     plt.plot([0, 1], [0, 1], color='#EEEEEE', linestyle='--')  # 灰色虚线
@@ -137,17 +146,31 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
         # 降维并绘制
         reduced = tsne.fit_transform(feat)
         plt.subplot(1, 3, idx)
-        sns.scatterplot(
-            x=reduced[:, 0], y=reduced[:, 1],
+        scatter = sns.scatterplot(
+            x=reduced[:, 0], 
+            y=reduced[:, 1],
             hue=y_true,
-            palette={0: "blue", 1: "red"},
-            alpha=0.7,
-            s=40
+            palette={0: "#377EB8", 1: "#E41A1C"},  # 明确指定颜色
+            style=y_true,  # 可选：用不同标记区分
+            markers={0: "o", 1: "s"},  # 圆形和方形
+            alpha=0.8,
+            s=60,
+            edgecolor='w',
+            linewidth=0.5
         )
         plt.title(f"{title} (t-SNE)")
         plt.xlabel("t-SNE Dimension 1")
         plt.ylabel("t-SNE Dimension 2")
         plt.legend(title='Class', labels=['Benign', 'Malignant'])
+        # 优化图例
+        handles, labels = scatter.get_legend_handles_labels()
+        plt.legend(
+            handles=handles, 
+            labels=['Benign (0)', 'Malignant (1)'],  # 明确标签
+            title='Class',
+            frameon=True,
+            edgecolor='black'
+        )
     # 保存结果
     plt.tight_layout()
     plt.savefig(os.path.join(save_path, f"{model_name}_tsne_comparison.png"), dpi=300)
