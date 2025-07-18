@@ -346,7 +346,7 @@ param_grid = {
     'batch_size': [32],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [20]
+    'early_stop_patience': [15]
 }
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
@@ -502,8 +502,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
     # "GateOnlyFusion": GateOnlyFusion,
     # "CoAttnOnlyFusion": CoAttnOnlyFusion,
@@ -712,7 +712,7 @@ for model_name, data in training_history.items():
     ax.tick_params(axis='both', which='major',
                    length=5, width=1, direction='out')
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    plt.xticks(np.arange(0, 35, 5))
+    plt.xticks(np.arange(0, 31, 5))
     plt.grid(False)
 
     # 绘制 Accuracy 曲线
@@ -732,7 +732,7 @@ for model_name, data in training_history.items():
     ax.tick_params(axis='both', which='major', length=5,
                    width=1, direction='out')  # 设置刻度小短线
     # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    plt.xticks(np.arange(0, 35, 5))
+    plt.xticks(np.arange(0, 31, 5))
     plt.grid(False)
     """
     # 添加网格线

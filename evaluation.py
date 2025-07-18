@@ -91,7 +91,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     })
     plt.figure(figsize=(6, 6))  # 设置图形大小为1:1
     plt.plot(fpr, tpr, color='#6495ED', label=f'{name} ROC curve (AUC = {auc:.2f})')  # 蓝色曲线
-    plt.plot([0, 1], [0, 1], color='#EEEEEE', linestyle='--')  # 灰色虚线
+    plt.plot([0, 1], [0, 1], color='#b1b1b1', linestyle='--')  # 灰色虚线
     plt.xlim([-0.05, 1.05])
     plt.ylim([-0.05, 1.05])
     plt.xlabel('False Positive Rate')
@@ -104,6 +104,9 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)  # 加粗坐标轴
+    # 设置刻度小短线
+    ax.tick_params(axis='both', which='major',
+                   length=5, width=1, direction='out')
     plt.savefig(os.path.join(save_path, f'{name}_roc_curve.png'))
     plt.close()
 
