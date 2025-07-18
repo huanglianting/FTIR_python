@@ -31,12 +31,10 @@ class FTIREncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv1d(32, 64, 5, stride=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
+            SEBlock(32, 16),
+            nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
-            nn.Linear(64 * 64, 256),
+            nn.Linear(32 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.3)
@@ -52,15 +50,13 @@ class MZEncoder(nn.Module):
     def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv1d(1, 32, 7, stride=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 64, 5, stride=2),
+            nn.Conv1d(1, 64, 7, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
+            SEBlock(64, 32),
+            nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
-            nn.Linear(64 * 64, 256),
+            nn.Linear(64 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.3)

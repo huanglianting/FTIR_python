@@ -169,7 +169,7 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
         handles, labels = scatter.get_legend_handles_labels()
         plt.legend(
             handles=handles, 
-            labels=['Benign (0)', 'Malignant (1)'],  # 明确标签
+            labels=['Benign', 'Malignant'],  # 明确标签
             title='Class',
             frameon=True,
             edgecolor='black'

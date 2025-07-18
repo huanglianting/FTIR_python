@@ -321,5 +321,5 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     plt.close()
     """
     return train_ftir, train_mz, train_labels, train_patient_ids, \
-           test_ftir, test_mz, test_labels, test_patient_ids, \
-           x_ftir, common_mz
+        test_ftir, test_mz, test_labels, test_patient_ids, \
+        x_ftir, common_mz
