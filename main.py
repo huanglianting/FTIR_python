@@ -38,6 +38,10 @@ def set_seed(seed):
     torch.backends.cudnn.enabled = False
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--seed', type=int, default=4, help='Random seed')
+args = parser.parse_args()
+
 # set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
 g = torch.Generator()
 g.manual_seed(42)
