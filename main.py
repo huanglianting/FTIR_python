@@ -23,16 +23,24 @@ matplotlib.use('Agg')
 
 
 def set_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+    # 1. Python基础随机模块
     random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    # 2. NumPy随机模块
+    np.random.seed(seed)
+    # 3. PyTorch随机模块
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # 多GPU情况
+    # 4. PyTorch确定性配置
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.backends.cudnn.enabled = False
 
 
-set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
+# set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
+g = torch.Generator()
+g.manual_seed(42)
 
 # 定义基础路径
 ftir_file_path = './data/'
@@ -127,7 +135,7 @@ class EarlyStopping:
 
 # ==================数据增强====================================
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
-    torch.manual_seed(38)   # 41在mac的结果好，39在 kaggle 比较好
+    # torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
     B, L = x.shape  # 批量大小和特征长度
     axis = axis.squeeze().expand(B, -1)
     # 高斯噪声
@@ -162,8 +170,6 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                                    path=f'./checkpoints/{model_type}_best_model.pth')
 
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
-    g = torch.Generator()
-    g.manual_seed(42)
     train_dataloader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, generator=g)
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
@@ -261,8 +267,6 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
                                    path=f'./checkpoints/{model_type}_best_model.pth')
 
     train_dataset = TensorDataset(x_train, y_train)
-    g = torch.Generator()
-    g.manual_seed(42)
     train_dataloader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, generator=g)
     val_dataset = TensorDataset(x_val, y_val)
