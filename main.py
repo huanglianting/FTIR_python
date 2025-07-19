@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from matplotlib.ticker import MultipleLocator
 import torch
 import torch.nn as nn
@@ -254,7 +255,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
             torch.cuda.empty_cache()
 
     model.load_state_dict(torch.load(
-        f'./checkpoints/{model_type}_best_model.pth'))
+        f'./checkpoints/{model_type}_best_model.pth', weights_only=True))
     return model, train_losses, val_losses, train_accuracies, val_accuracies
 
 
@@ -339,7 +340,7 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
             torch.cuda.empty_cache()
 
     model.load_state_dict(torch.load(
-        f'./checkpoints/{model_type}_best_model.pth'))
+        f'./checkpoints/{model_type}_best_model.pth', weights_only=True))
     return model, train_losses, val_losses, train_accuracies, val_accuracies
 
 
@@ -721,8 +722,7 @@ for model_name, data in training_history.items():
     # 设置刻度小短线
     ax.tick_params(axis='both', which='major',
                    length=5, width=1, direction='out')
-    # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    plt.xticks(np.arange(0, 31, 5))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # 强制整数刻度
     plt.grid(False)
 
     # 绘制 Accuracy 曲线
@@ -741,8 +741,7 @@ for model_name, data in training_history.items():
         spine.set_linewidth(1.2)  # 加粗坐标轴
     ax.tick_params(axis='both', which='major', length=5,
                    width=1, direction='out')  # 设置刻度小短线
-    # 设置 x 轴刻度（每 5 个 epoch 显示一个）
-    plt.xticks(np.arange(0, 31, 5))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # 强制整数刻度
     plt.grid(False)
     """
     # 添加网格线
