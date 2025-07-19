@@ -184,16 +184,16 @@ class SingleMZModel(nn.Module):
 # ==================其他消融试验模型定义====================================
 # 消融试验1：简单拼接融合
 class ConcatFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256):
         super(ConcatFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(dim * 2, dim),
+            nn.BatchNorm1d(dim),
             nn.ReLU(),
-            SimpleResidualBlock(256),
-            nn.Linear(256, 2),
+            SimpleResidualBlock(dim),
+            nn.Linear(dim, 2),
             nn.Softmax(dim=1)
         )
 
@@ -207,7 +207,7 @@ class ConcatFusion(nn.Module):
 
 # 消融试验2：仅保留Gate Fusion
 class GateOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=128):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256):
         super(GateOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -219,11 +219,11 @@ class GateOnlyFusion(nn.Module):
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(dim, dim//2),
+            nn.BatchNorm1d(dim//2),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 2),
+            SimpleResidualBlock(dim//2),
+            nn.Linear(dim//2, 2),
             nn.Softmax(dim=1)
         )
 
@@ -241,7 +241,7 @@ class GateOnlyFusion(nn.Module):
 
 # 消融试验3：只用了MultiheadAttention
 class CoAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=128, num_heads=4):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=4):
         super(CoAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -250,11 +250,11 @@ class CoAttnOnlyFusion(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(dim, dim//2),
+            nn.BatchNorm1d(dim//2),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 2),
+            SimpleResidualBlock(dim//2),
+            nn.Linear(dim//2, 2),
             nn.Softmax(dim=1)
         )
 
@@ -272,7 +272,7 @@ class CoAttnOnlyFusion(nn.Module):
 
 # 消融试验4：把 Multi-headAttention 改成 Self-Attention
 class SelfAttnFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=128, num_heads=4):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=4):
         super(SelfAttnFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -290,11 +290,11 @@ class SelfAttnFusion(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(dim * 2, dim),
+            nn.BatchNorm1d(dim),
             nn.ReLU(),
-            SimpleResidualBlock(256),
-            nn.Linear(256, 2),
+            SimpleResidualBlock(dim),
+            nn.Linear(dim, 2),
             nn.Softmax(dim=1)
         )
 
@@ -322,7 +322,7 @@ class SelfAttnFusion(nn.Module):
 
 # 消融试验5：只用了MultiheadAttention，并且是Self-Attention
 class SelfAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=128, num_heads=4):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=4):
         super(SelfAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -331,11 +331,11 @@ class SelfAttnOnlyFusion(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(dim, dim//2),
+            nn.BatchNorm1d(dim//2),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 2),
+            SimpleResidualBlock(dim//2),
+            nn.Linear(dim//2, 2),
             nn.Softmax(dim=1)
         )
 
