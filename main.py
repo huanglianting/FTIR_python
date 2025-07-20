@@ -28,6 +28,7 @@ def set_seed(seed):
     # 1. Python基础随机模块
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'  # CUDA卷积算法确定性
     # 2. NumPy随机模块
     np.random.seed(seed)
     # 3. PyTorch随机模块
@@ -38,11 +39,17 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    # 限制并行
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    torch.set_num_threads(1)
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
 args = parser.parse_args()
+set_seed(args.seed)
 
 # set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
 g = torch.Generator()
@@ -141,7 +148,7 @@ class EarlyStopping:
 
 # ==================数据增强====================================
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
-    # torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
+    torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
     B, L = x.shape  # 批量大小和特征长度
     axis = axis.squeeze().expand(B, -1)
     # 高斯噪声
@@ -351,19 +358,16 @@ n_splits = 4
 sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 param_grid = {
-    'lr': [1e-4, 3e-4, 5e-4],
-    'weight_decay': [1e-4, 1e-5],
-    'batch_size': [16, 32],
-    'label_smoothing': [0.05, 0.1, 0.15],
-    'scheduler_factor': [0.3, 0.5, 0.7],
-    'early_stop_patience': [10, 15, 20]
+    'lr': [3e-4],
+    'weight_decay': [1e-4],
+    'batch_size': [32],
+    'label_smoothing': [0.1],
+    'scheduler_factor': [0.5],
+    'early_stop_patience': [15]
 }
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
-
-best_avg_auc = 0.0
 best_params = None
-grid_search_results = []  # 用于保存所有参数的四折结果
 
 
 def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, ftir_axis, mz_axis,
@@ -509,19 +513,29 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
     return pd.DataFrame(results)
 
 
+# 固定最优超参数（已通过网格搜索确定）
+params = {
+    'lr': 3e-4,
+    'weight_decay': 1e-4,
+    'batch_size': 32,
+    'label_smoothing': 0.1,
+    'scheduler_factor': 0.5,
+    'early_stop_patience': 15
+}
+
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
-    "ConcatFusion": ConcatFusion,
-    "GateOnlyFusion": GateOnlyFusion,
-    "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    "SelfAttnFusion": SelfAttnFusion,
-    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
+    # "ConcatFusion": ConcatFusion,
+    # "GateOnlyFusion": GateOnlyFusion,
+    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    # "SelfAttnFusion": SelfAttnFusion,
+    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
     # "SVM": SVMClassifier
 }
-
+"""
 all_model_dfs = []
 for model_name, model_class in models_to_evaluate.items():
     print(f"\n\n 开始评估模型: {model_name}")
@@ -549,11 +563,12 @@ for model_type in all_results_df['model_type'].unique():
     best_params = eval(best_row['params'])  # 字符串转字典
     best_params_per_model[model_type] = best_params
     print(f"[{model_type}] 最佳参数: {best_params}")
-
+"""
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
-for model_name, params in best_params_per_model.items():
+# for model_name, params in best_params_per_model.items():
+for model_name, model_class in models_to_evaluate.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
         model = MultiModalModel(
