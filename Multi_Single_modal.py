@@ -52,15 +52,15 @@ class MZEncoder(nn.Module):
     def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv1d(1, 64, 7, stride=2),
+            nn.Conv1d(1, 32, 7, stride=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Conv1d(64, 128, 5, stride=2),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(64),
+            nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
-            nn.Linear(128 * 64, 256),
+            nn.Linear(64 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Dropout(0.3)
