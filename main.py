@@ -51,7 +51,6 @@ parser.add_argument('--seed', type=int, default=4, help='Random seed')
 args = parser.parse_args()
 set_seed(args.seed)
 
-# set_seed(4)  # 枚举到13。在程序最开始调用。best：4。
 g = torch.Generator()
 g.manual_seed(42)
 
@@ -526,14 +525,14 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    # "FTIROnly": SingleFTIRModel,
-    # "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    # "SelfAttnFusion": SelfAttnFusion,
-    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
-    # "SVM": SVMClassifier
+    "FTIROnly": SingleFTIRModel,
+    "MZOnly": SingleMZModel,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "SelfAttnFusion": SelfAttnFusion,
+    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    "SVM": SVMClassifier
 }
 """
 all_model_dfs = []
