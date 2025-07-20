@@ -351,12 +351,12 @@ n_splits = 4
 sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 param_grid = {
-    'lr': [3e-4],
-    'weight_decay': [1e-4],
-    'batch_size': [32],
-    'label_smoothing': [0.1],
-    'scheduler_factor': [0.5],
-    'early_stop_patience': [15]
+    'lr': [1e-4, 3e-4, 5e-4],
+    'weight_decay': [1e-4, 1e-5],
+    'batch_size': [16, 32],
+    'label_smoothing': [0.05, 0.1, 0.15],
+    'scheduler_factor': [0.3, 0.5, 0.7],
+    'early_stop_patience': [10, 15, 20]
 }
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
@@ -512,13 +512,13 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    # "FTIROnly": SingleFTIRModel,
-    # "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    # "SelfAttnFusion": SelfAttnFusion,
-    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    "FTIROnly": SingleFTIRModel,
+    "MZOnly": SingleMZModel,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "SelfAttnFusion": SelfAttnFusion,
+    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
     # "SVM": SVMClassifier
 }
 
