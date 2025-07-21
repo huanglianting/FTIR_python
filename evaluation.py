@@ -132,7 +132,7 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
             edgecolor='w',
             linewidth=0.5
         )
-        plt.title(f"{title} (t-SNE)")
+        plt.title(f"{title}")
         plt.xlabel("t-SNE 1")
         plt.ylabel("t-SNE 2")
         plt.legend(labels=['Benign', 'Malignant'])

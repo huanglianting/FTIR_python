@@ -47,71 +47,37 @@ def select_significant_features(data, labels, n_features=50):
 
 
 def plot_optimized_heatmap(cancer_mz, normal_mz, common_mz, save_path):
+    # 准备数据
     heatmap_df, group_labels = prepare_heatmap_data(cancer_mz, normal_mz, common_mz)
     sig_indices = select_significant_features(heatmap_df.values, group_labels)
     filtered_df = heatmap_df.iloc[:, sig_indices]
-    # 数据缩放到0-100范围
+    # 数据归一化到0-100%
     data_min = filtered_df.min().min()
     data_max = filtered_df.max().max()
     scaled_data = (filtered_df - data_min) / (data_max - data_min) * 100
-
-    plt.figure(figsize=(20, 12))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[0.9, 0.1])
-    # 样本分组颜色设置
-    group_palette = ['#1f77b4', '#ff7f0e']  # 蓝色=正常，橙色=癌症
-    group_colors = [group_palette[x] for x in group_labels]
-    # 创建热图轴
-    ax_heatmap = plt.subplot(gs[0])
-    # 绘制热图
+    # 创建图形
+    plt.figure(figsize=(16, 10))
+    # 绘制热图（简化为单轴）
+    ax = plt.gca()
     sns.heatmap(
         scaled_data.T,  # 转置为(代谢物×样本)
         cmap='coolwarm',
-        ax=ax_heatmap,
-        cbar=False,  # 禁用内置颜色条
-        square=False,  # 允许矩形单元格
+        ax=ax,
+        cbar=True,  # 保留内置颜色条
+        cbar_kws={'label': 'Intensity (%)', 'ticks': [0, 25, 50, 75, 100]},
         linewidths=0.5,
-        linecolor='black',
-        xticklabels=False  # 隐藏样本标签
+        linecolor='black'
     )
-    # 添加样本分组颜色条
-    for i, color in enumerate(group_colors):
-        ax_heatmap.add_patch(
-            plt.Rectangle((i, -0.05), 1, 0.03, color=color, transform=ax_heatmap.get_xaxis_transform())
-        )
-    # 创建独立颜色条轴
-    ax_cbar = plt.subplot(gs[1])
-    cbar = plt.colorbar(ax_heatmap.collections[0], cax=ax_cbar)
-    cbar.set_label('Intensity(%)', fontsize=14, labelpad=15)
-    cbar.ax.tick_params(labelsize=12)
-    cbar.set_ticks([0, 25, 50, 75, 100])
-    # 设置标签和标题
-    ax_heatmap.set_xlabel('Patients', fontsize=14, labelpad=10)
-    ax_heatmap.set_ylabel('Metabolomics Features', fontsize=14, labelpad=10)
-    # 隐藏具体患者编号，仅保留分组标签
-    ax_heatmap.set_xticks([])  # 完全隐藏X轴刻度线
-    ax_heatmap.set_xticklabels([])  # 隐藏所有患者编号标签
-    ax_heatmap.tick_params(axis='y', labelsize=11, length=0)  # 增大代谢物标签字体
-    # 添加分组文本标签
-    ax_heatmap.text(0.25, -0.08, 'Benign',  # 水平位置25%，Y轴下方8%
-                    transform=ax_heatmap.transAxes,
-                    fontsize=13, weight='bold', ha='center', color='#1f77b4')  # 蓝色标签
-    ax_heatmap.text(0.75, -0.08, 'Malignant',
-                    transform=ax_heatmap.transAxes,
-                    fontsize=13, weight='bold', ha='center', color='#ff7f0e')  # 橙色标签
-
-    # 调整热图底部边距留出标签空间
-    plt.subplots_adjust(bottom=0.15)
-
-    plt.suptitle('Clustering Heatmap of Significant m/z Features',
-                 fontsize=16, y=0.95)
-    # 添加图例
-    from matplotlib.patches import Patch
-    legend_elements = [
-        Patch(facecolor=group_palette[0], label='Benign'),
-        Patch(facecolor=group_palette[1], label='Malignant')
-    ]
-    ax_heatmap.legend(handles=legend_elements, loc='upper right', fontsize=12)
+    # 设置坐标轴标签
+    ax.set_xlabel('Patients\n\nBenign            Malignant', fontsize=12, labelpad=10)
+    ax.set_ylabel('Metabolomics Features', fontsize=12, labelpad=10)
+    # 隐藏X轴具体患者编号
+    ax.set_xticks([])
+    ax.set_xticklabels([])
+    # 设置标题
+    plt.title('Clustering Heatmap of Significant m/z Features', fontsize=14)
     # 保存图像
+    os.makedirs(save_path, exist_ok=True)
     output_path = os.path.join(save_path, 'metabolomics_heatmap.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
