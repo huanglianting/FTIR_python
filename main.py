@@ -757,14 +757,7 @@ for model_name, data in training_history.items():
                    width=1, direction='out')  # 设置刻度小短线
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # 强制整数刻度
     plt.grid(False)
-    """
-    # 添加网格线
-    ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
-    ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
-    ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
-    ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
-    ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
-    """
+
     # 调整子图间距
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.3)

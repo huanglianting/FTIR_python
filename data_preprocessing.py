@@ -87,7 +87,21 @@ def plot_optimized_heatmap(cancer_mz, normal_mz, common_mz, save_path):
     # 设置标签和标题
     ax_heatmap.set_xlabel('Patients', fontsize=14, labelpad=10)
     ax_heatmap.set_ylabel('Metabolomics Features', fontsize=14, labelpad=10)
+    # 隐藏具体患者编号，仅保留分组标签
+    ax_heatmap.set_xticks([])  # 完全隐藏X轴刻度线
+    ax_heatmap.set_xticklabels([])  # 隐藏所有患者编号标签
     ax_heatmap.tick_params(axis='y', labelsize=11, length=0)  # 增大代谢物标签字体
+    # 添加分组文本标签
+    ax_heatmap.text(0.25, -0.08, 'Benign',  # 水平位置25%，Y轴下方8%
+                    transform=ax_heatmap.transAxes,
+                    fontsize=13, weight='bold', ha='center', color='#1f77b4')  # 蓝色标签
+    ax_heatmap.text(0.75, -0.08, 'Malignant',
+                    transform=ax_heatmap.transAxes,
+                    fontsize=13, weight='bold', ha='center', color='#ff7f0e')  # 橙色标签
+
+    # 调整热图底部边距留出标签空间
+    plt.subplots_adjust(bottom=0.15)
+
     plt.suptitle('Clustering Heatmap of Significant m/z Features',
                  fontsize=16, y=0.95)
     # 添加图例
@@ -241,7 +255,9 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         cancer_mz, normal_mz, common_mz)
     sig_indices = select_significant_features(heatmap_df.values, group_labels)
     filtered_df = heatmap_df.iloc[:, sig_indices]
+    plot_optimized_heatmap(cancer_mz, normal_mz, common_mz, save_path)
 
+    """
     # 绘制热图
     plt.figure(figsize=(18, 12))
     sns.set(font_scale=0.8)
@@ -278,6 +294,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"热图已保存至: {output_path}")
+    """
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 按患者初始化（ 训练(+验证) / 测试 ）列表

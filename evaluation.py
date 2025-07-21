@@ -20,10 +20,12 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         if is_svm:
             ftir_test_np = ftir_test.numpy() if isinstance(ftir_test, torch.Tensor) else ftir_test
             mz_test_np = mz_test.numpy() if isinstance(mz_test, torch.Tensor) else mz_test
-            test_features = np.hstack([ftir_test_np, mz_test_np])
-            # test_features = ftir_test_np * mz_test_np
+            ftir_axis_batch = np.tile(ftir_axis.numpy(), (ftir_test_np.shape[0], 1))  # [batch, 467]
+            mz_axis_batch = np.tile(mz_axis.numpy(), (mz_test_np.shape[0], 1))  # [batch, 2838]
+            test_features = np.hstack([ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
             preds = model.predict(test_features)
-            probs = model.predict_proba(test_features)[:, 1]
+            probs = model.decision_function(test_features)  # 使用决策函数代替概率
+            probs = (probs - probs.min()) / (probs.max() - probs.min())  # 可选归一化
         else:
             model.eval()
             with torch.no_grad():
@@ -108,8 +110,8 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
 def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, model_name):
     plt.figure(figsize=(15, 5))
     feature_types = [
-        ("FTIR Features", ftir_feat),
-        ("MZ Features", mz_feat),
+        ("FTIR Extractor Output", ftir_feat),
+        ("Metabolomics Extractor Output", mz_feat),
         ("Fused Features", fused_feat)
     ]
     for idx, (title, feat) in enumerate(feature_types, start=1):
@@ -139,7 +141,6 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
         plt.legend(
             handles=handles,
             labels=['Benign', 'Malignant'],  # 明确标签
-            title='Class',
             frameon=True,
             edgecolor='black'
         )
@@ -169,7 +170,7 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
     # 将混淆矩阵转换为百分比
     cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
 
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(8, 6))
     ax = sns.heatmap(
         cm_percent,
         annot=True,
@@ -179,8 +180,7 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
         vmax=100,
         linewidths=1.0,  # 单元格线宽加粗
         linecolor='black',
-        annot_kws={'size': 13, 'weight': 'bold'},  # 统一字体大小
-        cbar_kws={'drawedges': True},
+        annot_kws={'size': 13},  # 统一字体大小
         xticklabels=['Benign', 'Malignant'],
         yticklabels=['Benign', 'Malignant']
     )
@@ -189,11 +189,9 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
     plt.xlabel('Predicted Label', fontsize=13, labelpad=12)
     plt.ylabel('True Label', fontsize=13, labelpad=12)
     plt.title(f'Confusion Matrix Heatmap(%)', fontsize=14)
-
     # 设置刻度标签大小
     ax.set_xticklabels(ax.get_xticklabels(), fontsize=12)
     ax.set_yticklabels(ax.get_yticklabels(), fontsize=12)
-
     # 加粗边框
     for _, spine in ax.spines.items():
         spine.set_visible(True)
@@ -230,7 +228,6 @@ def save_roc_curve(y_true, probs, auc, name, save_path):
     plt.xlabel('False Positive Rate', fontsize=13, labelpad=12)
     plt.ylabel('True Positive Rate', fontsize=13, labelpad=12)
     plt.title(f'Receiver Operating Characteristic (ROC) Curve', fontsize=14)
-    plt.legend(loc="lower right", fontsize=12)
     plt.grid(False)
 
     # 设置坐标轴样式
