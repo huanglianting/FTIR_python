@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from sklearn.preprocessing import StandardScaler
+from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
 
 sns.set_style("whitegrid")
 
@@ -47,35 +48,42 @@ def select_significant_features(data, labels, n_features=50):
 
 
 def plot_optimized_heatmap(cancer_mz, normal_mz, common_mz, save_path):
-    # 准备数据
     heatmap_df, group_labels = prepare_heatmap_data(cancer_mz, normal_mz, common_mz)
     sig_indices = select_significant_features(heatmap_df.values, group_labels)
     filtered_df = heatmap_df.iloc[:, sig_indices]
-    # 数据归一化到0-100%
-    data_min = filtered_df.min().min()
-    data_max = filtered_df.max().max()
-    scaled_data = (filtered_df - data_min) / (data_max - data_min) * 100
-    # 创建图形
+
+    # 数据归一化到0-100% - 使用分位数缩放到增强对比度
+    p5 = np.percentile(filtered_df.values, 5)  # 5%分位数
+    p95 = np.percentile(filtered_df.values, 95)  # 95%分位数
+    scaled_data = np.clip((filtered_df - p5) / (p95 - p5) * 100, 0, 100)
+
     plt.figure(figsize=(16, 10))
-    # 绘制热图（简化为单轴）
     ax = plt.gca()
+
+    # 优化热图参数：移除网格线，调整颜色中心点
     sns.heatmap(
-        scaled_data.T,  # 转置为(代谢物×样本)
+        scaled_data.T,
         cmap='coolwarm',
         ax=ax,
-        cbar=True,  # 保留内置颜色条
+        cbar=True,
         cbar_kws={'label': 'Intensity (%)', 'ticks': [0, 25, 50, 75, 100]},
-        linewidths=0.5,
-        linecolor='black'
+        linewidths=0,  # 关键：移除网格线
+        center=50,  # 增强颜色对比，使更多区域显示红色
+        vmin=0,
+        vmax=100
     )
+
     # 设置坐标轴标签
     ax.set_xlabel('Patients\n\nBenign            Malignant', fontsize=12, labelpad=10)
     ax.set_ylabel('Metabolomics Features', fontsize=12, labelpad=10)
+
     # 隐藏X轴具体患者编号
     ax.set_xticks([])
     ax.set_xticklabels([])
+
     # 设置标题
     plt.title('Clustering Heatmap of Significant m/z Features', fontsize=14)
+
     # 保存图像
     os.makedirs(save_path, exist_ok=True)
     output_path = os.path.join(save_path, 'metabolomics_heatmap.png')
@@ -128,18 +136,9 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     print("x_ftir shape:", x_ftir.shape)  # (467,)
     # print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
-    from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
     # 提取 normal 和 cancer 的所有光谱
     all_normal_spectra = np.hstack(list(normal_ftir.values()))  # (467, N_samples)
     all_cancer_spectra = np.hstack(list(cancer_ftir.values()))  # (467, N_samples)
-    # 绘图
-    plot_spectrum_with_marked_peaks(
-        x=x_ftir,
-        spectrum_1=all_normal_spectra,
-        spectrum_2=all_cancer_spectra,
-        save_path=save_path,
-        peak_wavenumbers=[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]  # 示例波数点
-    )
 
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
