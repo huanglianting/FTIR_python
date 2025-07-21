@@ -7,6 +7,7 @@ import seaborn as sns
 from load_and_preprocess import load_and_preprocess
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 from sklearn.preprocessing import StandardScaler
 
 sns.set_style("whitegrid")
@@ -18,26 +19,22 @@ def prepare_heatmap_data(cancer_mz, normal_mz, common_mz):
     samples = []
     data = []
     groups = []
-
     # 添加癌症样本
     for col in cancer_mz:
         samples.append(col.replace('_', ' ').replace('[1]', '').strip())
         data.append(cancer_mz[col])
         groups.append(1)  # 癌症组标记为1
-
     # 添加正常样本
     for col in normal_mz:
         samples.append(col.replace('_', ' ').replace('[1]', '').strip())
         data.append(normal_mz[col])
         groups.append(0)  # 正常组标记为0
-
     # 创建数据框
     heatmap_df = pd.DataFrame(
         data,
         index=samples,
         columns=[f'm/z={mz:.2f}' for mz in common_mz]
     )
-
     return heatmap_df, np.array(groups)
 
 
@@ -47,6 +44,64 @@ def select_significant_features(data, labels, n_features=50):
     f_values, p_values = f_classif(data, labels)
     sig_indices = np.argsort(p_values)[:n_features]
     return sig_indices
+
+
+def plot_optimized_heatmap(cancer_mz, normal_mz, common_mz, save_path):
+    heatmap_df, group_labels = prepare_heatmap_data(cancer_mz, normal_mz, common_mz)
+    sig_indices = select_significant_features(heatmap_df.values, group_labels)
+    filtered_df = heatmap_df.iloc[:, sig_indices]
+    # 数据缩放到0-100范围
+    data_min = filtered_df.min().min()
+    data_max = filtered_df.max().max()
+    scaled_data = (filtered_df - data_min) / (data_max - data_min) * 100
+
+    plt.figure(figsize=(20, 12))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[0.9, 0.1])
+    # 样本分组颜色设置
+    group_palette = ['#1f77b4', '#ff7f0e']  # 蓝色=正常，橙色=癌症
+    group_colors = [group_palette[x] for x in group_labels]
+    # 创建热图轴
+    ax_heatmap = plt.subplot(gs[0])
+    # 绘制热图
+    sns.heatmap(
+        scaled_data.T,  # 转置为(代谢物×样本)
+        cmap='coolwarm',
+        ax=ax_heatmap,
+        cbar=False,  # 禁用内置颜色条
+        square=False,  # 允许矩形单元格
+        linewidths=0.5,
+        linecolor='black',
+        xticklabels=False  # 隐藏样本标签
+    )
+    # 添加样本分组颜色条
+    for i, color in enumerate(group_colors):
+        ax_heatmap.add_patch(
+            plt.Rectangle((i, -0.05), 1, 0.03, color=color, transform=ax_heatmap.get_xaxis_transform())
+        )
+    # 创建独立颜色条轴
+    ax_cbar = plt.subplot(gs[1])
+    cbar = plt.colorbar(ax_heatmap.collections[0], cax=ax_cbar)
+    cbar.set_label('Intensity(%)', fontsize=14, labelpad=15)
+    cbar.ax.tick_params(labelsize=12)
+    cbar.set_ticks([0, 25, 50, 75, 100])
+    # 设置标签和标题
+    ax_heatmap.set_xlabel('Patients', fontsize=14, labelpad=10)
+    ax_heatmap.set_ylabel('Metabolomics Features', fontsize=14, labelpad=10)
+    ax_heatmap.tick_params(axis='y', labelsize=11, length=0)  # 增大代谢物标签字体
+    plt.suptitle('Clustering Heatmap of Significant m/z Features',
+                 fontsize=16, y=0.95)
+    # 添加图例
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor=group_palette[0], label='Benign'),
+        Patch(facecolor=group_palette[1], label='Malignant')
+    ]
+    ax_heatmap.legend(handles=legend_elements, loc='upper right', fontsize=12)
+    # 保存图像
+    output_path = os.path.join(save_path, 'metabolomics_heatmap.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"热图已保存至: {output_path}")
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -186,6 +241,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         cancer_mz, normal_mz, common_mz)
     sig_indices = select_significant_features(heatmap_df.values, group_labels)
     filtered_df = heatmap_df.iloc[:, sig_indices]
+
     # 绘制热图
     plt.figure(figsize=(18, 12))
     sns.set(font_scale=0.8)

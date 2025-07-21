@@ -180,7 +180,7 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
         linewidths=1.0,  # 单元格线宽加粗
         linecolor='black',
         annot_kws={'size': 13, 'weight': 'bold'},  # 统一字体大小
-        cbar_kws={'drawedges': True, 'linewidth': 1.2},  # 颜色条加边框
+        cbar_kws={'drawedges': True},
         xticklabels=['Benign', 'Malignant'],
         yticklabels=['Benign', 'Malignant']
     )
