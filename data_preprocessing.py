@@ -93,6 +93,19 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     print("x_ftir shape:", x_ftir.shape)  # (467,)
     # print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
+    from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
+    # 提取 normal 和 cancer 的所有光谱
+    all_normal_spectra = np.hstack(list(normal_ftir.values()))  # (467, N_samples)
+    all_cancer_spectra = np.hstack(list(cancer_ftir.values()))  # (467, N_samples)
+    # 绘图
+    plot_spectrum_with_marked_peaks(
+        x=x_ftir,
+        spectrum_1=all_normal_spectra,
+        spectrum_2=all_cancer_spectra,
+        save_path=save_path,
+        peak_wavenumbers=[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]  # 示例波数点
+    )
+
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
     df2 = pd.read_excel(mz_file_path2, header=1)

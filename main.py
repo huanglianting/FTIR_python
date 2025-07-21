@@ -525,13 +525,13 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
-    "ConcatFusion": ConcatFusion,
-    "GateOnlyFusion": GateOnlyFusion,
-    "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    "SelfAttnFusion": SelfAttnFusion,
-    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    #"FTIROnly": SingleFTIRModel,
+    #"MZOnly": SingleMZModel,
+    #"ConcatFusion": ConcatFusion,
+    #"GateOnlyFusion": GateOnlyFusion,
+    #"CoAttnOnlyFusion": CoAttnOnlyFusion,
+    #"SelfAttnFusion": SelfAttnFusion,
+    #"SelfAttnOnlyFusion": SelfAttnOnlyFusion,
     "SVM": SVMClassifier
 }
 """
@@ -720,11 +720,11 @@ for model_name, data in training_history.items():
     # 绘制 Loss 曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(data['train_losses'], label='Train Loss',
+    plt.plot(data['train_losses'], label='Train',
              color=soft_blue, linestyle='-')
-    plt.plot(data['test_losses'], label='Test Loss',
+    plt.plot(data['test_losses'], label='Test',
              color=soft_red, linestyle='-')
-    plt.title(f'{model_name} - Training and Test Loss')
+    plt.title(f'Training and Test Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss value')
     plt.legend(loc='upper right')  # 设置固定位置的图例
@@ -741,11 +741,11 @@ for model_name, data in training_history.items():
 
     # 绘制 Accuracy 曲线
     plt.subplot(1, 2, 2)
-    plt.plot(data['train_accuracies'], label='Train Accuracy',
+    plt.plot(data['train_accuracies'], label='Train',
              color=soft_blue, linestyle='-')
-    plt.plot(data['test_accuracies'], label='Test Accuracy',
+    plt.plot(data['test_accuracies'], label='Test',
              color=soft_red, linestyle='-')
-    plt.title(f'{model_name} - Training and Test Accuracy')
+    plt.title(f'Training and Test Accuracy')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
     plt.legend(loc='upper right')  # 设置固定位置的图例

@@ -2,6 +2,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+# 设置统一风格参数
+UNIFIED_STYLE = {
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'savefig.facecolor': 'white',
+    'axes.edgecolor': 'black',
+    'axes.linewidth': 1.2,  # 统一坐标轴线宽
+    'font.size': 12,  # 统一字体大小
+    'lines.linewidth': 2,  # 统一曲线线宽
+    'xtick.major.width': 1.2,  # 统一x轴刻度线宽
+    'ytick.major.width': 1.2,  # 统一y轴刻度线宽
+    'axes.labelpad': 10  # 统一轴标签间距
+}
+
 
 def plot_individual_spectrum_with_marked_peaks(x, spectrum, label, color, save_path, peak_wavenumbers):
     # 计算均值和标准差
@@ -45,6 +59,9 @@ def plot_individual_spectrum_with_marked_peaks(x, spectrum, label, color, save_p
 
 def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_wavenumbers):
     # peak_wavenumbers: 需要标注的波数点列表，例如：[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]
+    # 应用统一样式
+    plt.style.use('default')
+    plt.rcParams.update(UNIFIED_STYLE)
     # 计算均值和标准差
     mean_1 = np.mean(spectrum_1, axis=1)
     std_1 = np.std(spectrum_1, axis=1)
@@ -53,11 +70,13 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
 
     # 创建绘图
     plt.figure(figsize=(12, 6))
-    plt.plot(x, mean_1, label='benign', color='green')
+    # 创建绘图
+    plt.figure(figsize=(12, 6))
+    plt.plot(x, mean_1, label='Benign', color='green')
     # plt.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
-    plt.plot(x, mean_2, label='cancer', color='red')
+    plt.plot(x, mean_2, label='Malignant', color='red')
     # plt.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='red', alpha=0.2)
-
+    """
     # 在指定的波数点处标注短虚线
     for peak in peak_wavenumbers:
         # 获取该波数对应的y值
@@ -67,18 +86,30 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
         plt.plot([peak, peak], [peak_height - 0.02, peak_height + 0.02], color='black', linestyle='--', linewidth=1)
         # 在峰旁边标注波数值
         plt.text(peak, peak_height + 0.02, str(peak), fontsize=9, ha='center')
-
-    # 设置图表标签和标题
-    plt.xlabel('Wavenumber (cm^-1)')
-    plt.ylabel('Absorbance')
-    plt.title('Spectrum with Marked Peaks')
-    plt.legend()
-    plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+    """
+    # 设置图表标签和标题（统一字体大小和加粗）
+    plt.xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=13, labelpad=12)
+    plt.ylabel('Absorbance', fontsize=13, labelpad=12)
+    # plt.title('Spectrum with Marked Peaks', fontsize=14)
+    # 设置图例（统一字体大小）
+    plt.legend(fontsize=12)
+    plt.grid(False)
+    # plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
 
     # 反转x轴方向
     plt.gca().invert_xaxis()
 
-    # 调整布局
+    # 设置坐标轴样式（加粗边框）
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)
+
+    # 设置刻度样式（统一格式）
+    ax.tick_params(axis='both', which='major',
+                   length=6, width=1,
+                   labelsize=12, pad=8)
+
     plt.tight_layout()
 
     # 保存并显示图像
