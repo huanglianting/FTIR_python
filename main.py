@@ -532,7 +532,7 @@ models_to_evaluate = {
     #"CoAttnOnlyFusion": CoAttnOnlyFusion,
     #"SelfAttnFusion": SelfAttnFusion,
     #"SelfAttnOnlyFusion": SelfAttnOnlyFusion,
-    "SVM": SVMClassifier
+    #"SVM": SVMClassifier
 }
 """
 all_model_dfs = []
@@ -562,7 +562,7 @@ for model_type in all_results_df['model_type'].unique():
     best_params = eval(best_row['params'])  # 字符串转字典
     best_params_per_model[model_type] = best_params
     print(f"[{model_type}] 最佳参数: {best_params}")
-"""
+
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
@@ -757,14 +757,7 @@ for model_name, data in training_history.items():
                    width=1, direction='out')  # 设置刻度小短线
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # 强制整数刻度
     plt.grid(False)
-    """
-    # 添加网格线
-    ax.grid(True, linestyle='-', color='#EEEEEE', linewidth=0.5)  # 浅色实线网格
-    ax.xaxis.set_minor_locator(MultipleLocator(1))  # 每 1 个 epoch 一个次刻度
-    ax.yaxis.set_minor_locator(MultipleLocator(0.01))  # 每 0.01 一个次刻度
-    ax.grid(True, which='major', linestyle='-', color='#CCCCCC', linewidth=0.6)  # 主网格线
-    ax.grid(True, which='minor', linestyle=':', color='#DDDDDD', linewidth=0.4)  # 次网格线
-    """
+
     # 调整子图间距
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.3)
@@ -773,3 +766,4 @@ for model_name, data in training_history.items():
     plt.close()
 
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")
+"""

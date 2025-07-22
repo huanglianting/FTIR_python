@@ -3,50 +3,80 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from scipy.interpolate import interp1d
+from sklearn.metrics.pairwise import cosine_similarity
 import seaborn as sns
 from load_and_preprocess import load_and_preprocess
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
+
 
 sns.set_style("whitegrid")
 
 
-# 创建患者-代谢物矩阵
-def prepare_heatmap_data(cancer_mz, normal_mz, common_mz):
-    # 合并所有样本数据
-    samples = []
-    data = []
-    groups = []
-
-    # 添加癌症样本
-    for col in cancer_mz:
-        samples.append(col.replace('_', ' ').replace('[1]', '').strip())
-        data.append(cancer_mz[col])
-        groups.append(1)  # 癌症组标记为1
-
-    # 添加正常样本
-    for col in normal_mz:
-        samples.append(col.replace('_', ' ').replace('[1]', '').strip())
-        data.append(normal_mz[col])
-        groups.append(0)  # 正常组标记为0
-
-    # 创建数据框
-    heatmap_df = pd.DataFrame(
-        data,
-        index=samples,
-        columns=[f'm/z={mz:.2f}' for mz in common_mz]
-    )
-
-    return heatmap_df, np.array(groups)
+def select_most_similar_sample(group_data):
+    """
+    从给定的样本组中选择一个与其他样本平均余弦相似度最高的样本作为“原型”
+    """
+    sample_names = list(group_data.keys())
+    sample_values = np.column_stack([group_data[name] for name in sample_names])
+    similarities = cosine_similarity(sample_values.T)
+    # 计算每个样本与其他样本的平均相似度（排除自己）
+    avg_similarity = np.mean(similarities - np.eye(similarities.shape[0]), axis=1)
+    # 找到平均相似度最高的样本索引
+    most_similar_idx = np.argmax(avg_similarity)
+    # 返回该样本
+    return sample_names[most_similar_idx], sample_values[:, most_similar_idx]
 
 
-# 筛选差异显著的代谢物（使用方差分析）
-def select_significant_features(data, labels, n_features=50):
-    from sklearn.feature_selection import f_classif
-    f_values, p_values = f_classif(data, labels)
-    sig_indices = np.argsort(p_values)[:n_features]
-    return sig_indices
+def normalize_to_intensity_percentage(abundance_values):
+    """
+    将归一化丰度转换为强度百分比（Intensity %）：
+    Intensity(%) = (abundance / max(abundance)) * 100%
+    """
+    max_abundance = np.max(abundance_values)
+    intensity_percentage = (abundance_values / max_abundance) * 100
+    return intensity_percentage
+
+
+def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, save_path=".", title="Intensity Comparison"):
+    """
+    绘制上下拼接的柱状图，展示 Malignant 和 Benign 组的强度百分比。
+    """
+    # 转换为强度百分比
+    cancer_intensity = normalize_to_intensity_percentage(cancer_abundance)
+    normal_intensity = normalize_to_intensity_percentage(normal_abundance)
+
+    # 设置子图（上下拼接）
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
+
+    # 绘制良性样本（Benign）
+    ax1.bar(common_mz, normal_intensity, color='green', alpha=0.7, label='Benign', width=2.2)
+    ax1.set_ylabel('Intensity (%)')
+    ax1.grid(False)
+
+    # 绘制恶性样本（Malignant）
+    ax2.bar(common_mz, cancer_intensity, color='red', alpha=0.7, label='Malignant', width=2.2)
+    ax2.set_xlabel('m/z')
+    ax2.set_ylabel('Intensity (%)')
+    ax2.grid(False)
+
+    ax1.legend(loc='upper right')
+    ax2.legend(loc='upper right')
+
+    # 设置统一样式
+    for ax in [ax1, ax2]:
+        ax.legend(loc='upper right', fontsize=8)
+        ax.set_xlim(min(common_mz), max(common_mz))
+        ax.tick_params(axis='both', which='major', labelsize=10)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_path, f'{title.replace(" ", "_")}.png'), dpi=300)
+    plt.show()
+    plt.close()
 
 
 def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
@@ -93,18 +123,17 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     print("x_ftir shape:", x_ftir.shape)  # (467,)
     # print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
-    from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
     # 提取 normal 和 cancer 的所有光谱
     all_normal_spectra = np.hstack(list(normal_ftir.values()))  # (467, N_samples)
     all_cancer_spectra = np.hstack(list(cancer_ftir.values()))  # (467, N_samples)
-    # 绘图
+
+    from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
     plot_spectrum_with_marked_peaks(
         x=x_ftir,
         spectrum_1=all_normal_spectra,
         spectrum_2=all_cancer_spectra,
         save_path=save_path,
-        peak_wavenumbers=[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]  # 示例波数点
-    )
+        peak_wavenumbers=[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575])
 
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
@@ -182,46 +211,16 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
             normal_mz[col] = df2_resampled[col].values
     print("common_mz shape:", common_mz.shape)  # (2838,)
 
-    heatmap_df, group_labels = prepare_heatmap_data(
-        cancer_mz, normal_mz, common_mz)
-    sig_indices = select_significant_features(heatmap_df.values, group_labels)
-    filtered_df = heatmap_df.iloc[:, sig_indices]
-    # 绘制热图
-    plt.figure(figsize=(18, 12))
-    sns.set(font_scale=0.8)
-    # 创建颜色映射
-    group_palette = sns.color_palette("Set1", 2)
-    group_colors = [group_palette[x] for x in group_labels]
-    # 绘制聚类热图
-    g = sns.clustermap(
-        filtered_df.T,  # 转置为 (代谢物 x 样本)
-        method='average',
-        metric='euclidean',
-        z_score=0,  # 按行(代谢物)标准化
-        cmap='coolwarm',  # 红蓝配色
-        row_cluster=True,
-        col_cluster=True,
-        col_colors=group_colors,  # 样本分组颜色
-        figsize=(18, 12),
-        dendrogram_ratio=(0.1, 0.1),
-        cbar_pos=(0.02, 0.85, 0.03, 0.1)
+    # 选择最相似的恶性样本、良性样本
+    most_similar_cancer_name, most_similar_cancer_spectrum = select_most_similar_sample(cancer_mz)
+    most_similar_normal_name, most_similar_normal_spectrum = select_most_similar_sample(normal_mz)
+    plot_intensity_comparison(
+        common_mz=common_mz,
+        cancer_abundance=most_similar_cancer_spectrum,
+        normal_abundance=most_similar_normal_spectrum,
+        save_path=save_path,
+        title="Prototype Intensity Comparison"
     )
-    # 添加图例
-    for i, label in enumerate(['Normal', 'Cancer']):
-        g.ax_col_dendrogram.bar(
-            0, 0, color=group_palette[i], label=label, linewidth=0)
-    g.ax_col_dendrogram.legend(
-        loc='upper left', ncol=2, bbox_to_anchor=(0.8, 0.9))
-    # 优化布局
-    plt.suptitle(
-        'Clustering Heatmap of Significant m/z Features (Cancer vs Normal)', y=1.02, fontsize=14)
-    g.ax_heatmap.set_xlabel('Patients')
-    g.ax_heatmap.set_ylabel('m/z Features')
-    # 保存图像
-    output_path = os.path.join(save_path, 'metabolomics_heatmap.png')
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"热图已保存至: {output_path}")
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================
     # 按患者初始化（ 训练(+验证) / 测试 ）列表

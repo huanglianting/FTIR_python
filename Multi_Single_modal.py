@@ -368,3 +368,7 @@ class SVMClassifier:
 
     def predict_proba(self, X):
         return self.clf.predict_proba(X)
+
+    def decision_function(self, X):
+        return self.clf.decision_function(X)
+
