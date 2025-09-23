@@ -6,7 +6,9 @@ def preprocess_spectrum(x, AB, threshold1, threshold2, order, frame_len, save_pa
     # 只处理threshold1-threshold2之间的光谱
     x, filtered_spectrum = filter_threshold(AB, x, threshold1, threshold2)
     # Savitzky-Golay平滑并求二阶导数
-    spectrum = savgol_filter(filtered_spectrum, frame_len, order, axis=0, deriv=2)
+    # spectrum = filtered_spectrum
+    spectrum = savgol_filter(
+        filtered_spectrum, frame_len, order, axis=0, deriv=2)
     return x, spectrum
 
 
@@ -41,7 +43,8 @@ def load_and_preprocess(data_files, threshold1, threshold2, order, frame_len, sa
     x_all, spectrum_all = [], []
     for data_file in data_files:
         x, AB = load_data(data_file)
-        x, spectrum = preprocess_spectrum(x, AB, threshold1, threshold2, order, frame_len, save_path)
+        x, spectrum = preprocess_spectrum(
+            x, AB, threshold1, threshold2, order, frame_len, save_path)
         x_all.append(x)
         spectrum_all.append(spectrum)
 
@@ -60,4 +63,3 @@ def load_data(data):
         x = data['TR'][:, 0]
         AB = -np.log10(TR)
     return x, AB
-

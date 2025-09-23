@@ -20,10 +20,12 @@ def select_most_similar_sample(group_data):
     从给定的样本组中选择一个与其他样本平均余弦相似度最高的样本作为“原型”
     """
     sample_names = list(group_data.keys())
-    sample_values = np.column_stack([group_data[name] for name in sample_names])
+    sample_values = np.column_stack(
+        [group_data[name] for name in sample_names])
     similarities = cosine_similarity(sample_values.T)
     # 计算每个样本与其他样本的平均相似度（排除自己）
-    avg_similarity = np.mean(similarities - np.eye(similarities.shape[0]), axis=1)
+    avg_similarity = np.mean(
+        similarities - np.eye(similarities.shape[0]), axis=1)
     # 找到平均相似度最高的样本索引
     most_similar_idx = np.argmax(avg_similarity)
     # 返回该样本
@@ -52,29 +54,40 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
 
     # 绘制良性样本（Benign）
-    ax1.bar(common_mz, normal_intensity, color='green', alpha=0.7, label='Benign', width=2.2)
-    ax1.set_ylabel('Intensity (%)')
+    ax1.bar(common_mz, normal_intensity, color='green',
+            alpha=0.7, label='Benign', width=2.2)
+    ax1.set_ylabel('Intensity (%)', fontsize=12)
     ax1.grid(False)
 
     # 绘制恶性样本（Malignant）
-    ax2.bar(common_mz, cancer_intensity, color='red', alpha=0.7, label='Malignant', width=2.2)
-    ax2.set_xlabel('m/z')
-    ax2.set_ylabel('Intensity (%)')
+    ax2.bar(common_mz, cancer_intensity, color='red',
+            alpha=0.7, label='Malignant', width=2.2)
+    ax2.set_xlabel('m/z', fontsize=12)
+    ax2.set_ylabel('Intensity (%)', fontsize=12)
     ax2.grid(False)
+
+    # 增加柱形图边框线条粗细
+    for bar in bars1:
+        bar.set_linewidth(0.8)  # 设置边框线宽
+    for bar in bars2:
+        bar.set_linewidth(0.8)  # 设置边框线宽
 
     ax1.legend(loc='upper right')
     ax2.legend(loc='upper right')
 
     # 设置统一样式
     for ax in [ax1, ax2]:
-        ax.legend(loc='upper right', fontsize=8)
+        ax.legend(loc='upper right', fontsize=10)  # 增大图例字体
         ax.set_xlim(min(common_mz), max(common_mz))
-        ax.tick_params(axis='both', which='major', labelsize=10)
+        ax.tick_params(axis='both', which='major', labelsize=11)  # 增大刻度标签字体
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.xaxis.label.set_size(12)
+        ax.yaxis.label.set_size(12)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_path, f'{title.replace(" ", "_")}.png'), dpi=300)
+    plt.savefig(os.path.join(
+        save_path, f'{title.replace(" ", "_")}.png'), dpi=300)
     plt.show()
     plt.close()
 
@@ -124,8 +137,10 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # print(f"spectrum_normal1 shape: {normal_ftir['normal1'].shape}")  # 形状均为(467, xxxx)
 
     # 提取 normal 和 cancer 的所有光谱
-    all_normal_spectra = np.hstack(list(normal_ftir.values()))  # (467, N_samples)
-    all_cancer_spectra = np.hstack(list(cancer_ftir.values()))  # (467, N_samples)
+    all_normal_spectra = np.hstack(
+        list(normal_ftir.values()))  # (467, N_samples)
+    all_cancer_spectra = np.hstack(
+        list(cancer_ftir.values()))  # (467, N_samples)
 
     from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
     plot_spectrum_with_marked_peaks(
@@ -212,8 +227,10 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     print("common_mz shape:", common_mz.shape)  # (2838,)
 
     # 选择最相似的恶性样本、良性样本
-    most_similar_cancer_name, most_similar_cancer_spectrum = select_most_similar_sample(cancer_mz)
-    most_similar_normal_name, most_similar_normal_spectrum = select_most_similar_sample(normal_mz)
+    most_similar_cancer_name, most_similar_cancer_spectrum = select_most_similar_sample(
+        cancer_mz)
+    most_similar_normal_name, most_similar_normal_spectrum = select_most_similar_sample(
+        normal_mz)
     plot_intensity_comparison(
         common_mz=common_mz,
         cancer_abundance=most_similar_cancer_spectrum,
