@@ -22,8 +22,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier
-from Multi_Single_modal import generate_spectral_cam
-
+from scipy.interpolate import interp1d
 matplotlib.use('Agg')
 
 
@@ -148,79 +147,145 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 
-def visualize_model_attention(model, ftir_data, mz_data, ftir_axis, mz_axis,
-                              save_path='./result', model_name='MultiModal'):
-    """
-    可视化模型注意力机制
-    """
-    model.eval()
+class GradCAM1D:
+    def __init__(self, model, target_layer):
+        self.model = model
+        self.target_layer = target_layer  # 目标卷积层（1D）
+        self.feature_maps = None  # 存储目标层输出的特征图
+        self.gradients = None     # 存储目标层的梯度
+        self.hook_handles = []    # 用于移除钩子
+        self.hook_layers()
 
-    # 准备输入数据
-    if not isinstance(ftir_data, torch.Tensor):
-        ftir_data = torch.tensor(ftir_data, dtype=torch.float32)
-    if not isinstance(mz_data, torch.Tensor):
-        mz_data = torch.tensor(mz_data, dtype=torch.float32)
+    def hook_layers(self):
+        # 注册前向钩子获取特征图
+        def forward_hook(module, input, output):
+            self.feature_maps = output.detach()  # 1D特征图: [B, C, L]
 
-    # 确保axis数据维度正确
-    if ftir_axis.dim() == 1:
-        ftir_axis = ftir_axis.unsqueeze(0).repeat(ftir_data.shape[0], 1)
-    if mz_axis.dim() == 1:
-        mz_axis = mz_axis.unsqueeze(0).repeat(mz_data.shape[0], 1)
+        # 注册反向钩子获取梯度
+        def backward_hook(module, grad_input, grad_output):
+            self.gradients = grad_output[0].detach()  # 梯度: [B, C, L]
 
-    inputs = (ftir_data, mz_data, ftir_axis, mz_axis)
+        # 保存钩子句柄，便于后续移除
+        handle_forward = self.target_layer.register_forward_hook(forward_hook)
+        # 使用 register_full_backward_hook 替代 register_backward_hook
+        handle_backward = self.target_layer.register_full_backward_hook(
+            backward_hook)
+        self.hook_handles.extend([handle_forward, handle_backward])
 
-    # 生成 CAM
-    try:
-        ftir_cam, mz_cam = generate_spectral_cam(model, inputs)
+    # 修改 GradCAM1D 类中的 generate_cam 方法
+    def generate_cam(self, input_tensor, target_class=None):
+        self.model.eval()
 
-        if ftir_cam is not None and mz_cam is not None:
-            # 可视化几个样本
-            num_samples = min(5, ftir_data.shape[0])
+        # 前向传播
+        output = self.model(*input_tensor)
 
-            for i in range(num_samples):
-                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-
-                # FTIR CAM 可视化
-                ax1.plot(ftir_axis[i].numpy(), ftir_data[i].numpy(),
-                         alpha=0.7, label='Original FTIR', color='blue')
-                ax1.plot(ftir_axis[i].numpy(),
-                         ftir_cam[i] * ftir_data[i].numpy(),
-                         alpha=0.7, label='FTIR with CAM', color='red')
-                ax1.set_title(f'{model_name} - FTIR Grad-CAM (Sample {i})')
-                ax1.set_xlabel('Wavenumber')
-                ax1.set_ylabel('Intensity')
-                ax1.legend()
-                ax1.grid(True, alpha=0.3)
-
-                # MZ CAM 可视化
-                ax2.plot(mz_axis[i].numpy(), mz_data[i].numpy(),
-                         alpha=0.7, label='Original MZ', color='blue')
-                ax2.plot(mz_axis[i].numpy(),
-                         mz_cam[i] * mz_data[i].numpy(),
-                         alpha=0.7, label='MZ with CAM', color='red')
-                ax2.set_title(f'{model_name} - MZ Grad-CAM (Sample {i})')
-                ax2.set_xlabel('m/z')
-                ax2.set_ylabel('Intensity')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-
-                plt.tight_layout()
-                plt.savefig(f'{save_path}/{model_name}_gradcam_sample_{i}.png',
-                            dpi=300, bbox_inches='tight')
-                plt.close()
-
-            print(f"Grad-CAM 可视化完成，结果保存在 {save_path} 目录下")
-            return ftir_cam, mz_cam
+        # 确定目标类别（默认取预测概率最高的类别）
+        if target_class is None:
+            target_class = output.argmax(dim=1)
         else:
-            print("Grad-CAM 生成失败")
-            return None, None
+            # 确保 target_class 是 tensor 类型
+            if not isinstance(target_class, torch.Tensor):
+                target_class = torch.tensor(target_class, device=output.device)
+            # 如果是标量，扩展维度
+            if target_class.dim() == 0:
+                target_class = target_class.unsqueeze(0)
+            # 扩展为与 batch size 相同的长度
+            if target_class.dim() == 1 and target_class.shape[0] != output.shape[0]:
+                target_class = target_class.expand(output.shape[0])
 
-    except Exception as e:
-        print(f"Grad-CAM 可视化过程中出错: {e}")
-        return None, None
+        # 反向传播（计算目标类别的梯度）
+        self.model.zero_grad()
+        one_hot = torch.zeros_like(output)
+        # 确保 target_class 是列向量
+        target_class = target_class.unsqueeze(
+            1) if target_class.dim() == 1 else target_class
+        one_hot.scatter_(1, target_class, 1.0)  # 生成独热向量
+        output.backward(gradient=one_hot, retain_graph=True)
 
+        # 计算权重（全局平均池化梯度）
+        # 1D数据在长度维度平均: [B, C, 1]
+        weights = torch.mean(self.gradients, dim=2, keepdim=True)
+
+        # 加权组合特征图
+        cam = torch.sum(weights * self.feature_maps, dim=1)  # 合并通道维度: [B, L]
+        cam = torch.relu(cam)  # 只保留正贡献
+
+        # 归一化到 [0, 1]
+        cam = (cam - cam.min(dim=1, keepdim=True)[0]) / (
+            cam.max(dim=1, keepdim=True)[0] - cam.min(dim=1, keepdim=True)[0] + 1e-8)
+        return cam.cpu().numpy()
+
+    def remove_hooks(self):
+        # 移除钩子，避免内存泄漏
+        for handle in self.hook_handles:
+            handle.remove()
+
+
+def generate_encoder_cam(model, input_data, encoder_type="ftir", target_class=None):
+    """
+    生成编码器（FTIR或MZ）的Grad-CAM热力图
+
+    参数:
+        model: 多模态模型（MultiModalModel）
+        input_data: 输入数据 tuple (ftir, mz, ftir_axis, mz_axis)
+        encoder_type: 编码器类型，"ftir" 或 "mz"
+        target_class: 目标类别（默认为模型预测的类别）
+
+    返回:
+        cam: 映射到原始输入长度的热力图 [B, 原始长度]
+        raw_input: 原始输入数据 [B, 原始长度]
+    """
+    ftir, mz, ftir_axis, mz_axis = input_data
+    device = next(model.parameters()).device  # 获取模型设备
+
+    # 选择目标编码器和输入数据
+    if encoder_type == "ftir":
+        encoder = model.ftir_extractor
+        raw_input = ftir.to(device)  # 原始输入: [B, L_ftir]
+        input_feat = raw_input.unsqueeze(1)  # 编码器输入需要 [B, 1, L_ftir]
+        # FTIREncoder的第二个卷积层（索引4，对应Conv1d(32,64,...)）
+        target_layer = encoder.net[4]
+    elif encoder_type == "mz":
+        encoder = model.mz_extractor
+        raw_input = mz.to(device)  # 原始输入: [B, L_mz]
+        input_feat = raw_input.unsqueeze(1)  # 编码器输入需要 [B, 1, L_mz]
+        target_layer = encoder.net[4]  # MZEncoder的第二个卷积层（索引4）
+    else:
+        raise ValueError("encoder_type must be 'ftir' or 'mz'")
+
+    # 包装输入（适配模型forward的参数格式）
+    input_tensor = (ftir.to(device), mz.to(device),
+                    ftir_axis.to(device), mz_axis.to(device))
+
+    # 初始化1D Grad-CAM
+    grad_cam = GradCAM1D(model, target_layer)
+
+    # 生成卷积层输出的热力图（长度较短）
+    cam_short = grad_cam.generate_cam(
+        input_tensor, target_class)  # [B, L_short]
+    grad_cam.remove_hooks()  # 清理钩子
+
+    # 将短热力图插值映射回原始输入长度
+    B, raw_len = raw_input.shape  # 原始输入长度
+    cam = []
+    for i in range(B):
+        # 插值函数（线性插值）
+        interp_func = interp1d(
+            np.linspace(0, raw_len, num=cam_short.shape[1]),  # 短序列的坐标
+            cam_short[i],
+            kind="linear",
+            fill_value="extrapolate"
+        )
+        # 映射到原始长度
+        cam_i = interp_func(np.arange(raw_len))
+        cam.append(cam_i)
+    cam = np.stack(cam, axis=0)  # [B, 原始长度]
+
+    return cam, raw_input.cpu().numpy()
 
 # ==================数据增强====================================
+
+
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
     torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
     B, L = x.shape  # 批量大小和特征长度
@@ -666,16 +731,72 @@ for model_name, model_class in models_to_evaluate.items():
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
-        # 添加 Grad-CAM 可视化
-        print(f"生成 {model_name} 的 Grad-CAM 可视化...")
-        ftir_cam, mz_cam = visualize_model_attention(
-            trained_model,
-            ftir_test[:10],  # 只可视化前10个样本以节省时间
-            mz_test[:10],
-            ftir_x,
-            mz_x,
-            save_path=save_path,
-            model_name=model_name
+        # 1. 准备输入数据（取测试集中的样本，可根据需要选择单个或多个样本）
+        # 这里以第一个样本为例
+        input_data = (
+            ftir_test[:1],  # 取第一个FTIR样本 [1, L_ftir]
+            mz_test[:1],    # 取第一个MZ样本 [1, L_mz]
+            ftir_x[:1],  # 对应的FTIR轴
+            mz_x[:1]     # 对应的MZ轴
+        )
+
+        # 2. 确保模型和数据在同一设备（CPU/GPU）
+        device = next(model.parameters()).device
+        input_data = (
+            ftir_test[:1].to(device),
+            mz_test[:1].to(device),
+            ftir_x[:1].to(device),
+            mz_x[:1].to(device)
+        )
+
+        # 3. 生成FTIR编码器的Grad-CAM
+        ftir_cam, ftir_raw = generate_encoder_cam(
+            model,
+            input_data,
+            encoder_type="ftir",
+            target_class=torch.tensor([1])  # 确保是 tensor 类型
+        )
+
+        # 4. 生成MZ编码器的Grad-CAM
+        mz_cam, mz_raw = generate_encoder_cam(
+            model,
+            input_data,
+            encoder_type="mz",
+            target_class=torch.tensor([1])  # 确保是 tensor 类型
+        )
+
+        # 5. 可视化（以第一个样本为例）
+        def plot_cam(raw_data, cam, axis, title):
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(10, 4))
+            # 绘制原始光谱
+            plt.plot(axis, raw_data, color="blue", alpha=0.5, label="Raw Data")
+            # 绘制热力图（叠加在原始光谱上）
+            plt.scatter(axis, raw_data, c=cam, cmap="jet", alpha=0.7, s=5)
+            plt.colorbar(label="Attention Weight")
+            plt.title(title)
+            plt.xlabel("Axis")
+            plt.ylabel("Intensity")
+            plt.legend()
+            # 保存图像到文件而不是显示
+            save_path = './result'  # 使用已定义的保存路径
+            plt.savefig(f"{os.path.join(save_path, title)}.png")
+            plt.close()  # 关闭图像以释放内存
+
+        # 可视化FTIR的Grad-CAM
+        plot_cam(
+            ftir_raw[0],  # 第一个样本的原始FTIR数据
+            ftir_cam[0],  # 第一个样本的FTIR热力图
+            ftir_x.numpy(),  # 修改为完整的ftir_x轴数据
+            "FTIR Encoder Grad-CAM"
+        )
+
+        # 可视化MZ的Grad-CAM
+        plot_cam(
+            mz_raw[0],   # 第一个样本的原始MZ数据
+            mz_cam[0],   # 第一个样本的MZ热力图
+            mz_x.numpy(),  # 修改为完整的mz_x轴数据
+            "MZ Encoder Grad-CAM"
         )
 
     elif model_name == "FTIROnly":
