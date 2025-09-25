@@ -66,12 +66,6 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     ax2.set_ylabel('Intensity (%)', fontsize=12)
     ax2.grid(False)
 
-    # 增加柱形图边框线条粗细
-    for bar in bars1:
-        bar.set_linewidth(0.8)  # 设置边框线宽
-    for bar in bars2:
-        bar.set_linewidth(0.8)  # 设置边框线宽
-
     ax1.legend(loc='upper right')
     ax2.legend(loc='upper right')
 

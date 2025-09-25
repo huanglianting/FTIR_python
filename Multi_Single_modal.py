@@ -1,9 +1,12 @@
 import torch
 import torch.nn as nn
 from sklearn.svm import SVC
-
+import numpy as np
+import cv2
 
 # ==================模块定义====================================
+
+
 class SEBlock(nn.Module):
     def __init__(self, channels, reduction=16):
         super(SEBlock, self).__init__()
@@ -86,6 +89,76 @@ class SimpleResidualBlock(nn.Module):
         return x + self.net(x)
 
 
+class GradCAM:
+    def __init__(self, model, target_layer):
+        self.model = model
+        self.target_layer = target_layer
+        self.feature_maps = None
+        self.gradients = None
+
+        # 注册钩子
+        self.hook_layers()
+
+    def hook_layers(self):
+        def forward_hook(module, input, output):
+            self.feature_maps = input[0].detach()
+
+        def backward_hook(module, grad_input, grad_output):
+            self.gradients = grad_output[0].detach()
+
+        self.target_layer.register_forward_hook(forward_hook)
+        self.target_layer.register_backward_hook(backward_hook)
+
+    def generate_cam(self, input_tensor, target_class=None):
+        self.model.eval()
+
+        # 前向传播
+        output = self.model(*input_tensor)
+
+        if target_class is None:
+            target_class = output.argmax(dim=1)
+
+        # 创建目标张量
+        one_hot = torch.zeros_like(output)
+        one_hot.scatter_(1, target_class.unsqueeze(1), 1)
+
+        # 反向传播
+        self.model.zero_grad()
+        output.backward(gradient=one_hot, retain_graph=True)
+
+        # 计算 Grad-CAM
+        weights = torch.mean(self.gradients, dim=(2, 3), keepdim=True)
+        cam = torch.sum(weights * self.feature_maps, dim=1, keepdim=True)
+        cam = torch.relu(cam)
+        cam = cam.squeeze().cpu().numpy()
+
+        # 归一化
+        cam = (cam - np.min(cam)) / (np.max(cam) - np.min(cam) + 1e-8)
+        return cam
+
+
+def visualize_grad_cam(model, inputs, ftir_data, mz_data, ftir_axis, mz_axis):
+    # 获取目标层 (HybridFusion 层)
+    target_layer = model.fuser
+
+    # 初始化 Grad-CAM
+    grad_cam = GradCAM(model, target_layer)
+
+    # 准备输入
+    input_tensor = (ftir_data, mz_data, ftir_axis, mz_axis)
+
+    # 生成 CAM
+    cam = grad_cam.generate_cam(input_tensor)
+
+    # 将 CAM 叠加到原始数据上
+    # 这里需要根据你的数据维度调整可视化方法
+    # 例如，可以将 CAM 映射到 FTIR 和 MZ 数据上
+    return cam
+
+# 注意：由于你的模型处理的是1D光谱数据，传统的2D热力图不适用
+# 需要将 CAM 权重映射回原始特征维度
+
+
 class HybridFusion(nn.Module):
     def __init__(self, dim=128, num_heads=4):
         super().__init__()
@@ -145,8 +218,54 @@ class MultiModalModel(nn.Module):
         output = self.classifier(combined)  # [B, 2]
         return output
 
+    def get_features(self, ftir, mz, ftir_axis, mz_axis):
+        ftir_feat = self.ftir_extractor(ftir, ftir_axis)
+        mz_feat = self.mz_extractor(mz, mz_axis)
+        combined = self.fuser(ftir_feat, mz_feat)
+        return combined, ftir_feat, mz_feat  # 返回所有特征用于可视化
+
+
+def generate_spectral_cam(model, inputs, target_class=None):
+    model.eval()
+
+    # 获取各层特征
+    combined_feat, ftir_feat, mz_feat = model.get_features(*inputs)
+
+    # 分类输出
+    output = model.classifier(combined_feat)
+
+    if target_class is None:
+        target_class = output.argmax(dim=1)
+
+    # 创建目标张量
+    one_hot = torch.zeros_like(output)
+    one_hot.scatter_(1, target_class.unsqueeze(1), 1)
+
+    # 反向传播
+    model.zero_grad()
+    output.backward(gradient=one_hot, retain_graph=True)
+
+    # 获取梯度
+    combined_gradients = torch.autograd.grad(output, combined_feat,
+                                             grad_outputs=one_hot,
+                                             retain_graph=True)[0]
+
+    # 计算权重
+    weights = torch.mean(combined_gradients, dim=1)
+
+    # 分别映射到 FTIR 和 MZ 特征
+    ftir_weights = weights[:len(weights)//2]
+    mz_weights = weights[len(weights)//2:]
+
+    # 生成热力图（简化版）
+    ftir_cam = torch.relu(torch.sum(ftir_weights * ftir_feat, dim=1))
+    mz_cam = torch.relu(torch.sum(mz_weights * mz_feat, dim=1))
+
+    return ftir_cam.detach().cpu().numpy(), mz_cam.detach().cpu().numpy()
 
 # ==================单模态模型定义====================================
+
+
 class SingleFTIRModel(nn.Module):
     def __init__(self, input_dim):
         super(SingleFTIRModel, self).__init__()
@@ -371,4 +490,3 @@ class SVMClassifier:
 
     def decision_function(self, X):
         return self.clf.decision_function(X)
-

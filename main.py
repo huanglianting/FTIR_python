@@ -8,8 +8,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.ticker import MultipleLocator
+from matplotlib.colors import LinearSegmentedColormap
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -20,6 +22,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier
+from Multi_Single_modal import generate_spectral_cam
 
 matplotlib.use('Agg')
 
@@ -143,6 +146,78 @@ class EarlyStopping:
                 f'Validation loss 下降 ({self.val_loss_min:.6f} --> {val_loss:.6f}).  保存模型 ...')
         torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
+
+
+def visualize_model_attention(model, ftir_data, mz_data, ftir_axis, mz_axis,
+                              save_path='./result', model_name='MultiModal'):
+    """
+    可视化模型注意力机制
+    """
+    model.eval()
+
+    # 准备输入数据
+    if not isinstance(ftir_data, torch.Tensor):
+        ftir_data = torch.tensor(ftir_data, dtype=torch.float32)
+    if not isinstance(mz_data, torch.Tensor):
+        mz_data = torch.tensor(mz_data, dtype=torch.float32)
+
+    # 确保axis数据维度正确
+    if ftir_axis.dim() == 1:
+        ftir_axis = ftir_axis.unsqueeze(0).repeat(ftir_data.shape[0], 1)
+    if mz_axis.dim() == 1:
+        mz_axis = mz_axis.unsqueeze(0).repeat(mz_data.shape[0], 1)
+
+    inputs = (ftir_data, mz_data, ftir_axis, mz_axis)
+
+    # 生成 CAM
+    try:
+        ftir_cam, mz_cam = generate_spectral_cam(model, inputs)
+
+        if ftir_cam is not None and mz_cam is not None:
+            # 可视化几个样本
+            num_samples = min(5, ftir_data.shape[0])
+
+            for i in range(num_samples):
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+
+                # FTIR CAM 可视化
+                ax1.plot(ftir_axis[i].numpy(), ftir_data[i].numpy(),
+                         alpha=0.7, label='Original FTIR', color='blue')
+                ax1.plot(ftir_axis[i].numpy(),
+                         ftir_cam[i] * ftir_data[i].numpy(),
+                         alpha=0.7, label='FTIR with CAM', color='red')
+                ax1.set_title(f'{model_name} - FTIR Grad-CAM (Sample {i})')
+                ax1.set_xlabel('Wavenumber')
+                ax1.set_ylabel('Intensity')
+                ax1.legend()
+                ax1.grid(True, alpha=0.3)
+
+                # MZ CAM 可视化
+                ax2.plot(mz_axis[i].numpy(), mz_data[i].numpy(),
+                         alpha=0.7, label='Original MZ', color='blue')
+                ax2.plot(mz_axis[i].numpy(),
+                         mz_cam[i] * mz_data[i].numpy(),
+                         alpha=0.7, label='MZ with CAM', color='red')
+                ax2.set_title(f'{model_name} - MZ Grad-CAM (Sample {i})')
+                ax2.set_xlabel('m/z')
+                ax2.set_ylabel('Intensity')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+
+                plt.tight_layout()
+                plt.savefig(f'{save_path}/{model_name}_gradcam_sample_{i}.png',
+                            dpi=300, bbox_inches='tight')
+                plt.close()
+
+            print(f"Grad-CAM 可视化完成，结果保存在 {save_path} 目录下")
+            return ftir_cam, mz_cam
+        else:
+            print("Grad-CAM 生成失败")
+            return None, None
+
+    except Exception as e:
+        print(f"Grad-CAM 可视化过程中出错: {e}")
+        return None, None
 
 
 # ==================数据增强====================================
@@ -525,14 +600,14 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    #"FTIROnly": SingleFTIRModel,
-    #"MZOnly": SingleMZModel,
-    #"ConcatFusion": ConcatFusion,
-    #"GateOnlyFusion": GateOnlyFusion,
-    #"CoAttnOnlyFusion": CoAttnOnlyFusion,
-    #"SelfAttnFusion": SelfAttnFusion,
-    #"SelfAttnOnlyFusion": SelfAttnOnlyFusion,
-    #"SVM": SVMClassifier
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
+    # "ConcatFusion": ConcatFusion,
+    # "GateOnlyFusion": GateOnlyFusion,
+    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    # "SelfAttnFusion": SelfAttnFusion,
+    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    # "SVM": SVMClassifier
 }
 """
 all_model_dfs = []
@@ -562,7 +637,7 @@ for model_type in all_results_df['model_type'].unique():
     best_params = eval(best_row['params'])  # 字符串转字典
     best_params_per_model[model_type] = best_params
     print(f"[{model_type}] 最佳参数: {best_params}")
-
+"""
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
@@ -591,6 +666,17 @@ for model_name, model_class in models_to_evaluate.items():
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
+        # 添加 Grad-CAM 可视化
+        print(f"生成 {model_name} 的 Grad-CAM 可视化...")
+        ftir_cam, mz_cam = visualize_model_attention(
+            trained_model,
+            ftir_test[:10],  # 只可视化前10个样本以节省时间
+            mz_test[:10],
+            ftir_x,
+            mz_x,
+            save_path=save_path,
+            model_name=model_name
+        )
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train.shape[1])
@@ -701,7 +787,7 @@ df_final = pd.DataFrame(final_test_results)
 df_final.to_csv(os.path.join(
     save_path, 'final_test_all_models_comparison.csv'), index=False)
 print("所有模型最终测试结果已保存至 final_test_all_models_comparison.csv")
-
+"""
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
 plot_dir = os.path.join(save_path, 'training_plots')
 os.makedirs(plot_dir, exist_ok=True)
