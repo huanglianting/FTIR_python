@@ -172,7 +172,6 @@ class GradCAM1D:
             backward_hook)
         self.hook_handles.extend([handle_forward, handle_backward])
 
-    # 修改 GradCAM1D 类中的 generate_cam 方法
     def generate_cam(self, input_tensor, target_class=None):
         self.model.eval()
 
@@ -219,8 +218,6 @@ class GradCAM1D:
         # 移除钩子，避免内存泄漏
         for handle in self.hook_handles:
             handle.remove()
-
-
 def generate_encoder_cam(model, input_data, encoder_type="ftir", target_class=None):
     """
     生成编码器（FTIR或MZ）的Grad-CAM热力图
@@ -731,41 +728,8 @@ for model_name, model_class in models_to_evaluate.items():
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
-        # 1. 准备输入数据（取测试集中的样本，可根据需要选择单个或多个样本）
-        # 这里以第一个样本为例
-        input_data = (
-            ftir_test[:1],  # 取第一个FTIR样本 [1, L_ftir]
-            mz_test[:1],    # 取第一个MZ样本 [1, L_mz]
-            ftir_x[:1],  # 对应的FTIR轴
-            mz_x[:1]     # 对应的MZ轴
-        )
 
-        # 2. 确保模型和数据在同一设备（CPU/GPU）
-        device = next(model.parameters()).device
-        input_data = (
-            ftir_test[:1].to(device),
-            mz_test[:1].to(device),
-            ftir_x[:1].to(device),
-            mz_x[:1].to(device)
-        )
-
-        # 3. 生成FTIR编码器的Grad-CAM
-        ftir_cam, ftir_raw = generate_encoder_cam(
-            model,
-            input_data,
-            encoder_type="ftir",
-            target_class=torch.tensor([1])  # 确保是 tensor 类型
-        )
-
-        # 4. 生成MZ编码器的Grad-CAM
-        mz_cam, mz_raw = generate_encoder_cam(
-            model,
-            input_data,
-            encoder_type="mz",
-            target_class=torch.tensor([1])  # 确保是 tensor 类型
-        )
-
-        # 5. 可视化（以第一个样本为例）
+        # 可视化（以第一个样本为例）
         def plot_cam(raw_data, cam, axis, title):
             import matplotlib.pyplot as plt
             plt.figure(figsize=(10, 4))
@@ -783,11 +747,37 @@ for model_name, model_class in models_to_evaluate.items():
             plt.savefig(f"{os.path.join(save_path, title)}.png")
             plt.close()  # 关闭图像以释放内存
 
+
+        # 准备输入数据（取测试集中的样本，可根据需要选择单个或多个样本）
+        device = next(model.parameters()).device
+        input_data = (
+            ftir_test[:1].to(device),  # 取第一个FTIR样本 [1, L_ftir]
+            mz_test[:1].to(device),    # 取第一个MZ样本 [1, L_mz]
+            ftir_x.to(device),         # 完整的FTIR轴
+            mz_x.to(device)            # 完整的MZ轴
+        )
+
+        # 生成FTIR编码器的Grad-CAM
+        ftir_cam, ftir_raw = generate_encoder_cam(
+            model,
+            input_data,
+            encoder_type="ftir",
+            target_class=torch.tensor([1]).to(device)  # 确保是 tensor 类型
+        )
+
+        # 生成MZ编码器的Grad-CAM
+        mz_cam, mz_raw = generate_encoder_cam(
+            model,
+            input_data,
+            encoder_type="mz",
+            target_class=torch.tensor([1]).to(device)  # 确保是 tensor 类型
+        )
+
         # 可视化FTIR的Grad-CAM
         plot_cam(
             ftir_raw[0],  # 第一个样本的原始FTIR数据
             ftir_cam[0],  # 第一个样本的FTIR热力图
-            ftir_x.numpy(),  # 修改为完整的ftir_x轴数据
+            ftir_x.cpu().numpy(),  # 使用完整的ftir_x轴数据
             "FTIR Encoder Grad-CAM"
         )
 
@@ -795,7 +785,7 @@ for model_name, model_class in models_to_evaluate.items():
         plot_cam(
             mz_raw[0],   # 第一个样本的原始MZ数据
             mz_cam[0],   # 第一个样本的MZ热力图
-            mz_x.numpy(),  # 修改为完整的mz_x轴数据
+            mz_x.cpu().numpy(),  # 使用完整的mz_x轴数据
             "MZ Encoder Grad-CAM"
         )
 
