@@ -199,23 +199,31 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     mean_abs_shap = np.mean(np.abs(shap_values), axis=0)
 
     # 7. 绘制一维热力图
-    plt.rcParams['font.sans-serif'] = ['SimHei']  
-    plt.rcParams['axes.unicode_minus'] = False  
-    plt.figure(figsize=(20, 3))
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+
+    # 为了实现X轴波数从小到大，反转SHAP值和波数数据
+    plot_shap_values = mean_abs_shap[::-1]
+    plot_ftir_x = ftir_x.cpu().numpy()[::-1].copy()
+
+    plt.figure(figsize=(15, 4))  # 调整图片尺寸
     ax = plt.gca()
-    heatmap_data = mean_abs_shap.reshape(1, -1)
+    heatmap_data = plot_shap_values.reshape(1, -1)
     im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
-    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.02)
-    cbar.set_label('Average |SHAP value|', rotation=270, labelpad=15)
-    
+
+    # 将 colorbar 放置在右侧
+    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
+    cbar.set_label('Average SHAP value', rotation=270, labelpad=20, fontsize=14)
+
     tick_spacing = 50
-    tick_positions = np.arange(0, len(ftir_x), tick_spacing)
-    tick_labels = [f"{ftir_x[i]:.1f}" for i in tick_positions]
-    
+    tick_positions = np.arange(0, len(plot_ftir_x), tick_spacing)
+    tick_labels = [f"{plot_ftir_x[i]:.1f}" for i in tick_positions]
+
     ax.set_xticks(tick_positions)
-    ax.set_xticklabels(tick_labels, rotation=45, ha='right')
-    ax.set_xlabel('Wavenumber (cm-1)')
+    ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=12)
+    ax.set_xlabel('Wavenumber (cm-1)', fontsize=14)
     ax.set_yticks([])
+    
     # ax.set_title('FTIR 特征重要性 (通过 GradientSHAP 生成的一维热力图)')
     plt.tight_layout()
     plt.savefig('./result/ftir_shap_1d_heatmap.png', dpi=300, bbox_inches='tight')
@@ -224,14 +232,14 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
 
     # 8. 分组 SHAP 值以便返回，保持与后续代码的兼容性
     group_size = 20
-    n_features = len(mean_abs_shap)
+    n_features = len(plot_shap_values)
     grouped_shap = []
     feature_names = []
     for i in range(0, n_features, group_size):
         end_idx = min(i + group_size, n_features)
-        grouped_shap.append(mean_abs_shap[i:end_idx].mean())
-        start_wv = ftir_x[i].item()
-        end_wv = ftir_x[end_idx - 1].item()
+        grouped_shap.append(plot_shap_values[i:end_idx].mean())
+        start_wv = plot_ftir_x[i].item()
+        end_wv = plot_ftir_x[end_idx - 1].item()
         feature_names.append(f"{start_wv:.1f}-{end_wv:.1f} cm-1")
 
     return np.array(grouped_shap), feature_names
