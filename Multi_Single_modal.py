@@ -149,12 +149,6 @@ class MultiModalModel(nn.Module):
         output = self.classifier(combined)  # [B, 2]
         return output
 
-    def get_features(self, ftir, mz, ftir_axis, mz_axis):
-        ftir_feat = self.ftir_extractor(ftir, ftir_axis)
-        mz_feat = self.mz_extractor(mz, mz_axis)
-        combined = self.fuser(ftir_feat, mz_feat)
-        return combined, ftir_feat, mz_feat  # 返回所有特征用于可视化
-
 
 # ==================单模态模型定义====================================
 class SingleFTIRModel(nn.Module):

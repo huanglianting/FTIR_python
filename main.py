@@ -22,7 +22,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier
-from captum.attr import LayerIntegratedGradients, IntegratedGradients
+import shap
 
 matplotlib.use('Agg')
 
@@ -87,11 +87,11 @@ print("测试集类别分布:", np.bincount(y_test))
 scaler_ftir = StandardScaler()
 ftir_train = scaler_ftir.fit_transform(ftir_train)
 ftir_test = scaler_ftir.transform(ftir_test)
-ftir_x_scaled = scaler_ftir.transform(ftir_x.reshape(1, -1)).squeeze()
+#ftir_x_scaled = scaler_ftir.transform(ftir_x.reshape(1, -1)).squeeze()
 scaler_mz = StandardScaler()
 mz_train = scaler_mz.fit_transform(mz_train)
 mz_test = scaler_mz.transform(mz_test)
-mz_x_scaled = scaler_mz.transform(mz_x.reshape(1, -1)).squeeze()
+#mz_x_scaled = scaler_mz.transform(mz_x.reshape(1, -1)).squeeze()
 
 # 转换为PyTorch张量
 ftir_train = torch.tensor(ftir_train, dtype=torch.float32)
@@ -100,8 +100,8 @@ y_train = torch.tensor(y_train, dtype=torch.long)
 ftir_test = torch.tensor(ftir_test, dtype=torch.float32)
 mz_test = torch.tensor(mz_test, dtype=torch.float32)
 y_test = torch.tensor(y_test, dtype=torch.long)
-ftir_x = torch.tensor(ftir_x_scaled, dtype=torch.float32)  # 形状: [467]
-mz_x = torch.tensor(mz_x_scaled, dtype=torch.float32)      # 形状: [2838]
+ftir_x = torch.tensor(ftir_x, dtype=torch.float32)  # 形状: [467]
+mz_x = torch.tensor(mz_x, dtype=torch.float32)      # 形状: [2838]
 patient_indices_train = torch.tensor(patient_indices_train, dtype=torch.long)
 
 # 验证标准化后的数据形状
@@ -147,130 +147,95 @@ class EarlyStopping:
         torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
 
-def compute_integrated_gradients(model, ftir_input, mz_input, ftir_axis, mz_axis, target_class=1):
+# 只对 FTIR 做 SHAP 分析
+def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x):
     """
-    计算多模态模型的积分梯度，但只针对 FTIR 输入的某个中间层。
-    使用 model.get_features() 获取中间特征。
-    """
-    model.eval()
-    
-    # 初始化 Integrated Gradients
-    ig = IntegratedGradients(model)
-    
-    # 只传递需要计算梯度的输入
-    attributions = ig.attribute(
-        (ftir_input, mz_input),  # 输入张量
-        target=target_class,
-        additional_forward_args=(ftir_axis, mz_axis),  # 不参与梯度计算的参数
-        return_convergence_delta=False
-    )
-    
-    # 展开返回的 attributions
-    ftir_attr, mz_attr = attributions
-    
-    return ftir_attr.detach().cpu().numpy(), mz_attr.detach().cpu().numpy()
-
-def compute_layer_ig(model, ftir_input, mz_input, ftir_axis, mz_axis, target_class=1):
-    """
-    使用 LayerIntegratedGradients 分析 FTIR Encoder 的第一个 Conv1d 层
+    对 MultiModal 模型进行 FTIR 特征的 Gradient SHAP 分析, 并生成一维热力图。
     """
     model.eval()
+
+    # 1. 定义一个 PyTorch 模型包装器，用于 SHAP
+    # 这个包装器固定了 MZ 输入，只让 SHAP 改变 FTIR 输入
+    class ShapModelWrapper(torch.nn.Module):
+        def __init__(self, model, mz_baseline, ftir_x, mz_x):
+            super().__init__()
+            self.model = model
+            # register_buffer 确保 mz_baseline 等张量能随模型移动到正确的设备 (例如GPU)
+            self.register_buffer('mz_baseline', mz_baseline)
+            self.register_buffer('ftir_x', ftir_x)
+            self.register_buffer('mz_x', mz_x)
+
+        def forward(self, ftir_data):
+            # SHAP 会传入一个需要计算梯度的张量
+            current_mz_baseline = self.mz_baseline.expand(ftir_data.shape[0], -1)
+            ftir_axis = self.ftir_x.repeat(ftir_data.shape[0], 1)
+            current_mz_axis = self.mz_x.repeat(ftir_data.shape[0], 1)
+            
+            # 模型前向传播
+            outputs = self.model(ftir_data, current_mz_baseline, ftir_axis, current_mz_axis)
+            
+            # 返回类别1的概率，并确保输出是 (n, 1) 的二维张量
+            return torch.softmax(outputs, dim=1)[:, 1].unsqueeze(-1)
+
+    # 2. 准备背景数据和测试样本
+    # 背景数据：使用训练集的一部分作为基线
+    background_ftir = ftir_train[:100]
+    # 测试样本：要解释的样本
+    test_samples_ftir = ftir_test[:20]
+    # MZ 模态的基线：使用训练集的平均值
+    mz_baseline = mz_train.mean(0, keepdim=True)
+
+    # 3. 实例化包装模型
+    wrapped_model = ShapModelWrapper(model, mz_baseline, ftir_x, mz_x)
+
+    # 4. 创建 PyTorch 兼容的 GradientExplainer
+    explainer = shap.GradientExplainer(wrapped_model, background_ftir)
+
+    # 5. 计算 SHAP 值
+    # shap_values 的形状将是 (n_samples, n_features)
+    shap_values = explainer.shap_values(test_samples_ftir)
+
+    # 6. 取 SHAP 值的平均绝对值，得到每个特征的重要性
+    mean_abs_shap = np.mean(np.abs(shap_values), axis=0)
+
+    # 7. 绘制一维热力图
+    plt.rcParams['font.sans-serif'] = ['SimHei']  
+    plt.rcParams['axes.unicode_minus'] = False  
+    plt.figure(figsize=(20, 3))
+    ax = plt.gca()
+    heatmap_data = mean_abs_shap.reshape(1, -1)
+    im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
+    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.02)
+    cbar.set_label('Average |SHAP value|', rotation=270, labelpad=15)
     
-    # 定义要分析的层（例如 FTIREncoder 中的第一个卷积层）
-    layer = model.ftir_extractor.net[0]  # 第一个 Conv1d 层: nn.Conv1d(1, 32, 7, stride=2)
+    tick_spacing = 50
+    tick_positions = np.arange(0, len(ftir_x), tick_spacing)
+    tick_labels = [f"{ftir_x[i]:.1f}" for i in tick_positions]
     
-    # 创建 LayerIntegratedGradients
-    lig = LayerIntegratedGradients(model, layer)
-    
-    # 计算该层的积分梯度
-    attributions, delta = lig.attribute(
-        (ftir_input, mz_input),
-        target=target_class,
-        additional_forward_args=(ftir_axis, mz_axis),
-        return_convergence_delta=True
-    )
-    
-    # 提取 FTIR 的梯度（第一部分）
-    ftir_attr = attributions[0].detach().cpu().numpy()  # 形状可能是 [B, C, L] 或 [B, L]
-    
-    # 根据维度选择合适的切片方式
-    if len(ftir_attr.shape) == 3:
-        # 三维情况：[Batch, Channel, Length]
-        ftir_attr_sample = ftir_attr[0, 0, :]  # 取第一个样本的第一个通道
-    elif len(ftir_attr.shape) == 2:
-        # 二维情况：[Batch, Length]
-        ftir_attr_sample = ftir_attr[0, :]     # 取第一个样本
-    else:
-        raise ValueError(f"Unexpected attribution shape: {ftir_attr.shape}")
-    
-    return ftir_attr_sample
-def plot_ig_bar(raw_data, attributions, axis, title):
-    # 确保输入是 numpy 数组
-    raw_data = np.array(raw_data)
-    attributions = np.array(attributions).squeeze()
-    axis = np.array(axis)
-    
-    # 创建图形和子图
-    fig, ax = plt.subplots(figsize=(12, 5))
-    
-    # 使用 fill_between 绘制带颜色的连续区域
-    norm_attr = (attributions - attributions.min()) / (attributions.max() - attributions.min() + 1e-8)
-    colors = plt.cm.RdBu_r(norm_attr)
-    
-    # 绘制原始光谱作为背景参考（可选）
-    ax.plot(axis, raw_data, color='gray', linewidth=0.8, alpha=0.6, label='Raw Spectrum')
-    
-    # 使用 fill_between 填充 attribution 颜色
-    ax.fill_between(axis, 0, raw_data, color=colors, alpha=0.7)
-    
-    # 添加颜色条
-    sm = plt.cm.ScalarMappable(cmap=plt.cm.RdBu_r, norm=plt.Normalize(vmin=attributions.min(), vmax=attributions.max()))
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, shrink=0.8, label="Attribution Score")
-    
-    # 设置标签和标题
-    ax.set_title(title, fontsize=16, pad=20)
-    ax.set_xlabel("Wavenumber (cm⁻¹)", fontsize=12)
-    ax.set_ylabel("Intensity", fontsize=12)
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    
-    # 调整 x 轴刻度
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    ax.tick_params(axis='x', rotation=45)
-    
-    # 保存图像
-    save_path = './result'
-    plt.savefig(f"{os.path.join(save_path, title)}.png", dpi=150, bbox_inches='tight')
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, rotation=45, ha='right')
+    ax.set_xlabel('Wavenumber (cm-1)')
+    ax.set_yticks([])
+    # ax.set_title('FTIR 特征重要性 (通过 GradientSHAP 生成的一维热力图)')
+    plt.tight_layout()
+    plt.savefig('./result/ftir_shap_1d_heatmap.png', dpi=300, bbox_inches='tight')
     plt.close()
-    raw_data = np.array(raw_data)
-    attributions = np.array(attributions).squeeze()
-    axis = np.array(axis)
+    print("SHAP 一维热力图已保存至 ./result/ftir_shap_1d_heatmap.png")
 
-    fig, ax = plt.subplots(figsize=(12, 5))
+    # 8. 分组 SHAP 值以便返回，保持与后续代码的兼容性
+    group_size = 20
+    n_features = len(mean_abs_shap)
+    grouped_shap = []
+    feature_names = []
+    for i in range(0, n_features, group_size):
+        end_idx = min(i + group_size, n_features)
+        grouped_shap.append(mean_abs_shap[i:end_idx].mean())
+        start_wv = ftir_x[i].item()
+        end_wv = ftir_x[end_idx - 1].item()
+        feature_names.append(f"{start_wv:.1f}-{end_wv:.1f} cm-1")
 
-    # 固定高度
-    height = 1.0
-    bars = ax.bar(axis, height, 
-                  color=plt.cm.RdBu_r((attributions - attributions.min()) / (attributions.max() - attributions.min() + 1e-8)),
-                  edgecolor='none', alpha=0.8)
+    return np.array(grouped_shap), feature_names
 
-    # 添加颜色条
-    sm = plt.cm.ScalarMappable(cmap=plt.cm.RdBu_r, norm=plt.Normalize(vmin=attributions.min(), vmax=attributions.max()))
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, shrink=0.8, label="Attribution Score")
-
-    ax.set_title(title, fontsize=16, pad=20)
-    ax.set_xlabel("Wavenumber (cm⁻¹)", fontsize=12)
-    ax.set_ylabel("Fixed Height", fontsize=12)
-    ax.grid(True, alpha=0.3)
-
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    ax.tick_params(axis='x', rotation=45)
-
-    save_path = './result'
-    plt.savefig(f"{os.path.join(save_path, title)}.png", dpi=150, bbox_inches='tight')
-    plt.close()
 # ==================数据增强====================================
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
     torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
@@ -718,25 +683,13 @@ for model_name, model_class in models_to_evaluate.items():
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
 
-        # 生成积分梯度
-        ftir_ig, mz_ig = compute_integrated_gradients(
-            model,
-            ftir_test[:1],
-            mz_test[:1],
-            ftir_x,
-            mz_x
+        print("\n--- 开始 SHAP 分析 ---")
+        # 在这里调用SHAP分析函数
+        shap_values, feature_names_grouped = perform_ftir_shap_analysis(
+            model, ftir_train, ftir_test, ftir_x, mz_train, mz_x
         )
-
-        ftir_ig = compute_layer_ig(model, ftir_test[:1], mz_test[:1], ftir_x, mz_x, target_class=1)
-        mz_ig = compute_layer_ig(model, ftir_test[:1], mz_test[:1], ftir_x, mz_x, target_class=1)
-        plot_ig_bar(ftir_test[0], ftir_ig, ftir_x.cpu().numpy(), "FTIR Layer IG (Conv1)")
-        plot_ig_bar(mz_test[0], mz_ig, mz_x.cpu().numpy(), "MZ Layer IG (Conv1)")
-
-        print("FTIR IG shape:", ftir_ig.shape)
-        print("FTIR IG min/max/mean:", ftir_ig.min(), ftir_ig.max(), ftir_ig.mean())
-        print("MZ IG shape:", mz_ig.shape)
-        print("MZ IG min/max/mean:", mz_ig.min(), mz_ig.max(), mz_ig.mean())
-
+        # 可以在这里添加使用 shap_values 和 feature_names_grouped 的代码，例如打印最重要的组
+        print("--- SHAP 分析完成 ---")
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train.shape[1])
