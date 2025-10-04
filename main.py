@@ -148,7 +148,7 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 # 只对 FTIR 做 SHAP 分析
-def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x):
+def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test):
     """
     对 MultiModal 模型进行 FTIR 特征的 Gradient SHAP 分析, 并生成一维热力图。
     """
@@ -160,7 +160,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
         def __init__(self, model, mz_baseline, ftir_x, mz_x):
             super().__init__()
             self.model = model
-            # register_buffer 确保 mz_baseline 等张量能随模型移动到正确的设备 (例如GPU)
             self.register_buffer('mz_baseline', mz_baseline)
             self.register_buffer('ftir_x', ftir_x)
             self.register_buffer('mz_x', mz_x)
@@ -170,18 +169,113 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
             current_mz_baseline = self.mz_baseline.expand(ftir_data.shape[0], -1)
             ftir_axis = self.ftir_x.repeat(ftir_data.shape[0], 1)
             current_mz_axis = self.mz_x.repeat(ftir_data.shape[0], 1)
-            
             # 模型前向传播
             outputs = self.model(ftir_data, current_mz_baseline, ftir_axis, current_mz_axis)
-            
             # 返回类别1的概率，并确保输出是 (n, 1) 的二维张量
             return torch.softmax(outputs, dim=1)[:, 1].unsqueeze(-1)
 
     # 2. 准备背景数据和测试样本
-    # 背景数据：使用训练集的一部分作为基线
-    background_ftir = ftir_train[:100]
-    # 测试样本：要解释的样本
-    test_samples_ftir = ftir_test[:20]
+    # 背景数据：从训练集中选择具有代表性的样本，确保背景数据涵盖不同患者和类别
+    # 获取训练集中的患者信息和标签
+    y_train_np = y_train.cpu().numpy() if isinstance(y_train, torch.Tensor) else y_train
+    patient_indices_train_np = patient_indices_train.cpu().numpy() if isinstance(patient_indices_train, torch.Tensor) else patient_indices_train
+    # 找到训练集中的不同患者
+    unique_patients = np.unique(patient_indices_train_np)
+    # 为每个类别选择代表性样本
+    cancer_indices = np.where(y_train_np == 1)[0]
+    benign_indices = np.where(y_train_np == 0)[0]
+    selected_background_indices = []
+    selected_patients = set()  # 用于跟踪已选择的患者
+
+   # 从癌症样本中选择来自不同患者的样本
+    if len(cancer_indices) > 0:
+        cancer_patients = patient_indices_train_np[cancer_indices]
+        unique_cancer_patients = np.unique(cancer_patients)
+        # 从每个癌症患者中选择一个样本
+        for patient in unique_cancer_patients[:min(3, len(unique_cancer_patients))]:  # 选择最多3个患者
+            # 确保患者没有被选择过
+            if patient in selected_patients:
+                continue
+            patient_samples = np.where(patient_indices_train_np == patient)[0]
+            cancer_samples_from_patient = np.intersect1d(patient_samples, cancer_indices)
+            if len(cancer_samples_from_patient) > 0:
+                selected_background_indices.append(cancer_samples_from_patient[0])
+                selected_patients.add(patient)  # 记录已选择的患者
+    
+    # 从良性样本中选择来自不同患者的样本
+    if len(benign_indices) > 0:
+        benign_patients = patient_indices_train_np[benign_indices]
+        unique_benign_patients = np.unique(benign_patients)
+        # 从每个良性患者中选择一个样本
+        for patient in unique_benign_patients[:min(3, len(unique_benign_patients))]:  # 选择最多3个患者
+            # 确保患者没有被选择过
+            if patient in selected_patients:
+                continue
+            patient_samples = np.where(patient_indices_train_np == patient)[0]
+            benign_samples_from_patient = np.intersect1d(patient_samples, benign_indices)
+            if len(benign_samples_from_patient) > 0:
+                selected_background_indices.append(benign_samples_from_patient[0])
+                selected_patients.add(patient)  # 记录已选择的患者
+    
+    # 确保索引是唯一的
+    selected_background_indices = list(np.unique(selected_background_indices))[:10]  # 最多选择10个样本
+    
+    # 背景数据：使用具有代表性的训练集样本
+    background_ftir = ftir_train[selected_background_indices]
+    
+    print(f"SHAP背景数据选择了{len(selected_background_indices)}个训练样本:")
+    print(f"对应患者: {patient_indices_train_np[selected_background_indices]}")
+    
+    # 测试样本：从测试集中选择具有代表性的样本，确保涵盖不同患者和类别
+    y_test_np = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
+    patient_indices_test_np = patient_indices_test.cpu().numpy() if isinstance(patient_indices_test, torch.Tensor) else patient_indices_test
+    
+    # 为每个类别选择代表性样本
+    cancer_indices_test = np.where(y_test_np == 1)[0]
+    benign_indices_test = np.where(y_test_np == 0)[0]
+    
+    selected_test_indices = []
+    selected_test_patients = set()  # 用于跟踪已选择的测试患者
+
+    # 从测试集的癌症样本中选择来自不同患者的样本
+    if len(cancer_indices_test) > 0:
+        cancer_patients = patient_indices_test_np[cancer_indices_test]
+        unique_cancer_patients = np.unique(cancer_patients)
+        # 从每个癌症患者中选择一个样本
+        for patient in unique_cancer_patients[:min(2, len(unique_cancer_patients))]:  # 选择最多2个患者
+            # 确保患者没有被选择过
+            if patient in selected_test_patients:
+                continue
+            patient_samples = np.where(patient_indices_test_np == patient)[0]
+            cancer_samples_from_patient = np.intersect1d(patient_samples, cancer_indices_test)
+            if len(cancer_samples_from_patient) > 0:
+                selected_test_indices.append(cancer_samples_from_patient[0])
+                selected_test_patients.add(patient)  # 记录已选择的患者
+    
+    # 从测试集的良性样本中选择来自不同患者的样本
+    if len(benign_indices_test) > 0:
+        benign_patients = patient_indices_test_np[benign_indices_test]
+        unique_benign_patients = np.unique(benign_patients)
+        # 从每个良性患者中选择一个样本
+        for patient in unique_benign_patients[:min(2, len(unique_benign_patients))]:  # 选择最多2个患者
+            # 确保患者没有被选择过
+            if patient in selected_test_patients:
+                continue
+            patient_samples = np.where(patient_indices_test_np == patient)[0]
+            benign_samples_from_patient = np.intersect1d(patient_samples, benign_indices_test)
+            if len(benign_samples_from_patient) > 0:
+                selected_test_indices.append(benign_samples_from_patient[0])
+                selected_test_patients.add(patient)  # 记录已选择的患者
+    
+    # 确保索引是唯一的
+    selected_test_indices = list(np.unique(selected_test_indices))[:5]  # 最多选择5个样本
+    
+    # 测试样本：使用具有代表性的测试集样本
+    test_samples_ftir = ftir_test[selected_test_indices]
+    
+    print(f"SHAP测试数据选择了{len(selected_test_indices)}个测试样本:")
+    print(f"对应患者: {patient_indices_test_np[selected_test_indices]}")
+
     # MZ 模态的基线：使用训练集的平均值
     mz_baseline = mz_train.mean(0, keepdim=True)
 
@@ -211,20 +305,39 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     heatmap_data = plot_shap_values.reshape(1, -1)
     im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
 
-    # 将 colorbar 放置在右侧
+    # colorbar 
     cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
-    cbar.set_label('Average SHAP value', rotation=270, labelpad=20, fontsize=14)
+    cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
+    cbar.ax.tick_params(labelsize=14)
+    cbar_ticks = cbar.get_ticks()
+    cbar_ticks = np.append(cbar_ticks, 0.0)
+    cbar_ticks = np.sort(cbar_ticks)
+    cbar.set_ticks(cbar_ticks)
 
-    tick_spacing = 50
-    tick_positions = np.arange(0, len(plot_ftir_x), tick_spacing)
-    tick_labels = [f"{plot_ftir_x[i]:.1f}" for i in tick_positions]
+    start_wv = 900
+    end_wv = 1800  
+    step = 50.0
+    wave_numbers = np.arange(start_wv, end_wv + step, step)
 
+    # 找到最接近这些波数的索引
+    tick_positions = []
+    tick_labels = []
+    for wv in wave_numbers:
+        # 找到 plot_ftir_x 中最接近 wv 的值的索引
+        idx = np.argmin(np.abs(plot_ftir_x - wv))
+        # 只有当这个索引在图像范围内时才添加
+        if idx < len(plot_ftir_x):
+            tick_positions.append(idx)
+            tick_labels.append(f"{wv:.1f}")
+
+    # 设置刻度
     ax.set_xticks(tick_positions)
-    ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=12)
-    ax.set_xlabel('Wavenumber (cm-1)', fontsize=14)
+    ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
+    ax.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
     ax.set_yticks([])
-    
+    # ax.set_title('Feature Importance based on SHAP values', fontsize=18, pad=20)
     # ax.set_title('FTIR 特征重要性 (通过 GradientSHAP 生成的一维热力图)')
+    
     plt.tight_layout()
     plt.savefig('./result/ftir_shap_1d_heatmap.png', dpi=300, bbox_inches='tight')
     plt.close()
@@ -691,13 +804,10 @@ for model_name, model_class in models_to_evaluate.items():
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
 
-        print("\n--- 开始 SHAP 分析 ---")
-        # 在这里调用SHAP分析函数
+        # SHAP分析函数
         shap_values, feature_names_grouped = perform_ftir_shap_analysis(
-            model, ftir_train, ftir_test, ftir_x, mz_train, mz_x
+            model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
         )
-        # 可以在这里添加使用 shap_values 和 feature_names_grouped 的代码，例如打印最重要的组
-        print("--- SHAP 分析完成 ---")
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train.shape[1])
