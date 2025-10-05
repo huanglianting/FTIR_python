@@ -189,7 +189,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     unique_train_patients = np.unique(patient_indices_train_np)
     # 遍历患者，为每个患者选择一个癌症和一个良性样本
     for patient in unique_train_patients:
-        # 如果已经选够了患者，就停止
         if len(selected_patients) >= 3:  # 最多选择3个患者
             break
         patient_samples_indices = np.where(patient_indices_train_np == patient)[0]
@@ -225,12 +224,10 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     unique_cancer_patients = np.unique(patient_indices_test_np[cancer_indices_test])
     # 遍历癌症患者，为每个患者选择一个样本
     for patient in unique_cancer_patients:
-        # 如果已经选够了患者，就停止
         if len(selected_cancer_patients) >= 2:  # 最多选择2个患者
             break
         patient_samples_indices = np.where(patient_indices_test_np == patient)[0]
         cancer_samples_from_patient = np.intersect1d(patient_samples_indices, cancer_indices_test)
-        # 添加一个癌症样本
         if len(cancer_samples_from_patient) > 0:
             selected_cancer_indices.append(cancer_samples_from_patient[0])
             selected_cancer_patients.add(patient)
@@ -286,6 +283,14 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     # 计算差异，用于识别区分两类的关键波数段
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
+    # 打印Top 20的独立FTIR特征
+    print("\n关键波数分析 (Top 20 individual features):")
+    top_n_features = 20
+    top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
+    ftir_x_np = ftir_x.cpu().numpy()
+    for i in top_indices:
+        print(f"波数 {ftir_x_np[i]:.4f} cm-1: 癌症SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
+
     # 7. 绘制一维热力图 - 癌症样本
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
@@ -301,7 +306,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     ax = plt.gca()
     heatmap_data = plot_cancer_shap_values.reshape(1, -1)
     im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
-    # colorbar 
     cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
     cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
     cbar.ax.tick_params(labelsize=14)
@@ -341,7 +345,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     ax = plt.gca()
     heatmap_data = plot_benign_shap_values.reshape(1, -1)
     im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
-    # colorbar 
+
     cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
     cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
     cbar.ax.tick_params(labelsize=14)
@@ -402,7 +406,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
         grouped_benign_shap.append(plot_benign_shap_values[i:end_idx].mean())
         grouped_difference_shap.append(plot_shap_difference[i:end_idx].mean())
 
-    # 打印一些关键波数段的分析结果
     print("\n关键波数段分析:")
     # 找出差异最大的前10个波数段
     diff_indices = np.argsort(grouped_difference_shap)[-10:][::-1]
@@ -546,6 +549,14 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     # 计算差异，用于识别区分两类的关键 mz 值段
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
+    # 打印Top 20的独立MZ特征
+    print("\n关键MZ值分析 (Top 20 individual features):")
+    top_n_features = 20
+    top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
+    mz_x_np = mz_x.cpu().numpy()
+    for i in top_indices:
+        print(f"MZ值 {mz_x_np[i]:.4f}: 癌症SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
+
     group_size = 10
     n_features = len(mean_abs_cancer_shap)
     grouped_mz_centers = []
@@ -668,25 +679,17 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     plt.close()
     print("SHAP 差异热力图已保存至 ./result/mz_shap_1d_heatmap_difference.png")
 
-    # 8. 分组 SHAP 值以便返回，保持与后续代码的兼容性
+    # 8. 分组 SHAP 值以返回
     group_size = 5
-    n_features = len(grouped_shap_cancer)
+    n_features = len(mz_x_np) 
     feature_names = []
     for i in range(len(grouped_mz_centers)):
-        # 根据分组索引计算对应的 mz 范围
         start_idx = i * group_size
         end_idx = min((i + 1) * group_size, n_features)
-        start_mz = mz_x_np[start_idx] if start_idx < len(mz_x_np) else mz_x_np[-1]
-        end_mz = mz_x_np[end_idx-1] if end_idx <= len(mz_x_np) else mz_x_np[-1]
+        start_mz = mz_x_np[start_idx]
+        end_mz = mz_x_np[end_idx-1]
         feature_names.append(f"{start_mz:.1f}-{end_mz:.1f}")
-
-    # 打印一些关键 mz 值段的分析结果
-    print("\n关键MZ值段分析:")
-    # 找出差异最大的前10个 mz 值段
-    diff_indices = np.argsort(grouped_shap_diff)[-10:][::-1]
-    for i in diff_indices:
-        print(f"MZ值段 {feature_names[i]}: 癌症SHAP={grouped_shap_cancer[i]:.6f}, 良性SHAP={grouped_shap_benign[i]:.6f}, 差异={grouped_shap_diff[i]:.6f}")
-
+    
     return grouped_shap_cancer, grouped_shap_benign, grouped_shap_diff, feature_names
 
 # 只对 FTIR 做 SHAP 分析（保留正负号）
