@@ -179,44 +179,26 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     # 获取训练集中的患者信息和标签
     y_train_np = y_train.cpu().numpy() if isinstance(y_train, torch.Tensor) else y_train
     patient_indices_train_np = patient_indices_train.cpu().numpy() if isinstance(patient_indices_train, torch.Tensor) else patient_indices_train
-    # 找到训练集中的不同患者
-    unique_patients = np.unique(patient_indices_train_np)
+
     # 为每个类别选择代表性样本
     cancer_indices = np.where(y_train_np == 1)[0]
     benign_indices = np.where(y_train_np == 0)[0]
     selected_background_indices = []
     selected_patients = set()  # 用于跟踪已选择的患者
+    unique_train_patients = np.unique(patient_indices_train_np)
+    # 遍历患者，为每个患者选择一个癌症和一个良性样本
+    for patient in unique_train_patients:
+        # 如果已经选够了患者，就停止
+        if len(selected_patients) >= 3:  # 最多选择3个患者
+            break
+        patient_samples_indices = np.where(patient_indices_train_np == patient)[0]
+        cancer_samples_from_patient = np.intersect1d(patient_samples_indices, cancer_indices)
+        benign_samples_from_patient = np.intersect1d(patient_samples_indices, benign_indices)
+        # 添加一个癌症样本和一个良性样本
+        selected_background_indices.append(cancer_samples_from_patient[0])
+        selected_background_indices.append(benign_samples_from_patient[0])
+        selected_patients.add(patient)
 
-   # 从癌症样本中选择来自不同患者的样本
-    if len(cancer_indices) > 0:
-        cancer_patients = patient_indices_train_np[cancer_indices]
-        unique_cancer_patients = np.unique(cancer_patients)
-        # 从每个癌症患者中选择一个样本
-        for patient in unique_cancer_patients[:min(3, len(unique_cancer_patients))]:  # 选择最多3个患者
-            # 确保患者没有被选择过
-            if patient in selected_patients:
-                continue
-            patient_samples = np.where(patient_indices_train_np == patient)[0]
-            cancer_samples_from_patient = np.intersect1d(patient_samples, cancer_indices)
-            if len(cancer_samples_from_patient) > 0:
-                selected_background_indices.append(cancer_samples_from_patient[0])
-                selected_patients.add(patient)  # 记录已选择的患者
-    
-    # 从良性样本中选择来自不同患者的样本
-    if len(benign_indices) > 0:
-        benign_patients = patient_indices_train_np[benign_indices]
-        unique_benign_patients = np.unique(benign_patients)
-        # 从每个良性患者中选择一个样本
-        for patient in unique_benign_patients[:min(3, len(unique_benign_patients))]:  # 选择最多3个患者
-            # 确保患者没有被选择过
-            if patient in selected_patients:
-                continue
-            patient_samples = np.where(patient_indices_train_np == patient)[0]
-            benign_samples_from_patient = np.intersect1d(patient_samples, benign_indices)
-            if len(benign_samples_from_patient) > 0:
-                selected_background_indices.append(benign_samples_from_patient[0])
-                selected_patients.add(patient)  # 记录已选择的患者
-    
     # 确保索引是唯一的
     selected_background_indices = list(np.unique(selected_background_indices))[:10]  # 最多选择10个样本
     
@@ -235,41 +217,24 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     benign_indices_test = np.where(y_test_np == 0)[0]
     
     selected_test_indices = []
-    selected_test_patients = set()  # 用于跟踪已选择的测试患者
+    selected_test_patients = set() 
+    unique_test_patients = np.unique(patient_indices_test_np)
+    # 遍历患者，为每个患者选择一个癌症和一个良性样本
+    for patient in unique_test_patients:
+        # 如果已经选够了患者，就停止
+        if len(selected_test_patients) >= 2:  # 最多选择2个患者
+            break
+        patient_samples_indices = np.where(patient_indices_test_np == patient)[0]
+        cancer_samples_from_patient = np.intersect1d(patient_samples_indices, cancer_indices_test)
+        benign_samples_from_patient = np.intersect1d(patient_samples_indices, benign_indices_test)
+        # 添加一个癌症样本和一个良性样本
+        selected_test_indices.append(cancer_samples_from_patient[0])
+        selected_test_indices.append(benign_samples_from_patient[0])
+        selected_test_patients.add(patient)
 
-    # 从测试集的癌症样本中选择来自不同患者的样本
-    if len(cancer_indices_test) > 0:
-        cancer_patients = patient_indices_test_np[cancer_indices_test]
-        unique_cancer_patients = np.unique(cancer_patients)
-        # 从每个癌症患者中选择一个样本
-        for patient in unique_cancer_patients[:min(2, len(unique_cancer_patients))]:  # 选择最多2个患者
-            # 确保患者没有被选择过
-            if patient in selected_test_patients:
-                continue
-            patient_samples = np.where(patient_indices_test_np == patient)[0]
-            cancer_samples_from_patient = np.intersect1d(patient_samples, cancer_indices_test)
-            if len(cancer_samples_from_patient) > 0:
-                selected_test_indices.append(cancer_samples_from_patient[0])
-                selected_test_patients.add(patient)  # 记录已选择的患者
-    
-    # 从测试集的良性样本中选择来自不同患者的样本
-    if len(benign_indices_test) > 0:
-        benign_patients = patient_indices_test_np[benign_indices_test]
-        unique_benign_patients = np.unique(benign_patients)
-        # 从每个良性患者中选择一个样本
-        for patient in unique_benign_patients[:min(2, len(unique_benign_patients))]:  # 选择最多2个患者
-            # 确保患者没有被选择过
-            if patient in selected_test_patients:
-                continue
-            patient_samples = np.where(patient_indices_test_np == patient)[0]
-            benign_samples_from_patient = np.intersect1d(patient_samples, benign_indices_test)
-            if len(benign_samples_from_patient) > 0:
-                selected_test_indices.append(benign_samples_from_patient[0])
-                selected_test_patients.add(patient)  # 记录已选择的患者
-    
     # 确保索引是唯一的
     selected_test_indices = list(np.unique(selected_test_indices))[:5]  # 最多选择5个样本
-    
+        
     # 测试样本：使用具有代表性的测试集样本
     test_samples_ftir = ftir_test[selected_test_indices]
     
