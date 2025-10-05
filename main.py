@@ -557,7 +557,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     for i in top_indices:
         print(f"MZ值 {mz_x_np[i]:.4f}: 癌症SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
 
-    group_size = 10
+    group_size = 5
     n_features = len(mean_abs_cancer_shap)
     grouped_mz_centers = []
     grouped_shap_cancer = []
