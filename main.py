@@ -151,6 +151,7 @@ class EarlyStopping:
 def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test):
     """
     对 MultiModal 模型进行 FTIR 特征的 Gradient SHAP 分析, 并生成一维热力图。
+    分别分析癌症和良性样本，比较能够贡献区分的重要波数段。
     """
     model.eval()
 
@@ -195,8 +196,10 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
         cancer_samples_from_patient = np.intersect1d(patient_samples_indices, cancer_indices)
         benign_samples_from_patient = np.intersect1d(patient_samples_indices, benign_indices)
         # 添加一个癌症样本和一个良性样本
-        selected_background_indices.append(cancer_samples_from_patient[0])
-        selected_background_indices.append(benign_samples_from_patient[0])
+        if len(cancer_samples_from_patient) > 0:
+            selected_background_indices.append(cancer_samples_from_patient[0])
+        if len(benign_samples_from_patient) > 0:
+            selected_background_indices.append(benign_samples_from_patient[0])
         selected_patients.add(patient)
 
     # 确保索引是唯一的
@@ -212,34 +215,54 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     y_test_np = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
     patient_indices_test_np = patient_indices_test.cpu().numpy() if isinstance(patient_indices_test, torch.Tensor) else patient_indices_test
     
-    # 为每个类别选择代表性样本
+    # 分别为癌症和良性类别选择代表性样本
     cancer_indices_test = np.where(y_test_np == 1)[0]
     benign_indices_test = np.where(y_test_np == 0)[0]
     
-    selected_test_indices = []
-    selected_test_patients = set() 
-    unique_test_patients = np.unique(patient_indices_test_np)
-    # 遍历患者，为每个患者选择一个癌症和一个良性样本
-    for patient in unique_test_patients:
+    # 为癌症样本选择代表性样本
+    selected_cancer_indices = []
+    selected_cancer_patients = set() 
+    unique_cancer_patients = np.unique(patient_indices_test_np[cancer_indices_test])
+    # 遍历癌症患者，为每个患者选择一个样本
+    for patient in unique_cancer_patients:
         # 如果已经选够了患者，就停止
-        if len(selected_test_patients) >= 2:  # 最多选择2个患者
+        if len(selected_cancer_patients) >= 2:  # 最多选择2个患者
             break
         patient_samples_indices = np.where(patient_indices_test_np == patient)[0]
         cancer_samples_from_patient = np.intersect1d(patient_samples_indices, cancer_indices_test)
+        # 添加一个癌症样本
+        if len(cancer_samples_from_patient) > 0:
+            selected_cancer_indices.append(cancer_samples_from_patient[0])
+            selected_cancer_patients.add(patient)
+
+    # 为良性样本选择代表性样本
+    selected_benign_indices = []
+    selected_benign_patients = set() 
+    unique_benign_patients = np.unique(patient_indices_test_np[benign_indices_test])
+    # 遍历良性患者，为每个患者选择一个样本
+    for patient in unique_benign_patients:
+        # 如果已经选够了患者，就停止
+        if len(selected_benign_patients) >= 2:  # 最多选择2个患者
+            break
+        patient_samples_indices = np.where(patient_indices_test_np == patient)[0]
         benign_samples_from_patient = np.intersect1d(patient_samples_indices, benign_indices_test)
-        # 添加一个癌症样本和一个良性样本
-        selected_test_indices.append(cancer_samples_from_patient[0])
-        selected_test_indices.append(benign_samples_from_patient[0])
-        selected_test_patients.add(patient)
+        # 添加一个良性样本
+        if len(benign_samples_from_patient) > 0:
+            selected_benign_indices.append(benign_samples_from_patient[0])
+            selected_benign_patients.add(patient)
 
     # 确保索引是唯一的
-    selected_test_indices = list(np.unique(selected_test_indices))[:5]  # 最多选择5个样本
+    selected_cancer_indices = list(np.unique(selected_cancer_indices))[:3]  # 最多选择3个癌症样本
+    selected_benign_indices = list(np.unique(selected_benign_indices))[:3]  # 最多选择3个良性样本
         
     # 测试样本：使用具有代表性的测试集样本
-    test_samples_ftir = ftir_test[selected_test_indices]
+    test_samples_cancer_ftir = ftir_test[selected_cancer_indices]
+    test_samples_benign_ftir = ftir_test[selected_benign_indices]
     
-    print(f"SHAP测试数据选择了{len(selected_test_indices)}个测试样本:")
-    print(f"对应患者: {patient_indices_test_np[selected_test_indices]}")
+    print(f"SHAP癌症测试数据选择了{len(selected_cancer_indices)}个测试样本:")
+    print(f"对应患者: {patient_indices_test_np[selected_cancer_indices]}")
+    print(f"SHAP良性测试数据选择了{len(selected_benign_indices)}个测试样本:")
+    print(f"对应患者: {patient_indices_test_np[selected_benign_indices]}")
 
     # MZ 模态的基线：使用训练集的平均值
     mz_baseline = mz_train.mean(0, keepdim=True)
@@ -250,26 +273,34 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     # 4. 创建 PyTorch 兼容的 GradientExplainer
     explainer = shap.GradientExplainer(wrapped_model, background_ftir)
 
-    # 5. 计算 SHAP 值
-    # shap_values 的形状将是 (n_samples, n_features)
-    shap_values = explainer.shap_values(test_samples_ftir)
+    # 5. 分别计算癌症和良性样本的 SHAP 值
+    # cancer_shap_values 的形状将是 (n_cancer_samples, n_features)
+    cancer_shap_values = explainer.shap_values(test_samples_cancer_ftir)
+    # benign_shap_values 的形状将是 (n_benign_samples, n_features)
+    benign_shap_values = explainer.shap_values(test_samples_benign_ftir)
 
     # 6. 取 SHAP 值的平均绝对值，得到每个特征的重要性
-    mean_abs_shap = np.mean(np.abs(shap_values), axis=0)
+    mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
+    mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
+    
+    # 计算差异，用于识别区分两类的关键波数段
+    shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
-    # 7. 绘制一维热力图
+    # 7. 绘制一维热力图 - 癌症样本
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
 
     # 为了实现X轴波数从小到大，反转SHAP值和波数数据
-    plot_shap_values = mean_abs_shap[::-1]
+    plot_cancer_shap_values = mean_abs_cancer_shap[::-1]
+    plot_benign_shap_values = mean_abs_benign_shap[::-1]
+    plot_shap_difference = shap_difference[::-1]
     plot_ftir_x = ftir_x.cpu().numpy()[::-1].copy()
 
+    # 绘制癌症样本的SHAP热力图
     plt.figure(figsize=(15, 4))  # 调整图片尺寸
     ax = plt.gca()
-    heatmap_data = plot_shap_values.reshape(1, -1)
+    heatmap_data = plot_cancer_shap_values.reshape(1, -1)
     im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
-
     # colorbar 
     cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
     cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
@@ -295,32 +326,94 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
             tick_positions.append(idx)
             tick_labels.append(f"{wv:.1f}")
 
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
+    ax.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
+    ax.set_yticks([])
+    
+    plt.tight_layout()
+    plt.savefig('./result/ftir_shap_1d_heatmap_cancer.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("SHAP 一维热力图(癌症)已保存至 ./result/ftir_shap_1d_heatmap_cancer.png")
+
+    # 绘制良性样本的SHAP热力图
+    plt.figure(figsize=(15, 4))  # 调整图片尺寸
+    ax = plt.gca()
+    heatmap_data = plot_benign_shap_values.reshape(1, -1)
+    im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
+    # colorbar 
+    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
+    cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
+    cbar.ax.tick_params(labelsize=14)
+    cbar_ticks = cbar.get_ticks()
+    cbar_ticks = np.append(cbar_ticks, 0.0)
+    cbar_ticks = np.sort(cbar_ticks)
+    cbar.set_ticks(cbar_ticks)
+
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
+    ax.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
+    ax.set_yticks([])
+    
+    plt.tight_layout()
+    plt.savefig('./result/ftir_shap_1d_heatmap_benign.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("SHAP 一维热力图(良性)已保存至 ./result/ftir_shap_1d_heatmap_benign.png")
+
+    # 绘制差异热力图，突出区分两类的关键波数段
+    plt.figure(figsize=(15, 4))  # 调整图片尺寸
+    ax = plt.gca()
+    heatmap_data = plot_shap_difference.reshape(1, -1)
+    im = ax.imshow(heatmap_data, cmap='viridis', aspect='auto', interpolation='nearest')
+
+    # colorbar 
+    cbar = plt.colorbar(im, ax=ax, orientation='vertical', pad=0.03)
+    cbar.set_label('SHAP Difference (|Cancer - Benign|)', rotation=270, labelpad=25, fontsize=16)
+    cbar.ax.tick_params(labelsize=14)
+    cbar_ticks = cbar.get_ticks()
+    cbar_ticks = np.append(cbar_ticks, 0.0)
+    cbar_ticks = np.sort(cbar_ticks)
+    cbar.set_ticks(cbar_ticks)
+
     # 设置刻度
     ax.set_xticks(tick_positions)
     ax.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
     ax.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
     ax.set_yticks([])
-    # ax.set_title('Feature Importance based on SHAP values', fontsize=18, pad=20)
-    # ax.set_title('FTIR 特征重要性 (通过 GradientSHAP 生成的一维热力图)')
     
     plt.tight_layout()
-    plt.savefig('./result/ftir_shap_1d_heatmap.png', dpi=300, bbox_inches='tight')
+    plt.savefig('./result/ftir_shap_1d_heatmap_difference.png', dpi=300, bbox_inches='tight')
     plt.close()
-    print("SHAP 一维热力图已保存至 ./result/ftir_shap_1d_heatmap.png")
+    print("SHAP 差异热力图已保存至 ./result/ftir_shap_1d_heatmap_difference.png")
 
     # 8. 分组 SHAP 值以便返回，保持与后续代码的兼容性
     group_size = 20
-    n_features = len(plot_shap_values)
-    grouped_shap = []
+    n_features = len(plot_cancer_shap_values)
+    grouped_cancer_shap = []
+    grouped_benign_shap = []
+    grouped_difference_shap = []
     feature_names = []
     for i in range(0, n_features, group_size):
         end_idx = min(i + group_size, n_features)
-        grouped_shap.append(plot_shap_values[i:end_idx].mean())
+        grouped_cancer_shap.append(plot_cancer_shap_values[i:end_idx].mean())
+        grouped_benign_shap.append(plot_benign_shap_values[i:end_idx].mean())
+        grouped_difference_shap.append(plot_shap_difference[i:end_idx].mean())
         start_wv = plot_ftir_x[i].item()
         end_wv = plot_ftir_x[end_idx - 1].item()
         feature_names.append(f"{start_wv:.1f}-{end_wv:.1f} cm-1")
 
-    return np.array(grouped_shap), feature_names
+    # 打印一些关键波数段的分析结果
+    print("\n关键波数段分析:")
+    # 找出差异最大的前5个波数段
+    diff_indices = np.argsort(grouped_difference_shap)[-5:][::-1]
+    for i in diff_indices:
+        print(f"波数段 {feature_names[i]}: 癌症SHAP={grouped_cancer_shap[i]:.6f}, 良性SHAP={grouped_benign_shap[i]:.6f}, 差异={grouped_difference_shap[i]:.6f}")
+
+    return np.array(grouped_cancer_shap), np.array(grouped_benign_shap), np.array(grouped_difference_shap), feature_names
+
+
+# 只对 MZ 做 SHAP 分析
+
 
 # ==================数据增强====================================
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
@@ -770,7 +863,7 @@ for model_name, model_class in models_to_evaluate.items():
                                  name=model_name, model_type=model_name)
 
         # SHAP分析函数
-        shap_values, feature_names_grouped = perform_ftir_shap_analysis(
+        cancer_shap, benign_shap, difference_shap, feature_names_grouped = perform_ftir_shap_analysis(
             model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
         )
 
