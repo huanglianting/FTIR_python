@@ -1343,7 +1343,7 @@ models_to_evaluate = {
     # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
     # "SVM": SVMClassifier
 }
-"""
+""""""
 all_model_dfs = []
 for model_name, model_class in models_to_evaluate.items():
     print(f"\n\n 开始评估模型: {model_name}")
@@ -1371,7 +1371,7 @@ for model_type in all_results_df['model_type'].unique():
     best_params = eval(best_row['params'])  # 字符串转字典
     best_params_per_model[model_type] = best_params
     print(f"[{model_type}] 最佳参数: {best_params}")
-"""
+
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
