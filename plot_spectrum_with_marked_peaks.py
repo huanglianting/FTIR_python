@@ -101,17 +101,17 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
 
     plt.tight_layout()
 
-    """
+    
     # 在指定的波数点处标注短虚线
-    for peak in peak_wavenumbers:
-        # 获取该波数对应的y值
-        idx = np.argmin(np.abs(x - peak))
-        peak_height = (mean_1[idx] + mean_2[idx]) / 2  # 使用四条曲线的平均值作为峰的高度
-        # 绘制短虚线
-        plt.plot([peak, peak], [peak_height - 0.02, peak_height + 0.02], color='black', linestyle='--', linewidth=1)
-        # 在峰旁边标注波数值
-        plt.text(peak, peak_height + 0.02, str(peak), fontsize=9, ha='center')
-    """
+    # for peak in peak_wavenumbers:
+    #     # 获取该波数对应的y值
+    #     idx = np.argmin(np.abs(x - peak))
+    #     peak_height = (mean_1[idx] + mean_2[idx]) / 2  # 使用四条曲线的平均值作为峰的高度
+    #     # 绘制短虚线
+    #     plt.plot([peak, peak], [peak_height - 0.02, peak_height + 0.02], color='black', linestyle='--', linewidth=1)
+    #     # 在峰旁边标注波数值
+    #     plt.text(peak, peak_height + 0.02, str(peak), fontsize=9, ha='center')
+
 
     # plt.title('Spectrum with Marked Peaks', fontsize=14)
     # plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)

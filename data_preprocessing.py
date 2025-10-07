@@ -136,13 +136,12 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     all_cancer_spectra = np.hstack(
         list(cancer_ftir.values()))  # (467, N_samples)
 
-    from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
     plot_spectrum_with_marked_peaks(
         x=x_ftir,
         spectrum_1=all_normal_spectra,
         spectrum_2=all_cancer_spectra,
         save_path=save_path,
-        peak_wavenumbers=[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575])
+        peak_wavenumbers=[990, 1030, 1075, 1100, 1150, 1200, 1230, 1313, 1360, 1415, 1455, 1585, 1640])
 
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
