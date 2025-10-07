@@ -269,9 +269,9 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     # 计算差异，用于识别区分两类的关键波数段
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
-    # 打印Top 20的独立FTIR特征
-    print("\n关键波数分析 (Top 20 individual features):")
-    top_n_features = 20
+    # 打印Top 50的独立FTIR特征
+    print("\n关键波数分析 (Top 50 individual features):")
+    top_n_features = 50
     top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
     ftir_x_np = ftir_x.cpu().numpy()
     for i in top_indices:
@@ -353,7 +353,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
     ax2.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
     ax2.set_yticks([])
-    ax2.set_title('Cancer', fontsize=18, pad=12)  # 减小标题下边距
+    ax2.set_title('Malignant', fontsize=18, pad=12)  # 减小标题下边距
 
     # 调整子图间距
     plt.subplots_adjust(right=0.85, hspace=0.4)  # 调整垂直间距
@@ -515,9 +515,9 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     # 计算差异，用于识别区分两类的关键 mz 值段
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
-    # 打印Top 20的独立MZ特征
-    print("\n关键MZ值分析 (Top 20 individual features):")
-    top_n_features = 20
+    # 打印Top 50的独立MZ特征
+    print("\n关键MZ值分析 (Top 50 individual features):")
+    top_n_features = 50
     top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
     mz_x_np = mz_x.cpu().numpy()
     for i in top_indices:
@@ -549,21 +549,42 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     grouped_shap_diff = np.array(grouped_shap_diff)
 
     # Get min and max m/z for plot extent
-    min_mz = grouped_mz_centers[0]
-    max_mz = grouped_mz_centers[-1]
+    # min_mz = grouped_mz_centers[0]
+    # max_mz = grouped_mz_centers[-1]
 
     # 7. 绘制一维热力图
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
 
-    # 定义刻度
+    # 获取原始m/z值
+    mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
+
+    # 定义刻度 - 基于实际数据范围
     min_mz = np.min(mz_x_np)
     max_mz = np.max(mz_x_np)
     tick_step = 50
     start_tick = np.ceil(min_mz / tick_step) * tick_step
     end_tick = np.floor(max_mz / tick_step) * tick_step
-    tick_positions = np.arange(start_tick, end_tick + tick_step, tick_step)
-    tick_labels = [f'{int(t)}' for t in tick_positions]
+    tick_values = np.arange(start_tick, end_tick + tick_step, tick_step)
+
+    # 创建映射：将真实m/z值映射到均匀分布的索引位置
+    # 方法：为每个刻度值找到最接近的分组中心，然后计算其在可视化中的均匀位置
+    tick_labels = [f"{int(tick_val)}" for tick_val in tick_values]
+
+    # 对于可视化，我们使用均匀分布的位置，但标签显示真实值
+    num_ticks = len(tick_values)
+    data_length = len(grouped_mz_centers)
+
+    # 创建均匀分布的刻度位置（在数据长度范围内）
+    if num_ticks > 1:
+        # 在数据索引范围内创建均匀分布的位置
+        tick_positions = np.linspace(0, data_length-1, num_ticks).astype(int)
+    else:
+        tick_positions = [data_length // 2]
+
+    # 确保位置在有效范围内
+    tick_positions = [max(0, min(pos, data_length-1)) for pos in tick_positions]
+
 
     # 绘制良性和癌症样本的SHAP热力图（共用colorbar）
     plt.figure(figsize=(15, 8))  
@@ -598,7 +619,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     heatmap_data_benign = grouped_shap_benign.reshape(1, -1)
     im1 = ax1.imshow(heatmap_data_benign, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
-    ax1.set_xticks(np.linspace(0, len(grouped_mz_centers)-1, len(tick_positions)))
+    ax1.set_xticks(tick_positions)
     ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
     # ax1.set_xlabel('m/z', fontsize=16)
     ax1.set_yticks([])
@@ -608,11 +629,11 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     heatmap_data_cancer = grouped_shap_cancer.reshape(1, -1)
     im2 = ax2.imshow(heatmap_data_cancer, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
-    ax2.set_xticks(np.linspace(0, len(grouped_mz_centers)-1, len(tick_positions)))
+    ax2.set_xticks(tick_positions)
     ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
     ax2.set_xlabel('m/z', fontsize=16)
     ax2.set_yticks([])
-    ax2.set_title('Cancer', fontsize=18, pad=12)  # 减小标题下边距
+    ax2.set_title('Malignant', fontsize=18, pad=12)  # 减小标题下边距
 
     # 调整子图间距
     plt.subplots_adjust(right=0.85, hspace=0.4)  # 调整垂直间距
