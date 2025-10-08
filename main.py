@@ -550,10 +550,6 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     grouped_shap_benign = np.array(grouped_shap_benign)
     grouped_shap_diff = np.array(grouped_shap_diff)
 
-    # Get min and max m/z for plot extent
-    # min_mz = grouped_mz_centers[0]
-    # max_mz = grouped_mz_centers[-1]
-
     # 7. 绘制一维热力图
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
@@ -679,7 +675,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
     selected_ftir_data = ftir_data[:, ftir_indices]
     selected_mz_data = mz_data[:, mz_indices]
 
-    ftir_labels = [f"{ftir_x[i]:.1f}" for i in ftir_indices]
+    ftir_labels = [f"{int(ftir_x[i])}" for i in ftir_indices]
     mz_labels = [f"{mz_x[i]:.1f}" for i in mz_indices]
 
     # 2. 计算Spearman相关性和p值
@@ -695,11 +691,11 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
             pval_matrix[i, j] = pval
 
     # 3. 查找并打印显著相关性
-    print("\n强相关特征对 (|r| >= 0.3 且 p < 0.05):")
+    print("\n强相关特征对 (|r| >= 0.5 且 p < 0.05):")
     significant_pairs = []
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
-            if abs(corr_matrix[i, j]) >= 0.3 and pval_matrix[i, j] < 0.05:
+            if abs(corr_matrix[i, j]) >= 0.5 and pval_matrix[i, j] < 0.05:
                 pair_info = (
                     f"FTIR: {ftir_labels[i]} cm-1, "
                     f"MZ: {mz_labels[j]}, "
