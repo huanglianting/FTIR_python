@@ -525,64 +525,81 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     for i in top_indices:
         print(f"MZ值 {mz_x_np[i]:.4f}: 癌症SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
 
-    group_size = 5
-    n_features = len(mean_abs_cancer_shap)
-    grouped_mz_centers = []
-    grouped_shap_cancer = []
-    grouped_shap_benign = []
-    grouped_shap_diff = []
-
-    # 获取 mz_x 的 numpy 版本
-    mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
-
-    for i in range(0, n_features, group_size):
-        end_idx = min(i + group_size, n_features)
-        # 计算每组的中心 mz 值
-        center_mz = np.mean(mz_x_np[i:end_idx])
-        grouped_mz_centers.append(center_mz)
-        grouped_shap_cancer.append(np.mean(mean_abs_cancer_shap[i:end_idx]))
-        grouped_shap_benign.append(np.mean(mean_abs_benign_shap[i:end_idx]))
-        grouped_shap_diff.append(np.mean(np.abs(mean_abs_cancer_shap[i:end_idx] - mean_abs_benign_shap[i:end_idx])))
-
-    # 转换为 numpy 数组
-    grouped_mz_centers = np.array(grouped_mz_centers)
-    grouped_shap_cancer = np.array(grouped_shap_cancer)
-    grouped_shap_benign = np.array(grouped_shap_benign)
-    grouped_shap_diff = np.array(grouped_shap_diff)
-
-    # 7. 绘制一维热力图
+    # 7. 绘制一维热力图 - 先按mz_x排序，再分组处理
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
 
     # 获取原始m/z值
     mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
 
-    # 定义刻度 - 基于实际数据范围
-    min_mz = np.min(mz_x_np)
-    max_mz = np.max(mz_x_np)
+    # 对数据按照mz_x从小到大排序
+    sorted_indices = np.argsort(mz_x_np)
+    sorted_mz_x = mz_x_np[sorted_indices]
+    sorted_mean_abs_cancer_shap = mean_abs_cancer_shap[sorted_indices]
+    sorted_mean_abs_benign_shap = mean_abs_benign_shap[sorted_indices]
+
+    # 分组处理 - 每5个特征为一组
+    group_size = 5
+    n_features = len(sorted_mz_x)
+    grouped_mz_centers = []
+    grouped_cancer_shap = []
+    grouped_benign_shap = []
+    grouped_shap_diff = []
+
+    for i in range(0, n_features, group_size):
+        end_idx = min(i + group_size, n_features)
+        # 计算每组的中心 mz 值
+        center_mz = np.mean(sorted_mz_x[i:end_idx])
+        grouped_mz_centers.append(center_mz)
+        grouped_cancer_shap.append(np.mean(sorted_mean_abs_cancer_shap[i:end_idx]))
+        grouped_benign_shap.append(np.mean(sorted_mean_abs_benign_shap[i:end_idx]))
+        grouped_shap_diff.append(np.mean(np.abs(
+            sorted_mean_abs_cancer_shap[i:end_idx] - sorted_mean_abs_benign_shap[i:end_idx])))
+
+    # 转换为 numpy 数组
+    grouped_mz_centers = np.array(grouped_mz_centers)
+    grouped_cancer_shap = np.array(grouped_cancer_shap)
+    grouped_benign_shap = np.array(grouped_benign_shap)
+    grouped_shap_diff = np.array(grouped_shap_diff)
+
+    # 定义刻度 - 基于实际数据范围，优化刻度分布
+    min_mz = np.min(grouped_mz_centers)
+    max_mz = np.max(grouped_mz_centers)
+    
+    # 使用固定步长生成刻度值
     tick_step = 50
     start_tick = np.ceil(min_mz / tick_step) * tick_step
     end_tick = np.floor(max_mz / tick_step) * tick_step
     tick_values = np.arange(start_tick, end_tick + tick_step, tick_step)
-
-    # 创建映射：将真实m/z值映射到均匀分布的索引位置
-    # 方法：为每个刻度值找到最接近的分组中心，然后计算其在可视化中的均匀位置
-    tick_labels = [f"{int(tick_val)}" for tick_val in tick_values]
-
-    # 对于可视化，我们使用均匀分布的位置，但标签显示真实值
-    num_ticks = len(tick_values)
-    data_length = len(grouped_mz_centers)
-
-    # 创建均匀分布的刻度位置（在数据长度范围内）
-    if num_ticks > 1:
-        # 在数据索引范围内创建均匀分布的位置
-        tick_positions = np.linspace(0, data_length-1, num_ticks).astype(int)
-    else:
-        tick_positions = [data_length // 2]
-
-    # 确保位置在有效范围内
-    tick_positions = [max(0, min(pos, data_length-1)) for pos in tick_positions]
-
+    
+    # 找到最接近这些刻度值的分组索引位置，并优化分布
+    tick_positions = []
+    tick_labels = []
+    
+    # 用于跟踪已选择的刻度位置，确保有足够的间距
+    min_distance = max(1, len(grouped_mz_centers) // 20)  # 最小间距为总长度的5%或至少1
+    
+    for i, tick_val in enumerate(tick_values):
+        # 找到最接近tick_val的分组索引
+        idx = np.argmin(np.abs(grouped_mz_centers - tick_val))
+        
+        # 检查是否与已添加的刻度位置有足够的间距
+        is_far_enough = True
+        for existing_pos in tick_positions:
+            if abs(idx - existing_pos) < min_distance:
+                is_far_enough = False
+                break
+        
+        # 如果间距足够或这是第一个刻度，则添加
+        if is_far_enough or len(tick_positions) == 0:
+            tick_positions.append(idx)
+            tick_labels.append(f"{int(grouped_mz_centers[idx])}")
+        # 特殊处理最后一个刻度，确保图表末端有刻度
+        elif i == len(tick_values) - 1 and len(tick_positions) > 0:
+            # 检查是否与最后一个刻度有足够的距离
+            if abs(idx - tick_positions[-1]) >= min_distance // 2:
+                tick_positions.append(idx)
+                tick_labels.append(f"{int(grouped_mz_centers[idx])}")
 
     # 绘制良性和癌症样本的SHAP热力图（共用colorbar）
     plt.figure(figsize=(15, 8))  
@@ -590,8 +607,8 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     ax2 = plt.subplot(2, 1, 2)  # 癌症在下
 
     # 计算共同的colorbar范围
-    vmax = max(np.max(grouped_shap_benign), np.max(grouped_shap_cancer))
-    vmin = min(np.min(grouped_shap_benign), np.min(grouped_shap_cancer))
+    vmax = max(np.max(grouped_benign_shap), np.max(grouped_cancer_shap))
+    vmin = min(np.min(grouped_benign_shap), np.min(grouped_cancer_shap))
 
     # 创建自定义颜色映射，减少紫色区域，增加其他颜色区域
     # 获取原始viridis颜色映射
@@ -613,25 +630,24 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     # 创建新的颜色映射
     custom_cmap = LinearSegmentedColormap.from_list('custom_viridis', new_colors, N=n_colors)
 
-    # 绘制良性样本的SHAP热力图
-    heatmap_data_benign = grouped_shap_benign.reshape(1, -1)
+    # 绘制良性样本的SHAP热力图 - 使用分组后的数据
+    heatmap_data_benign = grouped_benign_shap.reshape(1, -1)
     im1 = ax1.imshow(heatmap_data_benign, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax1.set_xticks(tick_positions)
     ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
-    # ax1.set_xlabel('m/z', fontsize=16)
     ax1.set_yticks([])
-    ax1.set_title('Benign', fontsize=18, pad=12)  # 减小标题下边距
+    ax1.set_title('Benign', fontsize=18, pad=12)
 
-    # 绘制癌症样本的SHAP热力图
-    heatmap_data_cancer = grouped_shap_cancer.reshape(1, -1)
+    # 绘制癌症样本的SHAP热力图 - 使用分组后的数据
+    heatmap_data_cancer = grouped_cancer_shap.reshape(1, -1)
     im2 = ax2.imshow(heatmap_data_cancer, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax2.set_xticks(tick_positions)
     ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
     ax2.set_xlabel('m/z', fontsize=16)
     ax2.set_yticks([])
-    ax2.set_title('Malignant', fontsize=18, pad=12)  # 减小标题下边距
+    ax2.set_title('Malignant', fontsize=18, pad=12)
 
     # 调整子图间距
     plt.subplots_adjust(right=0.85, hspace=0.4)  # 调整垂直间距
@@ -650,17 +666,15 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     plt.close()
     print("SHAP 一维热力图(MZ良性和癌症合并)已保存至 ./result/mz_shap_1d_heatmap_combined.png")
 
-    # 8. 分组 SHAP 值以返回
-    group_size = 5
-    n_features = len(mz_x_np) 
-    feature_names = []
-    for i in range(len(grouped_mz_centers)):
-        start_idx = i * group_size
-        end_idx = min((i + 1) * group_size, n_features)
-        start_mz = mz_x_np[start_idx]
-        end_mz = mz_x_np[end_idx-1]
-        feature_names.append(f"{start_mz:.1f}-{end_mz:.1f}")
-    
+    print("\n=== MZ SHAP 图调试信息 ===")
+    print(f"总特征数: {len(mz_x_np)}")
+    print(f"分组后特征数: {len(grouped_mz_centers)}")
+    print(f"刻度值: {tick_values}")
+    print(f"刻度标签: {tick_labels}")
+    print(f"刻度位置: {tick_positions}")
+    print("前5个分组的中心m/z值:", grouped_mz_centers[:5])
+    print("最后5个分组的中心m/z值:", grouped_mz_centers[-5:])
+
     return shap_difference
 
 
