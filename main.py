@@ -562,24 +562,21 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     grouped_benign_shap = np.array(grouped_benign_shap)
     grouped_shap_diff = np.array(grouped_shap_diff)
 
+    # 按照索引来均匀分布的刻度（视觉均匀）
     # 定义刻度 - 使用固定数量的刻度并确保间距
     n_groups = len(grouped_mz_centers)
     target_ticks = min(15, n_groups)  # 目标刻度数
-    
     # 计算理想的刻度间隔
     if target_ticks > 1:
         ideal_step = (n_groups - 1) / (target_ticks - 1)
     else:
         ideal_step = n_groups
-    
     # 生成刻度位置
     tick_positions = []
     tick_labels = []
-    
     # 添加第一个刻度
     tick_positions.append(0)
     tick_labels.append(f"{int(grouped_mz_centers[0])}")
-    
     # 如果有足够的组，添加中间刻度
     if n_groups > 1:
         # 生成中间刻度位置
@@ -594,11 +591,9 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
                     if abs(pos - existing_pos) < min_distance:
                         is_far_enough = False
                         break
-                
                 if is_far_enough:
                     tick_positions.append(pos)
                     tick_labels.append(f"{int(grouped_mz_centers[pos])}")
-        
         # 添加最后一个刻度
         last_pos = n_groups - 1
         min_distance = max(1, n_groups // 30)
@@ -610,6 +605,57 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
             # 如果还没有任何刻度，至少添加最后一个
             tick_positions.append(last_pos)
             tick_labels.append(f"{int(grouped_mz_centers[last_pos])}")
+
+    # 100-900基本每50显示一次刻度，但是隔得近的刻度就不显示了（视觉上不均匀）
+    # # 定义刻度 - 基于实际数据范围，优化刻度分布
+    # min_mz = np.min(grouped_mz_centers)
+    # max_mz = np.max(grouped_mz_centers)
+    # # 使用固定步长生成刻度值
+    # tick_step = 50
+    # start_tick = np.ceil(min_mz / tick_step) * tick_step
+    # end_tick = np.floor(max_mz / tick_step) * tick_step
+    # tick_values = np.arange(start_tick, end_tick + tick_step, tick_step)
+    # # 找到最接近这些刻度值的分组索引位置，并优化分布
+    # tick_positions = []
+    # tick_labels = []
+    # # 用于跟踪已选择的刻度位置，确保有足够的间距
+    # min_distance = max(1, len(grouped_mz_centers) // 20)  # 最小间距为总长度的5%或至少1
+    # for i, tick_val in enumerate(tick_values):
+    #     # 找到最接近tick_val的分组索引
+    #     idx = np.argmin(np.abs(grouped_mz_centers - tick_val))      
+    #     # 检查是否与已添加的刻度位置有足够的间距
+    #     is_far_enough = True
+    #     for existing_pos in tick_positions:
+    #         if abs(idx - existing_pos) < min_distance:
+    #             is_far_enough = False
+    #             break
+    #     # 如果间距足够或这是第一个刻度，则添加
+    #     if is_far_enough or len(tick_positions) == 0:
+    #         tick_positions.append(idx)
+    #         # 优化标签显示：将接近整50倍数的值显示为整数
+    #         actual_mz = grouped_mz_centers[idx]
+    #         # 找到最接近的50的倍数
+    #         nearest_50_multiple = round(actual_mz / 50) * 50
+    #         # 如果差异小于5，就显示为规整值
+    #         if abs(nearest_50_multiple - actual_mz) < 5:
+    #             tick_labels.append(f"{int(nearest_50_multiple)}")
+    #         else:
+    #             tick_labels.append(f"{int(actual_mz)}")
+    #     # 特殊处理最后一个刻度，确保图表末端有刻度
+    #     elif i == len(tick_values) - 1 and len(tick_positions) > 0:
+    #         # 检查是否与最后一个刻度有足够的距离
+    #         if abs(idx - tick_positions[-1]) >= min_distance // 2:
+    #             tick_positions.append(idx)
+    #             # 优化标签显示：将接近整50倍数的值显示为整数
+    #             actual_mz = grouped_mz_centers[idx]
+    #             # 找到最接近的50的倍数
+    #             nearest_50_multiple = round(actual_mz / 50) * 50
+    #             # 如果差异小于5，就显示为规整值
+    #             if abs(nearest_50_multiple - actual_mz) < 5:
+    #                 tick_labels.append(f"{int(nearest_50_multiple)}")
+    #             else:
+    #                 tick_labels.append(f"{int(actual_mz)}")
+
 
     # 绘制良性和癌症样本的SHAP热力图（共用colorbar）
     plt.figure(figsize=(15, 8))  
