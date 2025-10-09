@@ -562,44 +562,54 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     grouped_benign_shap = np.array(grouped_benign_shap)
     grouped_shap_diff = np.array(grouped_shap_diff)
 
-    # 定义刻度 - 基于实际数据范围，优化刻度分布
-    min_mz = np.min(grouped_mz_centers)
-    max_mz = np.max(grouped_mz_centers)
+    # 定义刻度 - 使用固定数量的刻度并确保间距
+    n_groups = len(grouped_mz_centers)
+    target_ticks = min(15, n_groups)  # 目标刻度数
     
-    # 使用固定步长生成刻度值
-    tick_step = 50
-    start_tick = np.ceil(min_mz / tick_step) * tick_step
-    end_tick = np.floor(max_mz / tick_step) * tick_step
-    tick_values = np.arange(start_tick, end_tick + tick_step, tick_step)
+    # 计算理想的刻度间隔
+    if target_ticks > 1:
+        ideal_step = (n_groups - 1) / (target_ticks - 1)
+    else:
+        ideal_step = n_groups
     
-    # 找到最接近这些刻度值的分组索引位置，并优化分布
+    # 生成刻度位置
     tick_positions = []
     tick_labels = []
     
-    # 用于跟踪已选择的刻度位置，确保有足够的间距
-    min_distance = max(1, len(grouped_mz_centers) // 20)  # 最小间距为总长度的5%或至少1
+    # 添加第一个刻度
+    tick_positions.append(0)
+    tick_labels.append(f"{int(grouped_mz_centers[0])}")
     
-    for i, tick_val in enumerate(tick_values):
-        # 找到最接近tick_val的分组索引
-        idx = np.argmin(np.abs(grouped_mz_centers - tick_val))
+    # 如果有足够的组，添加中间刻度
+    if n_groups > 1:
+        # 生成中间刻度位置
+        for i in range(1, target_ticks - 1):
+            pos = int(round(i * ideal_step))
+            # 确保位置在有效范围内且与现有刻度有一定距离
+            if 0 < pos < n_groups - 1:
+                # 检查是否与现有刻度距离足够远
+                min_distance = max(1, n_groups // 30)  # 最小距离为总长度的约3.3%
+                is_far_enough = True
+                for existing_pos in tick_positions:
+                    if abs(pos - existing_pos) < min_distance:
+                        is_far_enough = False
+                        break
+                
+                if is_far_enough:
+                    tick_positions.append(pos)
+                    tick_labels.append(f"{int(grouped_mz_centers[pos])}")
         
-        # 检查是否与已添加的刻度位置有足够的间距
-        is_far_enough = True
-        for existing_pos in tick_positions:
-            if abs(idx - existing_pos) < min_distance:
-                is_far_enough = False
-                break
-        
-        # 如果间距足够或这是第一个刻度，则添加
-        if is_far_enough or len(tick_positions) == 0:
-            tick_positions.append(idx)
-            tick_labels.append(f"{int(grouped_mz_centers[idx])}")
-        # 特殊处理最后一个刻度，确保图表末端有刻度
-        elif i == len(tick_values) - 1 and len(tick_positions) > 0:
-            # 检查是否与最后一个刻度有足够的距离
-            if abs(idx - tick_positions[-1]) >= min_distance // 2:
-                tick_positions.append(idx)
-                tick_labels.append(f"{int(grouped_mz_centers[idx])}")
+        # 添加最后一个刻度
+        last_pos = n_groups - 1
+        min_distance = max(1, n_groups // 30)
+        # 检查最后一个刻度是否与前一个刻度距离足够远
+        if len(tick_positions) > 0 and abs(last_pos - tick_positions[-1]) >= min_distance:
+            tick_positions.append(last_pos)
+            tick_labels.append(f"{int(grouped_mz_centers[last_pos])}")
+        elif len(tick_positions) == 0:
+            # 如果还没有任何刻度，至少添加最后一个
+            tick_positions.append(last_pos)
+            tick_labels.append(f"{int(grouped_mz_centers[last_pos])}")
 
     # 绘制良性和癌症样本的SHAP热力图（共用colorbar）
     plt.figure(figsize=(15, 8))  
@@ -669,7 +679,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     print("\n=== MZ SHAP 图调试信息 ===")
     print(f"总特征数: {len(mz_x_np)}")
     print(f"分组后特征数: {len(grouped_mz_centers)}")
-    print(f"刻度值: {tick_values}")
+    print(f"刻度数量: {len(tick_positions)}")
     print(f"刻度标签: {tick_labels}")
     print(f"刻度位置: {tick_positions}")
     print("前5个分组的中心m/z值:", grouped_mz_centers[:5])
@@ -757,7 +767,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
     cbar.outline.set_edgecolor('black')
     cbar.outline.set_linewidth(1)
 
-    ax.set_title('Spearman Correlation between FTIR Spectra and Metabolomics Features', fontsize=16, pad=10)
+    # ax.set_title('Spearman Correlation between FTIR Spectra and Metabolomics Features', fontsize=16, pad=10)
     ax.set_xlabel('m/z', fontsize=14)
     ax.set_ylabel('Wavenumber (cm$^{-1}$)', fontsize=14)
 
