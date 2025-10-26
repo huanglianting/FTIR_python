@@ -6,27 +6,6 @@ import numpy as np
 import cv2
 
 # ==================模块定义====================================
-
-
-class SEBlock(nn.Module):
-    def __init__(self, channels, reduction=16):
-        super(SEBlock, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channels, channels // reduction, bias=False),
-            nn.ReLU(),
-            nn.Linear(channels // reduction, channels, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, feat):  # [B, C, L]
-        # Channels：特征通道数，例如经过 Conv1d(1, 32, ...) 后变为 32
-        # Length：经过池化后变成不同长度，取决于输入长度和卷积参数
-        y_avg = self.avg_pool(feat).view(feat.size(0), feat.size(1))
-        w_channel = self.fc(y_avg)
-        return feat * w_channel.view(feat.size(0), feat.size(1), 1)
-
-
 # 定义模态特征提取的分支
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):

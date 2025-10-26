@@ -5,7 +5,7 @@ import scipy.io as sio
 from scipy.interpolate import interp1d
 from sklearn.metrics.pairwise import cosine_similarity
 import seaborn as sns
-from load_and_preprocess import load_and_preprocess
+from ftir_process import load_and_preprocess
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
@@ -15,57 +15,43 @@ from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
 sns.set_style("whitegrid")
 
 
+# 从给定的样本组中选择一个与其他样本相似度最高的样本作为“原型”
 def select_most_similar_sample(group_data):
-    """
-    从给定的样本组中选择一个与其他样本平均余弦相似度最高的样本作为“原型”
-    """
     sample_names = list(group_data.keys())
     sample_values = np.column_stack(
         [group_data[name] for name in sample_names])
     similarities = cosine_similarity(sample_values.T)
-    # 计算每个样本与其他样本的平均相似度（排除自己）
+    # 计算每个样本与其他样本的平均相似度
     avg_similarity = np.mean(
         similarities - np.eye(similarities.shape[0]), axis=1)
     # 找到平均相似度最高的样本索引
     most_similar_idx = np.argmax(avg_similarity)
-    # 返回该样本
     return sample_names[most_similar_idx], sample_values[:, most_similar_idx]
 
-
+# 将归一化丰度转换为强度百分比
 def normalize_to_intensity_percentage(abundance_values):
-    """
-    将归一化丰度转换为强度百分比（Intensity %）：
-    Intensity(%) = (abundance / max(abundance)) * 100%
-    """
     max_abundance = np.max(abundance_values)
     intensity_percentage = (abundance_values / max_abundance) * 100
     return intensity_percentage
 
-
+# 绘制良恶性的 mz 强度百分比
 def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, save_path=".", title="Intensity Comparison"):
-    """
-    绘制上下拼接的柱状图，展示 Malignant 和 Benign 组的强度百分比。
-    """
     # 转换为强度百分比
     cancer_intensity = normalize_to_intensity_percentage(cancer_abundance)
     normal_intensity = normalize_to_intensity_percentage(normal_abundance)
 
-    # 设置子图（上下拼接）
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
-
-    # 绘制良性样本（Benign）
+    # 绘制良性样本
     ax1.bar(common_mz, normal_intensity, color='green',
             alpha=0.7, label='Benign', width=2.2)
     ax1.set_ylabel('Intensity (%)', fontsize=12)
     ax1.grid(False)
-
-    # 绘制恶性样本（Malignant）
+    # 绘制恶性样本
     ax2.bar(common_mz, cancer_intensity, color='red',
             alpha=0.7, label='Malignant', width=2.2)
     ax2.set_xlabel('m/z', fontsize=12)
     ax2.set_ylabel('Intensity (%)', fontsize=12)
     ax2.grid(False)
-
     ax1.legend(loc='upper right')
     ax2.legend(loc='upper right')
 
@@ -196,9 +182,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         return resampled_df
 
     # 对两个数据文件进行重采样
-    print("重采样df1...")
     df1_resampled = resample_data(df1, df1['m/z'].values, common_mz)
-    print("重采样df2...")
     df2_resampled = resample_data(df2, df2['m/z'].values, common_mz)
     print("重采样后统计（前5个m/z点）:\n", df1_resampled.iloc[:5].describe())
     print("NaN比例:", df1_resampled.isna().mean().mean())

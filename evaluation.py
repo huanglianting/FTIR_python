@@ -78,7 +78,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     # 绘制并保存混淆矩阵热力图
     cm = confusion_matrix(y_true, preds)
     save_confusion_matrix_heatmap(cm, save_path=save_path, method_name=name, show_plot=False)
-
+    # 绘制并保存 ROC 曲线
     save_roc_curve(y_true, probs, auc, name, save_path)
 
     # ========== t-SNE 可视化 ==========
@@ -212,8 +212,6 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
     plt.close()
     return save_path
 
-
-# 绘制并保存 ROC 曲线
 def save_roc_curve(y_true, probs, auc, name, save_path):
     fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)
     # 设置全局样式
