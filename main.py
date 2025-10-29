@@ -1079,6 +1079,14 @@ param_grid = {
     'scheduler_factor': [0.5],
     'early_stop_patience': [10, 15]
 }
+# params = {
+#     'lr': 3e-4,
+#     'weight_decay': 1e-4,
+#     'batch_size': 32,
+#     'label_smoothing': 0.1,
+#     'scheduler_factor': 0.5,
+#     'early_stop_patience': 15
+# }
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
