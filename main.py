@@ -27,6 +27,40 @@ from scipy.stats import spearmanr
 import seaborn as sns
 
 matplotlib.use('Agg')
+# 统一图表样式配置
+UNIFIED_STYLE = {
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'savefig.facecolor': 'white',
+    'axes.edgecolor': 'black',
+    'axes.linewidth': 1.2,
+    'font.size': 20,  # 全局字体大小
+    'legend.fontsize': 16,  # 图例字体大小
+    'lines.linewidth': 2,
+    'xtick.major.width': 1.2,
+    'ytick.major.width': 1.2,
+    'xtick.major.size': 5,
+    'ytick.major.size': 5,
+    'font.family': 'Arial',
+    'axes.unicode_minus': False  
+}
+soft_blue = '#377EB8'  
+soft_red = '#E41A1C'  
+TITLE_SIZE = 22
+TITLE_PAD = 12
+AXIS_LABEL_SIZE = 20 
+LABEL_PAD = 12
+XTICK_SIZE = 16  
+YTICK_SIZE = 16  
+LEGEND_SIZE = 14
+PLOT_LINE_WIDTH = 2 
+CBAR_LABEL_SIZE = 20
+CBAR_TICK_SIZE = 16
+CBAR_LABELPAD = 25
+SUBPLOT_RIGHT = 0.85
+SUBPLOT_HSPACE = 0.6
+plt.rcParams.update(UNIFIED_STYLE)
+
 
 
 def set_seed(seed):
@@ -49,7 +83,6 @@ def set_seed(seed):
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
     torch.set_num_threads(1)
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
@@ -258,8 +291,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
         print(f"波数 {ftir_x_np[i]:.4f} cm-1: 恶性SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
 
     
-    plt.rcParams['font.sans-serif'] = ['SimHei']
-    plt.rcParams['axes.unicode_minus'] = False
     # 实现X轴波数从小到大，反转SHAP值和波数数据
     plot_cancer_shap_values = mean_abs_cancer_shap[::-1]
     plot_benign_shap_values = mean_abs_benign_shap[::-1]
@@ -291,7 +322,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
 
     # 创建自定义颜色映射
     original_colors = plt.cm.viridis(np.linspace(0, 1, 256))
-    # 通过非线性映射减少低值区域
     n_colors = 256
     new_colors = np.zeros((n_colors, 4))
     gamma = 0.5  
@@ -308,28 +338,29 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     im1 = ax1.imshow(heatmap_data_benign, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax1.set_xticks(tick_positions)
-    ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
-    # ax1.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
+    ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
     ax1.set_yticks([])
-    ax1.set_title('Benign', fontsize=18, pad=12)  
+    ax1.set_title('Benign', fontsize=TITLE_SIZE, pad=TITLE_PAD)  
 
     # 癌症样本的SHAP图
     heatmap_data_cancer = plot_cancer_shap_values.reshape(1, -1)
     im2 = ax2.imshow(heatmap_data_cancer, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax2.set_xticks(tick_positions)
-    ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
-    ax2.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=16)
+    ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
+    ax2.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE)
     ax2.set_yticks([])
-    ax2.set_title('Malignant', fontsize=18, pad=12)  
+    ax2.set_title('Malignant', fontsize=TITLE_SIZE, pad=TITLE_PAD)  
 
     # 调整子图间距
-    plt.subplots_adjust(right=0.85, hspace=0.4)  # 调整垂直间距
+    plt.subplots_adjust(right=SUBPLOT_RIGHT, hspace=SUBPLOT_HSPACE) 
 
-    cbar_ax = plt.axes([0.87, 0.15, 0.01, 0.7])  
-    cbar = plt.colorbar(im1, cax=cbar_ax, orientation='vertical')
-    cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
-    cbar.ax.tick_params(labelsize=14)
+    # cbar_ax = plt.axes([0.87, 0.15, 0.01, 0.7])  
+    cbar = plt.colorbar(im1, ax=[ax1, ax2], orientation='vertical', aspect=30, pad=0.03)
+    cbar.set_label('Average SHAP value', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
+    cbar.outline.set_edgecolor('black')
+    cbar.outline.set_linewidth(1.2)
+    cbar.ax.tick_params(labelsize=CBAR_TICK_SIZE)
     cbar_ticks = np.linspace(vmin, vmax, 6)
     cbar.set_ticks(cbar_ticks)
 
@@ -461,9 +492,6 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
         print(f"MZ值 {mz_x_np[i]:.4f}: 癌症SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
 
     # 绘制热力图
-    plt.rcParams['font.sans-serif'] = ['SimHei']
-    plt.rcParams['axes.unicode_minus'] = False
-
     mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
 
     # 对数据按照mz_x从小到大排序
@@ -533,8 +561,6 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
             tick_positions.append(last_pos)
             tick_labels.append(f"{int(grouped_mz_centers[last_pos])}")
 
-
-    # 绘制样本的SHAP热力图
     plt.figure(figsize=(15, 8))  
     ax1 = plt.subplot(2, 1, 1)  
     ax2 = plt.subplot(2, 1, 2)  
@@ -561,30 +587,32 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     im1 = ax1.imshow(heatmap_data_benign, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax1.set_xticks(tick_positions)
-    ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
+    ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
     ax1.set_yticks([])
-    ax1.set_title('Benign', fontsize=18, pad=12)
+    ax1.set_title('Benign', fontsize=TITLE_SIZE, pad=TITLE_PAD)
 
     # 绘制恶性样本的SHAP热力图
     heatmap_data_cancer = grouped_cancer_shap.reshape(1, -1)
     im2 = ax2.imshow(heatmap_data_cancer, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax2.set_xticks(tick_positions)
-    ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=14)
-    ax2.set_xlabel('m/z', fontsize=16)
+    ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
+    ax2.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE)
     ax2.set_yticks([])
-    ax2.set_title('Malignant', fontsize=18, pad=12)
+    ax2.set_title('Malignant', fontsize=TITLE_SIZE, pad=TITLE_PAD)
 
     # 调整子图间距
-    plt.subplots_adjust(right=0.85, hspace=0.4)  
+    plt.subplots_adjust(right=SUBPLOT_RIGHT, hspace=SUBPLOT_HSPACE)  
 
-    cbar_ax = plt.axes([0.87, 0.15, 0.01, 0.7])  
-    cbar = plt.colorbar(im1, cax=cbar_ax, orientation='vertical')
-    cbar.set_label('Average SHAP value', rotation=270, labelpad=25, fontsize=16)
-    cbar.ax.tick_params(labelsize=14)
+    # cbar_ax = plt.axes([0.87, 0.15, 0.01, 0.7])  
+    cbar = plt.colorbar(im1, ax=[ax1, ax2], orientation='vertical', aspect=30, pad=0.03)
+    cbar.set_label('Average SHAP value', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
+    cbar.outline.set_edgecolor('black')
+    cbar.outline.set_linewidth(1.2)
+    cbar.ax.tick_params(labelsize=CBAR_TICK_SIZE)
     cbar_ticks = np.linspace(vmin, vmax, 6)
     cbar.set_ticks(cbar_ticks)
-
+    
     plt.savefig('./result/mz_shap_1d_heatmap_combined.png', dpi=300, bbox_inches='tight')
     plt.close()
     print("SHAP 一维热力图已保存至 ./result/mz_shap_1d_heatmap_combined.png")
@@ -628,7 +656,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
         print("在给定阈值下未找到强相关特征对。")
 
     # 绘制热力图
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(12, 10)) 
 
     # 按照标签数值对特征进行排序
     mz_labels_float = [float(l) for l in mz_labels]
@@ -647,22 +675,23 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
         cmap='coolwarm',
         annot=False,  
         vmin=-0.4, vmax=0.4,
-        linewidths=0.2,  
+        linewidths=0.6,  
         linecolor='lightgray', 
-        cbar_kws={'shrink': 0.8, 'aspect': 30, 'pad': 0.02}
+        cbar_kws={'aspect': 30, 'pad': 0.03}
     )
 
     cbar = ax.collections[0].colorbar
-    cbar.set_label('Correlation coefficient', rotation=270, labelpad=25, fontsize=14)
+    cbar.set_label('Correlation coefficient', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
     cbar.outline.set_edgecolor('black')
-    cbar.outline.set_linewidth(1)
+    cbar.outline.set_linewidth(1.2)
+    cbar.ax.tick_params(labelsize=CBAR_TICK_SIZE)
 
     # ax.set_title('Spearman Correlation between FTIR Spectra and Metabolomics Features', fontsize=16, pad=10)
-    ax.set_xlabel('m/z', fontsize=14)
-    ax.set_ylabel('Wavenumber (cm$^{-1}$)', fontsize=14)
+    ax.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    ax.set_ylabel('Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
 
-    plt.xticks(rotation=90, fontsize=10)
-    plt.yticks(rotation=0, fontsize=10)
+    plt.xticks(rotation=90, fontsize=XTICK_SIZE)
+    plt.yticks(rotation=0, fontsize=XTICK_SIZE)
 
     ax.add_patch(plt.Rectangle((0, 0), len(sorted_mz_labels), len(sorted_ftir_labels),
                                fill=False, edgecolor='black', linewidth=2))
@@ -1041,14 +1070,14 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
     return pd.DataFrame(results)
 
 
-# 固定最优超参数（已通过网格搜索确定）
-params = {
-    'lr': 3e-4,
-    'weight_decay': 1e-4,
-    'batch_size': 32,
-    'label_smoothing': 0.1,
-    'scheduler_factor': 0.5,
-    'early_stop_patience': 15
+# 超参数（通过网格搜索确定）
+param_grid = {
+    'lr': [3e-4, 1e-3],
+    'weight_decay': [1e-4, 1e-5],
+    'batch_size': [32, 64],
+    'label_smoothing': [0.1],
+    'scheduler_factor': [0.5],
+    'early_stop_patience': [10, 15]
 }
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
@@ -1064,38 +1093,38 @@ models_to_evaluate = {
     # "SVM": SVMClassifier
 }
 
-# all_model_dfs = []
-# for model_name, model_class in models_to_evaluate.items():
-#     print(f"\n\n 开始评估模型: {model_name}")
-#     if model_name == "SVM":
-#         pass
-#     else:
-#         df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
-#                                        ftir_x, mz_x, patient_indices_train, param_grid)
-#     all_model_dfs.append(df)
-#     # 合并所有模型结果
-#     all_results_df = pd.concat(all_model_dfs, ignore_index=True)
-#     all_results_df.to_csv(os.path.join(
-#         save_path, 'all_models_grid_search_results.csv'), index=False)
-#     print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
+all_model_dfs = []
+for model_name, model_class in models_to_evaluate.items():
+    print(f"\n\n 开始评估模型: {model_name}")
+    if model_name == "SVM":
+        pass
+    else:
+        df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
+                                       ftir_x, mz_x, patient_indices_train, param_grid)
+    all_model_dfs.append(df)
+    # 合并所有模型结果
+    all_results_df = pd.concat(all_model_dfs, ignore_index=True)
+    all_results_df.to_csv(os.path.join(
+        save_path, 'all_models_grid_search_results.csv'), index=False)
+    print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
 
-# # 加载 Grid Search 结果
-# all_results_df = pd.read_csv(os.path.join(
-#     save_path, 'all_models_grid_search_results.csv'))
-# # 找出每个模型的最佳参数（按 avg_accuracy）
-# best_params_per_model = {}
-# for model_type in all_results_df['model_type'].unique():
-#     df_model = all_results_df[all_results_df['model_type'] == model_type]
-#     best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
-#     best_params = eval(best_row['params']) 
-#     best_params_per_model[model_type] = best_params
-#     print(f"[{model_type}] 最佳参数: {best_params}")
+# 加载 Grid Search 结果
+all_results_df = pd.read_csv(os.path.join(
+    save_path, 'all_models_grid_search_results.csv'))
+# 找出每个模型的最佳参数（按 avg_accuracy）
+best_params_per_model = {}
+for model_type in all_results_df['model_type'].unique():
+    df_model = all_results_df[all_results_df['model_type'] == model_type]
+    best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
+    best_params = eval(best_row['params']) 
+    best_params_per_model[model_type] = best_params
+    print(f"[{model_type}] 最佳参数: {best_params}")
 
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
-# for model_name, params in best_params_per_model.items():
-for model_name, model_class in models_to_evaluate.items():
+for model_name, params in best_params_per_model.items():
+# for model_name, model_class in models_to_evaluate.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
         model = MultiModalModel(
@@ -1258,59 +1287,61 @@ df_final.to_csv(os.path.join(
     save_path, 'final_test_all_models_comparison.csv'), index=False)
 print("所有模型最终测试结果已保存至 final_test_all_models_comparison.csv")
 
-"""
+
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
 plot_dir = os.path.join(save_path, 'training_plots')
 os.makedirs(plot_dir, exist_ok=True)
-# 设置全局样式
-plt.style.use('default')
-plt.rcParams.update({
-    'figure.facecolor': 'white',
-    'axes.facecolor': 'white',
-    'savefig.facecolor': 'white',
-    'axes.edgecolor': 'black',
-    'axes.linewidth': 1.2
-})
-soft_blue = '#6495ED'  # 柔和的蓝色
-soft_red = '#CD5C5C'  # 柔和的红色
 for model_name, data in training_history.items():
     # 绘制 Loss 曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(data['train_losses'], label='Train',
-             color=soft_blue, linestyle='-')
-    plt.plot(data['test_losses'], label='Test',
-             color=soft_red, linestyle='-')
-    plt.title(f'Training and Test Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss value')
-    plt.legend(loc='upper right')  # 设置图例位置
+    plt.plot(data['train_losses'], color=soft_blue, linestyle='-', 
+             linewidth=PLOT_LINE_WIDTH, label='Train')
+    plt.plot(data['test_losses'], color=soft_red, linestyle='--', 
+             linewidth=PLOT_LINE_WIDTH, label='Test')
+    plt.title(f'Training and Test Loss', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    plt.xlabel('Epochs', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('Loss value', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.legend(
+    #     frameon=True,
+    #     edgecolor='black',
+    #     fancybox=False,  # 禁用圆角
+    #     shadow=False,     # 禁用阴影
+        loc='upper right', fontsize=LEGEND_SIZE
+    )
     ax = plt.gca()
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)  
-    # 设置刻度小短线
-    ax.tick_params(axis='both', which='major',
-                   length=5, width=1, direction='out')
+    ax.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # 强制整数刻度
     plt.grid(False)
 
     # 绘制 Accuracy 曲线
     plt.subplot(1, 2, 2)
-    plt.plot(data['train_accuracies'], label='Train',
-             color=soft_blue, linestyle='-')
-    plt.plot(data['test_accuracies'], label='Test',
-             color=soft_red, linestyle='-')
-    plt.title(f'Training and Test Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend(loc='upper right')  # 设置图例位置
+    plt.plot(data['train_accuracies'], color=soft_blue, linestyle='-', 
+             linewidth=PLOT_LINE_WIDTH, label='Train')
+    plt.plot(data['test_accuracies'], color=soft_red, linestyle='--', 
+             linewidth=PLOT_LINE_WIDTH, label='Test')
+    plt.title(f'Training and Test Accuracy', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    plt.xlabel('Epochs', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('Accuracy', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.legend(
+        # frameon=True,
+        # edgecolor='black',
+        # fancybox=False,  # 禁用圆角
+        # shadow=False,     # 禁用阴影
+        loc='upper right', fontsize=LEGEND_SIZE
+    )
     ax = plt.gca()
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)  
-    ax.tick_params(axis='both', which='major', length=5,
-                   width=1, direction='out')  
+    ax.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # 强制整数刻度
     plt.grid(False)
     
@@ -1321,4 +1352,3 @@ for model_name, data in training_history.items():
     plt.close()
 
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")
-"""

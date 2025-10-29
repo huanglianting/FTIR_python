@@ -11,6 +11,42 @@ import seaborn as sns
 import pandas as pd
 
 
+# 统一图表样式配置
+UNIFIED_STYLE = {
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'savefig.facecolor': 'white',
+    'axes.edgecolor': 'black',
+    'axes.linewidth': 1.2,
+    'font.size': 20,  # 全局字体大小
+    'legend.fontsize': 16,  # 图例字体大小
+    'lines.linewidth': 2,
+    'xtick.major.width': 1.2,
+    'ytick.major.width': 1.2,
+    'xtick.major.size': 5,
+    'ytick.major.size': 5,
+    'font.family': 'Arial',
+    'axes.unicode_minus': False  
+}
+soft_blue = '#377EB8'  
+soft_red = '#E41A1C' 
+soft_gray = '#b1b1b1'
+TITLE_SIZE = 22
+TITLE_PAD = 12
+AXIS_LABEL_SIZE = 20 
+LABEL_PAD = 12
+XTICK_SIZE = 16  
+YTICK_SIZE = 16  
+LEGEND_SIZE = 14
+PLOT_LINE_WIDTH = 2 
+CBAR_LABEL_SIZE = 20
+CBAR_TICK_SIZE = 16
+CBAR_LABELPAD = 25
+SUBPLOT_RIGHT = 0.85
+SUBPLOT_HSPACE = 0.6
+plt.rcParams.update(UNIFIED_STYLE)
+
+
 def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                    preds=None, probs=None, name="Model", model_type="undefined",
                    fold=1, save_path='./result', is_svm=False):
@@ -76,19 +112,18 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     }
 
     # 绘制并保存混淆矩阵热力图
-    cm = confusion_matrix(y_true, preds)
-    save_confusion_matrix_heatmap(cm, save_path=save_path, method_name=name, show_plot=False)
-    # 绘制并保存 ROC 曲线
-    save_roc_curve(y_true, probs, auc, name, save_path)
+    # cm = confusion_matrix(y_true, preds)
+    # save_confusion_matrix_heatmap(cm, save_path=save_path, method_name=name, show_plot=False)
+    # # 绘制并保存 ROC 曲线
+    # save_roc_curve(y_true, probs, auc, name, save_path)
 
-    # ========== t-SNE 可视化 ==========
+    plot_cm_roc(y_true, preds, probs, auc, save_path=save_path, method_name=name)
+
+    # t-SNE 可视化
     if name == "MultiModal":
         with torch.no_grad():
-            # FTIR单模态特征
             ftir_feat = model.ftir_extractor(ftir_test, ftir_axis) if hasattr(model, 'ftir_extractor') else None
-            # MZ单模态特征
             mz_feat = model.mz_extractor(mz_test, mz_axis) if hasattr(model, 'mz_extractor') else None
-            # 融合特征
             fused_feat = model.fuser(ftir_feat, mz_feat) if hasattr(model, 'fuser') else None
         # 执行 t-SNE 降维
         from sklearn.manifold import TSNE
@@ -124,49 +159,40 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
             x=reduced[:, 0],
             y=reduced[:, 1],
             hue=y_true,
-            palette={0: "#377EB8", 1: "#E41A1C"},  # 明确指定颜色
-            style=y_true,  # 可选：用不同标记区分
+            palette={0: soft_blue, 1: soft_red},  
+            style=y_true,  
             markers={0: "o", 1: "s"},  # 圆形和方形
             alpha=0.8,
             s=60,
             edgecolor='w',
             linewidth=0.5
         )
-        plt.title(f"{title}")
-        plt.xlabel("t-SNE 1")
-        plt.ylabel("t-SNE 2")
-        plt.legend(labels=['Benign', 'Malignant'])
-        # 优化图例
+        plt.title(f"{title}", fontsize=TITLE_SIZE, pad=TITLE_PAD)
+        plt.xlabel("t-SNE 1", fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+        plt.ylabel("t-SNE 2", fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
         handles, labels = scatter.get_legend_handles_labels()
         plt.legend(
             handles=handles,
             labels=['Benign', 'Malignant'],  # 明确标签
-            frameon=True,
-            edgecolor='black'
+            # frameon=True,
+            # edgecolor='black',
+            # fancybox=False,  # 禁用圆角
+            # shadow=False,     # 禁用阴影
+            loc='upper right', fontsize=LEGEND_SIZE
         )
-    # 保存结果
+        ax = plt.gca()
+        for spine in ax.spines.values():
+            spine.set_color('black')
+            spine.set_linewidth(1.2)
+        ax.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
     plt.tight_layout()
     plt.savefig(os.path.join(save_path, f"{model_name}_tsne_comparison.png"), dpi=300)
     plt.close()
 
-# 设置统一风格参数
-UNIFIED_STYLE = {
-    'figure.facecolor': 'white',
-    'axes.facecolor': 'white',
-    'savefig.facecolor': 'white',
-    'axes.edgecolor': 'black',
-    'axes.linewidth': 1.2,  # 统一坐标轴线宽
-    'font.size': 12,  # 统一字体大小
-    'lines.linewidth': 2,  # 统一曲线线宽
-    'xtick.major.width': 1.2,  # 统一x轴刻度线宽
-    'ytick.major.width': 1.2,  # 统一y轴刻度线宽
-    'axes.labelpad': 10  # 统一轴标签间距
-}
 
 def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=True):
-    # 应用同样的统一样式
-    plt.style.use('default')
-    plt.rcParams.update(UNIFIED_STYLE)
     # 将混淆矩阵转换为百分比
     cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
 
@@ -178,20 +204,18 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
         cmap='Blues',
         vmin=0,
         vmax=100,
-        linewidths=1.0,  # 单元格线宽加粗
+        linewidths=1.0,  # 单元格线宽
         linecolor='black',
-        annot_kws={'size': 13},  # 统一字体大小
+        annot_kws={'size': XTICK_SIZE}, 
         xticklabels=['Benign', 'Malignant'],
         yticklabels=['Benign', 'Malignant']
     )
 
-    # 设置坐标轴标签和标题
-    plt.xlabel('Predicted Label', fontsize=13, labelpad=12)
-    plt.ylabel('True Label', fontsize=13, labelpad=12)
-    plt.title(f'Confusion Matrix Heatmap(%)', fontsize=14)
-    # 设置刻度标签大小
-    ax.set_xticklabels(ax.get_xticklabels(), fontsize=12)
-    ax.set_yticklabels(ax.get_yticklabels(), fontsize=12)
+    plt.xlabel('Predicted Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('True Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.title(f'Confusion Matrix Heatmap(%)', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    ax.set_xticklabels(ax.get_xticklabels(), fontsize=XTICK_SIZE)
+    ax.set_yticklabels(ax.get_yticklabels(), fontsize=XTICK_SIZE)
     # 加粗边框
     for _, spine in ax.spines.items():
         spine.set_visible(True)
@@ -214,30 +238,107 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
 
 def save_roc_curve(y_true, probs, auc, name, save_path):
     fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)
-    # 设置全局样式
-    plt.style.use('default')
-    plt.rcParams.update(UNIFIED_STYLE)
 
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(8, 6))
     plt.plot(fpr, tpr, color='#6495ED')
     plt.plot([0, 1], [0, 1], color='#b1b1b1', linestyle='--')
     plt.xlim([-0.05, 1.05])
     plt.ylim([-0.05, 1.05])
-    plt.xlabel('False Positive Rate', fontsize=13, labelpad=12)
-    plt.ylabel('True Positive Rate', fontsize=13, labelpad=12)
-    plt.title(f'Receiver Operating Characteristic (ROC) Curve', fontsize=14)
+    plt.xlabel('False Positive Rate', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('True Positive Rate', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.title(f'Receiver Operating Characteristic (ROC) Curve', fontsize=TITLE_SIZE, pad=TITLE_PAD)
     plt.grid(False)
-
+    plt.legend(
+        # frameon=True,
+        # edgecolor='black',
+        # fancybox=False,  
+        # shadow=False,    
+        loc='upper right', fontsize=LEGEND_SIZE
+    )
     # 设置坐标轴样式
     ax = plt.gca()
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)
-
-    # 统一设置刻度样式
-    ax.tick_params(axis='both', which='major',
+    ax.tick_params(axis='both', which='major', 
                    length=5, width=1, direction='out',
-                   labelsize=12, pad=8)
+                   labelsize=XTICK_SIZE)
     plt.tight_layout()
     plt.savefig(os.path.join(save_path, f'{name}_roc_curve.png'), dpi=300)
     plt.close()
+
+
+def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
+    plt.figure(figsize=(16, 7))
+    
+    # 混淆矩阵热力图
+    plt.subplot(1, 2, 1)
+    cm = confusion_matrix(y_true, preds)
+    cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
+    ax1 = sns.heatmap(
+        cm_percent,
+        annot=True,
+        fmt=".2f",
+        cmap='Blues',
+        vmin=0,
+        vmax=100,
+        linewidths=1.0,
+        linecolor='black',
+        annot_kws={'size': XTICK_SIZE}, 
+        xticklabels=['Benign', 'Malignant'],
+        yticklabels=['Benign', 'Malignant'],
+        cbar_kws={'aspect': 30, 'pad': 0.04}
+    )
+    plt.xlabel('Predicted Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('True Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.title(f'Confusion Matrix Heatmap(%)', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    ax1.set_xticklabels(ax1.get_xticklabels(), fontsize=XTICK_SIZE)
+    ax1.set_yticklabels(ax1.get_yticklabels(), fontsize=XTICK_SIZE)
+    for _, spine in ax1.spines.items():
+        spine.set_visible(True)
+        spine.set_color('black')
+        spine.set_linewidth(1.2)  
+    ax1.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
+    cbar = ax1.collections[0].colorbar
+    # cbar.set_label('Percentage (%)', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
+    cbar.outline.set_visible(True)
+    cbar.outline.set_linewidth(1.2)
+    cbar.outline.set_edgecolor('black')
+    cbar.ax.tick_params(labelsize=CBAR_TICK_SIZE)
+
+    # ROC曲线 
+    plt.subplot(1, 2, 2)
+    fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)
+    plt.plot(fpr, tpr, color=soft_blue, linestyle='-', 
+             linewidth=PLOT_LINE_WIDTH, label=f'ROC Curve (AUC = {auc:.4f})')
+    plt.plot([0, 1], [0, 1], color=soft_gray, linestyle='--', 
+             linewidth=PLOT_LINE_WIDTH, label='Random Classifier')
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('False Positive Rate', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('True Positive Rate', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.title(f'Receiver Operating Characteristic (ROC) Curve', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    plt.grid(False)
+    # plt.legend(
+    #     frameon=True,
+    #     edgecolor='black',
+    #     fancybox=False,  
+    #     shadow=False,    
+    #     loc='lower right', fontsize=LEGEND_SIZE
+    # )
+    ax2 = plt.gca()
+    for spine in ax2.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)
+    ax2.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
+    
+    plt.tight_layout()
+    save_file = os.path.join(save_path, f'{method_name}_cm_roc.png')
+    plt.savefig(save_file, dpi=300)
+    plt.close()
+    
+    return save_file

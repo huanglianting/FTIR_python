@@ -12,7 +12,43 @@ from sklearn.preprocessing import StandardScaler
 from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
 
 
-sns.set_style("whitegrid")
+# sns.set_style("whitegrid")
+
+# 统一图表样式配置
+UNIFIED_STYLE = {
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'savefig.facecolor': 'white',
+    'axes.edgecolor': 'black',
+    'axes.linewidth': 1.2,
+    'font.size': 20,  # 全局字体大小
+    'legend.fontsize': 16,  # 图例字体大小
+    'lines.linewidth': 2,
+    'xtick.major.width': 1.2,
+    'ytick.major.width': 1.2,
+    'xtick.major.size': 5,
+    'ytick.major.size': 5,
+    'font.family': 'Arial',
+    'axes.unicode_minus': False  
+}
+soft_blue = '#377EB8'  
+soft_red = '#E41A1C' 
+soft_green = '#4DAF4A'
+soft_gray = '#b1b1b1'
+TITLE_SIZE = 22
+TITLE_PAD = 12
+AXIS_LABEL_SIZE = 20 
+LABEL_PAD = 12
+XTICK_SIZE = 16  
+YTICK_SIZE = 16  
+LEGEND_SIZE = 14
+PLOT_LINE_WIDTH = 2 
+CBAR_LABEL_SIZE = 20
+CBAR_TICK_SIZE = 16
+CBAR_LABELPAD = 25
+SUBPLOT_RIGHT = 0.85
+SUBPLOT_HSPACE = 0.6
+plt.rcParams.update(UNIFIED_STYLE)
 
 
 # 从给定的样本组中选择一个与其他样本相似度最高的样本作为“原型”
@@ -40,30 +76,29 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     cancer_intensity = normalize_to_intensity_percentage(cancer_abundance)
     normal_intensity = normalize_to_intensity_percentage(normal_abundance)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
     # 绘制良性样本
-    ax1.bar(common_mz, normal_intensity, color='green',
+    ax1.bar(common_mz, normal_intensity, color=soft_green,
             alpha=0.7, label='Benign', width=2.2)
-    ax1.set_ylabel('Intensity (%)', fontsize=12)
-    ax1.grid(False)
+    ax1.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     # 绘制恶性样本
-    ax2.bar(common_mz, cancer_intensity, color='red',
+    ax2.bar(common_mz, cancer_intensity, color=soft_red,
             alpha=0.7, label='Malignant', width=2.2)
-    ax2.set_xlabel('m/z', fontsize=12)
-    ax2.set_ylabel('Intensity (%)', fontsize=12)
-    ax2.grid(False)
-    ax1.legend(loc='upper right')
-    ax2.legend(loc='upper right')
-
+    ax2.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    ax2.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    
     # 设置统一样式
     for ax in [ax1, ax2]:
-        ax.legend(loc='upper right', fontsize=10)  # 增大图例字体
+        ax.grid(False)
+        ax.legend(loc='upper right', fontsize=LEGEND_SIZE)  
         ax.set_xlim(min(common_mz), max(common_mz))
-        ax.tick_params(axis='both', which='major', labelsize=11)  # 增大刻度标签字体
+        for spine in ax.spines.values():
+            spine.set_color('black')
+            spine.set_linewidth(1.2)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        ax.xaxis.label.set_size(12)
-        ax.yaxis.label.set_size(12)
+        ax.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out', labelsize=XTICK_SIZE)
 
     plt.tight_layout()
     plt.savefig(os.path.join(
@@ -213,7 +248,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         cancer_abundance=most_similar_cancer_spectrum,
         normal_abundance=most_similar_normal_spectrum,
         save_path=save_path,
-        title="Prototype Intensity Comparison"
+        title="Intensity Comparison"
     )
 
     # =============================按患者i处理FTIR和mz数据并划分set======================================

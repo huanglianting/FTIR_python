@@ -2,59 +2,79 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# 设置统一风格参数
+
+# 统一图表样式配置
 UNIFIED_STYLE = {
     'figure.facecolor': 'white',
     'axes.facecolor': 'white',
     'savefig.facecolor': 'white',
     'axes.edgecolor': 'black',
-    'axes.linewidth': 1.2,  
-    'font.size': 12,  
-    'lines.linewidth': 2,  
-    'xtick.major.width': 1.2,  
-    'ytick.major.width': 1.2,  
-    'axes.labelpad': 10  
+    'axes.linewidth': 1.2,
+    'font.size': 20,  # 全局字体大小
+    'legend.fontsize': 16,  # 图例字体大小
+    'lines.linewidth': 2,
+    'xtick.major.width': 1.2,
+    'ytick.major.width': 1.2,
+    'xtick.major.size': 5,
+    'ytick.major.size': 5,
+    'font.family': 'Arial',
+    'axes.unicode_minus': False  
 }
-
+soft_blue = '#377EB8'  
+soft_red = '#E41A1C' 
+soft_green = '#4DAF4A'
+soft_gray = '#b1b1b1'
+TITLE_SIZE = 22
+TITLE_PAD = 12
+AXIS_LABEL_SIZE = 20 
+LABEL_PAD = 12
+XTICK_SIZE = 16  
+YTICK_SIZE = 16  
+LEGEND_SIZE = 14
+PLOT_LINE_WIDTH = 2 
+CBAR_LABEL_SIZE = 20
+CBAR_TICK_SIZE = 16
+CBAR_LABELPAD = 25
+SUBPLOT_RIGHT = 0.85
+SUBPLOT_HSPACE = 0.6
+plt.rcParams.update(UNIFIED_STYLE)
 
 
 def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_wavenumbers):
     # peak_wavenumbers: 需要标注的波数点列表，例如：[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]
-
-    plt.style.use('default')
-    plt.rcParams.update(UNIFIED_STYLE)
     mean_1 = np.mean(spectrum_1, axis=1)
     std_1 = np.std(spectrum_1, axis=1)
     mean_2 = np.mean(spectrum_2, axis=1)
     std_2 = np.std(spectrum_2, axis=1)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
 
     # 绘制良性样本
-    ax1.plot(x, mean_1, label='Benign', color='green')
+    ax1.plot(x, mean_1, color=soft_green, 
+             linewidth=PLOT_LINE_WIDTH, label='Benign')
     # ax1.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
-    ax1.set_ylabel('Absorbance', fontsize=12)
-    ax1.grid(False)
+    ax1.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     ax1.invert_xaxis()
 
     # 绘制恶性样本
-    ax2.plot(x, mean_2, label='Malignant', color='red')
+    ax2.plot(x, mean_2, color=soft_red, 
+             linewidth=PLOT_LINE_WIDTH, label='Malignant')
     # ax2.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='red', alpha=0.2)
-    ax2.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=12)
-    ax2.set_ylabel('Absorbance', fontsize=12)
-    ax2.grid(False)
+    ax2.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    ax2.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     ax2.invert_xaxis()
 
     # 设置统一样式
     for ax in [ax1, ax2]:
-        ax.legend(loc='upper right', fontsize=10)
-        ax.tick_params(axis='both', which='major', labelsize=11)
+        ax.grid(False)
+        ax.legend(loc='upper right', fontsize=LEGEND_SIZE) 
+        for spine in ax.spines.values():
+            spine.set_color('black')
+            spine.set_linewidth(1.2)
         ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_linewidth(1.2)
-        ax.spines['left'].set_linewidth(1.2)
-        ax.xaxis.label.set_size(12)
-        ax.yaxis.label.set_size(12)
+        ax.spines['right'].set_visible(False)    
+        ax.tick_params(axis='both', which='major', 
+                   length=5, width=1, direction='out', labelsize=XTICK_SIZE)
 
     plt.tight_layout()
     
