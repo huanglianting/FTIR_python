@@ -83,6 +83,7 @@ def set_seed(seed):
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
     torch.set_num_threads(1)
+    # shap.random.seed(seed)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
@@ -1071,22 +1072,22 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 
 # 超参数（通过网格搜索确定）
-param_grid = {
-    'lr': [3e-4, 1e-3],
-    'weight_decay': [1e-4, 1e-5],
-    'batch_size': [32, 64],
-    'label_smoothing': [0.1],
-    'scheduler_factor': [0.5],
-    'early_stop_patience': [10, 15]
-}
-# params = {
-#     'lr': 3e-4,
-#     'weight_decay': 1e-4,
-#     'batch_size': 32,
-#     'label_smoothing': 0.1,
-#     'scheduler_factor': 0.5,
-#     'early_stop_patience': 15
+# param_grid = {
+#     'lr': [3e-4, 1e-3],
+#     'weight_decay': [1e-4, 1e-5],
+#     'batch_size': [32, 64],
+#     'label_smoothing': [0.1],
+#     'scheduler_factor': [0.5],
+#     'early_stop_patience': [10, 15]
 # }
+params = {
+    'lr': 3e-4,
+    'weight_decay': 1e-4,
+    'batch_size': 32,
+    'label_smoothing': 0.1,
+    'scheduler_factor': 0.5,
+    'early_stop_patience': 15
+}
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
@@ -1101,38 +1102,38 @@ models_to_evaluate = {
     # "SVM": SVMClassifier
 }
 
-all_model_dfs = []
-for model_name, model_class in models_to_evaluate.items():
-    print(f"\n\n 开始评估模型: {model_name}")
-    if model_name == "SVM":
-        pass
-    else:
-        df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
-                                       ftir_x, mz_x, patient_indices_train, param_grid)
-    all_model_dfs.append(df)
-    # 合并所有模型结果
-    all_results_df = pd.concat(all_model_dfs, ignore_index=True)
-    all_results_df.to_csv(os.path.join(
-        save_path, 'all_models_grid_search_results.csv'), index=False)
-    print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
+# all_model_dfs = []
+# for model_name, model_class in models_to_evaluate.items():
+#     print(f"\n\n 开始评估模型: {model_name}")
+#     if model_name == "SVM":
+#         pass
+#     else:
+#         df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
+#                                        ftir_x, mz_x, patient_indices_train, param_grid)
+#     all_model_dfs.append(df)
+#     # 合并所有模型结果
+#     all_results_df = pd.concat(all_model_dfs, ignore_index=True)
+#     all_results_df.to_csv(os.path.join(
+#         save_path, 'all_models_grid_search_results.csv'), index=False)
+#     print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
 
-# 加载 Grid Search 结果
-all_results_df = pd.read_csv(os.path.join(
-    save_path, 'all_models_grid_search_results.csv'))
-# 找出每个模型的最佳参数（按 avg_accuracy）
-best_params_per_model = {}
-for model_type in all_results_df['model_type'].unique():
-    df_model = all_results_df[all_results_df['model_type'] == model_type]
-    best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
-    best_params = eval(best_row['params']) 
-    best_params_per_model[model_type] = best_params
-    print(f"[{model_type}] 最佳参数: {best_params}")
+# # 加载 Grid Search 结果
+# all_results_df = pd.read_csv(os.path.join(
+#     save_path, 'all_models_grid_search_results.csv'))
+# # 找出每个模型的最佳参数（按 avg_accuracy）
+# best_params_per_model = {}
+# for model_type in all_results_df['model_type'].unique():
+#     df_model = all_results_df[all_results_df['model_type'] == model_type]
+#     best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
+#     best_params = eval(best_row['params']) 
+#     best_params_per_model[model_type] = best_params
+#     print(f"[{model_type}] 最佳参数: {best_params}")
 
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
-for model_name, params in best_params_per_model.items():
-# for model_name, model_class in models_to_evaluate.items():
+# for model_name, params in best_params_per_model.items():
+for model_name, model_class in models_to_evaluate.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
         model = MultiModalModel(
