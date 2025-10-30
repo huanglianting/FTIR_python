@@ -312,7 +312,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
             tick_positions.append(idx)
             tick_labels.append(f"{int(wv)}")
 
-   # 绘制SHAP热力图
+    # 绘制SHAP热力图
     plt.figure(figsize=(15, 8))  
     ax1 = plt.subplot(2, 1, 1)  
     ax2 = plt.subplot(2, 1, 2)  
@@ -388,6 +388,56 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     diff_indices = np.argsort(grouped_difference_shap)[-10:][::-1]
     for i in diff_indices:
         print(f"波数段 {feature_names[i]}: 癌症SHAP={grouped_cancer_shap[i]:.6f}, 良性SHAP={grouped_benign_shap[i]:.6f}, 差异={grouped_difference_shap[i]:.6f}")
+
+    # 保存输入参数
+    input_params = {
+        'ftir_train': ftir_train.cpu().numpy() if isinstance(ftir_train, torch.Tensor) else ftir_train,
+        'ftir_test': ftir_test.cpu().numpy() if isinstance(ftir_test, torch.Tensor) else ftir_test,
+        'ftir_x': ftir_x.cpu().numpy() if isinstance(ftir_x, torch.Tensor) else ftir_x,
+        'mz_train': mz_train.cpu().numpy() if isinstance(mz_train, torch.Tensor) else mz_train,
+        'mz_x': mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x,
+        'y_test': y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test,
+        'patient_indices_train': patient_indices_train.cpu().numpy() if isinstance(patient_indices_train, torch.Tensor) else patient_indices_train,
+        'patient_indices_test': patient_indices_test.cpu().numpy() if isinstance(patient_indices_test, torch.Tensor) else patient_indices_test,
+        'y_train': y_train.cpu().numpy() if isinstance(y_train, torch.Tensor) else y_train,
+        'selected_background_indices': selected_background_indices,
+        'selected_cancer_indices': selected_cancer_indices,
+        'selected_benign_indices': selected_benign_indices
+    }
+    np.save('./result/ftir_shap_input_params.npy', input_params)
+    
+    # 保存SHAP分析中间结果
+    shap_results = {
+        'cancer_shap_values': cancer_shap_values,
+        'benign_shap_values': benign_shap_values,
+        'mean_abs_cancer_shap': mean_abs_cancer_shap,
+        'mean_abs_benign_shap': mean_abs_benign_shap,
+        'shap_difference': shap_difference,
+        'top_indices': top_indices
+    }
+    np.save('./result/ftir_shap_results.npy', shap_results)
+    
+    # 保存绘图用数据
+    plot_data = {
+        'plot_cancer_shap_values': plot_cancer_shap_values,
+        'plot_benign_shap_values': plot_benign_shap_values,
+        'plot_shap_difference': plot_shap_difference,
+        'plot_ftir_x': plot_ftir_x,
+        'tick_positions': tick_positions,
+        'tick_labels': tick_labels,
+        'vmin': vmin,
+        'vmax': vmax
+    }
+    np.save('./result/ftir_shap_plot_data.npy', plot_data)
+    
+    # 保存分组分析数据
+    grouping_data = {
+        'grouped_cancer_shap': grouped_cancer_shap,
+        'grouped_benign_shap': grouped_benign_shap,
+        'grouped_difference_shap': grouped_difference_shap,
+        'feature_names': feature_names
+    }
+    np.save('./result/ftir_shap_grouping_data.npy', grouping_data)
 
     return shap_difference
 
@@ -618,6 +668,60 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     plt.close()
     print("SHAP 一维热力图已保存至 ./result/mz_shap_1d_heatmap_combined.png")
 
+    # 保存输入参数
+    input_params = {
+        'mz_train': mz_train.cpu().numpy() if isinstance(mz_train, torch.Tensor) else mz_train,
+        'mz_test': mz_test.cpu().numpy() if isinstance(mz_test, torch.Tensor) else mz_test,
+        'mz_x': mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x,
+        'ftir_train': ftir_train.cpu().numpy() if isinstance(ftir_train, torch.Tensor) else ftir_train,
+        'ftir_x': ftir_x.cpu().numpy() if isinstance(ftir_x, torch.Tensor) else ftir_x,
+        'y_test': y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test,
+        'patient_indices_train': patient_indices_train.cpu().numpy() if isinstance(patient_indices_train, torch.Tensor) else patient_indices_train,
+        'patient_indices_test': patient_indices_test.cpu().numpy() if isinstance(patient_indices_test, torch.Tensor) else patient_indices_test,
+        'y_train': y_train.cpu().numpy() if isinstance(y_train, torch.Tensor) else y_train,
+        'selected_background_indices': selected_background_indices,
+        'selected_cancer_indices': selected_cancer_indices,
+        'selected_benign_indices': selected_benign_indices,
+        'ftir_baseline': ftir_baseline.cpu().numpy() if isinstance(ftir_baseline, torch.Tensor) else ftir_baseline
+    }
+    np.save('./result/mz_shap_input_params.npy', input_params)
+    
+    # 保存SHAP分析中间结果
+    shap_results = {
+        'cancer_shap_values': cancer_shap_values,
+        'benign_shap_values': benign_shap_values,
+        'mean_abs_cancer_shap': mean_abs_cancer_shap,
+        'mean_abs_benign_shap': mean_abs_benign_shap,
+        'shap_difference': shap_difference,
+        'top_indices': top_indices
+    }
+    np.save('./result/mz_shap_results.npy', shap_results)
+    
+    # 保存绘图用数据
+    plot_data = {
+        'sorted_mz_x': sorted_mz_x,
+        'sorted_mean_abs_cancer_shap': sorted_mean_abs_cancer_shap,
+        'sorted_mean_abs_benign_shap': sorted_mean_abs_benign_shap,
+        'grouped_mz_centers': grouped_mz_centers,
+        'grouped_cancer_shap': grouped_cancer_shap,
+        'grouped_benign_shap': grouped_benign_shap,
+        'grouped_shap_diff': grouped_shap_diff,
+        'tick_positions': tick_positions,
+        'tick_labels': tick_labels,
+        'vmin': vmin,
+        'vmax': vmax
+    }
+    np.save('./result/mz_shap_plot_data.npy', plot_data)
+    
+    # 保存分组分析数据
+    grouping_data = {
+        'grouped_mz_centers': grouped_mz_centers,
+        'grouped_cancer_shap': grouped_cancer_shap,
+        'grouped_benign_shap': grouped_benign_shap,
+        'grouped_shap_diff': grouped_shap_diff
+    }
+    np.save('./result/mz_shap_grouping_data.npy', grouping_data)
+
     return shap_difference
 
 # 计算选定的FTIR和MZ特征之间的Spearman相关性并绘制热力图
@@ -690,17 +794,44 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
     # ax.set_title('Spearman Correlation between FTIR Spectra and Metabolomics Features', fontsize=16, pad=10)
     ax.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     ax.set_ylabel('Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-
     plt.xticks(rotation=90, fontsize=XTICK_SIZE)
     plt.yticks(rotation=0, fontsize=XTICK_SIZE)
-
     ax.add_patch(plt.Rectangle((0, 0), len(sorted_mz_labels), len(sorted_ftir_labels),
                                fill=False, edgecolor='black', linewidth=2))
-
     plt.tight_layout()
     heatmap_path = os.path.join(save_path, 'ftir_mz_correlation_heatmap.png')
     plt.savefig(heatmap_path, dpi=300, bbox_inches='tight')
     plt.close()
+
+    # 保存输入参数和计算结果
+    correlation_data = {
+        'ftir_data': ftir_data,
+        'mz_data': mz_data,
+        'ftir_x': ftir_x,
+        'mz_x': mz_x,
+        'ftir_indices': ftir_indices,
+        'mz_indices': mz_indices,
+        'selected_ftir_data': selected_ftir_data,
+        'selected_mz_data': selected_mz_data,
+        'ftir_labels': ftir_labels,
+        'mz_labels': mz_labels,
+        'corr_matrix': corr_matrix,
+        'pval_matrix': pval_matrix,
+        'significant_pairs': significant_pairs,
+        'sorted_mz_labels': sorted_mz_labels,
+        'sorted_ftir_labels': sorted_ftir_labels,
+        'sorted_corr_matrix': sorted_corr_matrix
+    }
+    np.save(os.path.join(save_path, 'correlation_analysis_data.npy'), correlation_data)
+    
+    # 保存绘图用数据
+    plot_data = {
+        'sorted_corr_matrix': sorted_corr_matrix,
+        'sorted_mz_labels': sorted_mz_labels,
+        'sorted_ftir_labels': sorted_ftir_labels
+    }
+    np.save(os.path.join(save_path, 'correlation_plot_data.npy'), plot_data)
+
 
     print(f"\n相关性热力图已保存至 {heatmap_path}")
 
@@ -1301,6 +1432,16 @@ print("所有模型最终测试结果已保存至 final_test_all_models_comparis
 plot_dir = os.path.join(save_path, 'training_plots')
 os.makedirs(plot_dir, exist_ok=True)
 for model_name, data in training_history.items():
+    # 保存训练和测试的loss与accuracy数据
+    training_data = {
+        'epochs': list(range(1, len(data['train_losses']) + 1)),
+        'train_losses': data['train_losses'],
+        'test_losses': data['test_losses'],
+        'train_accuracies': data['train_accuracies'],
+        'test_accuracies': data['test_accuracies']
+    }
+    np.save(os.path.join(plot_dir, f'{model_name}_training_data.npy'), training_data)
+    
     # 绘制 Loss 曲线
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)

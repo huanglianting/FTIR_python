@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import pandas as pd
 
 
 # 统一图表样式配置
@@ -41,6 +42,22 @@ plt.rcParams.update(UNIFIED_STYLE)
 
 
 def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_wavenumbers):
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    
+    # 保存输入数据到CSV文件
+    spectrum_data = pd.DataFrame({
+        'wavenumber': x,
+        'benign_mean': np.mean(spectrum_1, axis=1),
+        'benign_std': np.std(spectrum_1, axis=1),
+        'malignant_mean': np.mean(spectrum_2, axis=1),
+        'malignant_std': np.std(spectrum_2, axis=1)
+    })
+    spectrum_data.to_csv(os.path.join(save_path, 'spectrum_input_data.csv'), index=False)
+    # 保存峰位数据
+    peak_data = pd.DataFrame({'peak_wavenumbers': peak_wavenumbers})
+    peak_data.to_csv(os.path.join(save_path, 'peak_wavenumbers.csv'), index=False)
+    
     # peak_wavenumbers: 需要标注的波数点列表，例如：[1030, 1080, 1239, 1313, 1404, 1451, 1550, 1575]
     mean_1 = np.mean(spectrum_1, axis=1)
     std_1 = np.std(spectrum_1, axis=1)

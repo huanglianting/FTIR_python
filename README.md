@@ -1,4 +1,6 @@
 
+# 注：每个绘图函数需要到的数据都在每个绘图函数内部 开头 或 结尾（仅shap和相关性分析在结尾）保存了，请查看具体函数实现。
+
 # data_preprocessing.py
 - **Fig.1(a)**: `良恶性的 FTIR 原始光谱`
   - 在def preprocess_data中调用，该函数用于预处理ftir和mz

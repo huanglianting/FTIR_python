@@ -143,6 +143,21 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
 
 
 def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, model_name):
+    # 保存输入数据
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    tsne_input_data = {
+        'y_true': y_true
+    }
+    if ftir_feat is not None:
+        tsne_input_data['ftir_features'] = ftir_feat
+    if mz_feat is not None:
+        tsne_input_data['mz_features'] = mz_feat
+    if fused_feat is not None:
+        tsne_input_data['fused_features'] = fused_feat
+    np.savez(os.path.join(save_path, f'{model_name}_tsne_input_data.npz'), **tsne_input_data)
+    
+    
     plt.figure(figsize=(15, 5))
     feature_types = [
         ("FTIR Extractor Output", ftir_feat),
@@ -269,6 +284,17 @@ def save_roc_curve(y_true, probs, auc, name, save_path):
 
 
 def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
+    # 保存输入数据
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    cm_roc_data = pd.DataFrame({
+        'y_true': y_true,
+        'y_pred': preds,
+        'y_prob': probs,
+        'auc': auc
+    })
+    cm_roc_data.to_csv(os.path.join(save_path, f'{method_name}_cm_roc_input_data.csv'), index=False)
+    
     plt.figure(figsize=(16, 7))
     
     # 混淆矩阵热力图

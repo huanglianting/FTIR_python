@@ -72,6 +72,18 @@ def normalize_to_intensity_percentage(abundance_values):
 
 # 绘制良恶性的 mz 强度百分比
 def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, save_path=".", title="Intensity Comparison"):
+    # 保存输入数据
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    intensity_data = pd.DataFrame({
+        'mz': common_mz,
+        'cancer_abundance': cancer_abundance,
+        'normal_abundance': normal_abundance,
+        'cancer_intensity': normalize_to_intensity_percentage(cancer_abundance),
+        'normal_intensity': normalize_to_intensity_percentage(normal_abundance)
+    })
+    intensity_data.to_csv(os.path.join(save_path, 'intensity_comparison_input_data.csv'), index=False)
+    
     # 转换为强度百分比
     cancer_intensity = normalize_to_intensity_percentage(cancer_abundance)
     normal_intensity = normalize_to_intensity_percentage(normal_abundance)
