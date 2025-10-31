@@ -1223,14 +1223,14 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
-    "ConcatFusion": ConcatFusion,
-    "GateOnlyFusion": GateOnlyFusion,
-    "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    "SelfAttnFusion": SelfAttnFusion,
-    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
-    "SVM": SVMClassifier
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
+    # "ConcatFusion": ConcatFusion,
+    # "GateOnlyFusion": GateOnlyFusion,
+    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    # "SelfAttnFusion": SelfAttnFusion,
+    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    # "SVM": SVMClassifier
 }
 
 # all_model_dfs = []
