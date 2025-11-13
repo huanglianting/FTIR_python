@@ -160,9 +160,9 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
     
     plt.figure(figsize=(15, 5))
     feature_types = [
-        ("FTIR Extractor Output", ftir_feat),
-        ("Metabolomics Extractor Output", mz_feat),
-        ("Fused Features", fused_feat)
+        ("FTIR Spectra Extracted Feats", ftir_feat),
+        ("Mass Spectra Extracted Feats", mz_feat),
+        ("Hybrid Fused Feats", fused_feat)
     ]
     for idx, (title, feat) in enumerate(feature_types, start=1):
         if feat is None:
