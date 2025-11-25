@@ -295,7 +295,7 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
     })
     cm_roc_data.to_csv(os.path.join(save_path, f'{method_name}_cm_roc_input_data.csv'), index=False)
     
-    plt.figure(figsize=(15, 6))
+    plt.figure(figsize=(16, 7))
     
     # 混淆矩阵热力图
     plt.subplot(1, 2, 1)
