@@ -29,12 +29,12 @@ TITLE_SIZE = 22
 TITLE_PAD = 12
 AXIS_LABEL_SIZE = 20 
 LABEL_PAD = 12
-XTICK_SIZE = 16  
-YTICK_SIZE = 16  
+XTICK_SIZE = 18  
+YTICK_SIZE = 18  
 LEGEND_SIZE = 14
 PLOT_LINE_WIDTH = 2 
 CBAR_LABEL_SIZE = 20
-CBAR_TICK_SIZE = 16
+CBAR_TICK_SIZE = 18
 CBAR_LABELPAD = 25
 SUBPLOT_RIGHT = 0.85
 SUBPLOT_HSPACE = 0.6
@@ -64,34 +64,55 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
     mean_2 = np.mean(spectrum_2, axis=1)
     std_2 = np.std(spectrum_2, axis=1)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
+    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    # 绘制良性样本
-    ax1.plot(x, mean_1, color=soft_green, 
+    # # 绘制良性样本
+    # ax1.plot(x, mean_1, color=soft_green, 
+    #          linewidth=PLOT_LINE_WIDTH, label='Benign')
+    # # ax1.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
+    # ax1.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    # ax1.invert_xaxis()
+
+    # # 绘制恶性样本
+    # ax2.plot(x, mean_2, color=soft_red, 
+    #          linewidth=PLOT_LINE_WIDTH, label='Malignant')
+    # # ax2.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='red', alpha=0.2)
+    # ax2.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    # ax2.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    # ax2.invert_xaxis()
+
+    # 在同一张图中绘制良性样本和恶性样本
+    ax.plot(x, mean_1, color=soft_green, 
              linewidth=PLOT_LINE_WIDTH, label='Benign')
-    # ax1.fill_between(x, mean_1 - std_1, mean_1 + std_1, color='green', alpha=0.2)
-    ax1.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    ax1.invert_xaxis()
-
-    # 绘制恶性样本
-    ax2.plot(x, mean_2, color=soft_red, 
+    ax.plot(x, mean_2, color=soft_red, 
              linewidth=PLOT_LINE_WIDTH, label='Malignant')
-    # ax2.fill_between(x, mean_2 - std_2, mean_2 + std_2, color='red', alpha=0.2)
-    ax2.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    ax2.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    ax2.invert_xaxis()
+    
+    ax.set_xlabel(r'Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    ax.set_ylabel('Absorbance', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    # ax.invert_xaxis()
 
-    # 设置统一样式
-    for ax in [ax1, ax2]:
-        ax.grid(False)
-        ax.legend(loc='upper right', fontsize=LEGEND_SIZE) 
-        for spine in ax.spines.values():
-            spine.set_color('black')
-            spine.set_linewidth(1.2)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)    
-        ax.tick_params(axis='both', which='major', 
-                   length=5, width=1, direction='out', labelsize=XTICK_SIZE)
+    # # 设置统一样式
+    # for ax in [ax1, ax2]:
+    #     ax.grid(False)
+    #     ax.legend(loc='upper right', fontsize=LEGEND_SIZE) 
+    #     for spine in ax.spines.values():
+    #         spine.set_color('black')
+    #         spine.set_linewidth(1.2)
+    #     ax.spines['top'].set_visible(False)
+    #     ax.spines['right'].set_visible(False)    
+    #     ax.tick_params(axis='both', which='major', 
+    #                length=5, width=1, direction='out', labelsize=XTICK_SIZE)
+
+    ax.grid(False)
+    ax.legend(loc='upper right', fontsize=LEGEND_SIZE) 
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)    
+    ax.tick_params(axis='both', which='major', 
+               length=5, width=1, direction='out', labelsize=XTICK_SIZE)
 
     plt.tight_layout()
     

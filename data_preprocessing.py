@@ -39,12 +39,12 @@ TITLE_SIZE = 22
 TITLE_PAD = 12
 AXIS_LABEL_SIZE = 20 
 LABEL_PAD = 12
-XTICK_SIZE = 16  
-YTICK_SIZE = 16  
+XTICK_SIZE = 18 
+YTICK_SIZE = 18  
 LEGEND_SIZE = 14
 PLOT_LINE_WIDTH = 2 
 CBAR_LABEL_SIZE = 20
-CBAR_TICK_SIZE = 16
+CBAR_TICK_SIZE = 18
 CBAR_LABELPAD = 25
 SUBPLOT_RIGHT = 0.85
 SUBPLOT_HSPACE = 0.6
@@ -88,29 +88,51 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     cancer_intensity = normalize_to_intensity_percentage(cancer_abundance)
     normal_intensity = normalize_to_intensity_percentage(normal_abundance)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
-    # 绘制良性样本
-    ax1.bar(common_mz, normal_intensity, color=soft_green,
-            alpha=0.7, label='Benign', width=2.2)
-    ax1.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    # 绘制恶性样本
-    ax2.bar(common_mz, cancer_intensity, color=soft_red,
-            alpha=0.7, label='Malignant', width=2.2)
-    ax2.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    ax2.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bar_width = 2.2
+    # 微调柱状图的位置，避免重叠
+    mz_offset = bar_width / 2
+    ax.bar(common_mz - mz_offset, normal_intensity, color=soft_green,
+           alpha=0.7, label='Benign', width=bar_width)
+    ax.bar(common_mz + mz_offset, cancer_intensity, color=soft_red,
+           alpha=0.7, label='Malignant', width=bar_width)
+    ax.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    ax.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+
+    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
+    # # 绘制良性样本
+    # ax1.bar(common_mz, normal_intensity, color=soft_green,
+    #         alpha=0.7, label='Benign', width=2.2)
+    # ax1.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    # # 绘制恶性样本
+    # ax2.bar(common_mz, cancer_intensity, color=soft_red,
+    #         alpha=0.7, label='Malignant', width=2.2)
+    # ax2.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    # ax2.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     
     # 设置统一样式
-    for ax in [ax1, ax2]:
-        ax.grid(False)
-        ax.legend(loc='upper right', fontsize=LEGEND_SIZE)  
-        ax.set_xlim(min(common_mz), max(common_mz))
-        for spine in ax.spines.values():
-            spine.set_color('black')
-            spine.set_linewidth(1.2)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='both', which='major', 
-                   length=5, width=1, direction='out', labelsize=XTICK_SIZE)
+    ax.grid(False)
+    ax.legend(loc='upper right', fontsize=LEGEND_SIZE)  
+    ax.set_xlim(min(common_mz), max(common_mz))
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.tick_params(axis='both', which='major', 
+               length=5, width=1, direction='out', labelsize=XTICK_SIZE)
+    # # 设置统一样式
+    # for ax in [ax1, ax2]:
+    #     ax.grid(False)
+    #     ax.legend(loc='upper right', fontsize=LEGEND_SIZE)  
+    #     ax.set_xlim(min(common_mz), max(common_mz))
+    #     for spine in ax.spines.values():
+    #         spine.set_color('black')
+    #         spine.set_linewidth(1.2)
+    #     ax.spines['top'].set_visible(False)
+    #     ax.spines['right'].set_visible(False)
+    #     ax.tick_params(axis='both', which='major', 
+    #                length=5, width=1, direction='out', labelsize=XTICK_SIZE)
 
     plt.tight_layout()
     plt.savefig(os.path.join(

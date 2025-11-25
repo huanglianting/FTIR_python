@@ -5,11 +5,11 @@
 - **Fig.1(a)**: `良恶性的 FTIR 原始光谱`
   - 在def preprocess_data中调用，该函数用于预处理ftir和mz
   - 具体函数定义在 plot_spectrum_with_marked_peaks.py
-  - fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
+  - fig, ax = plt.subplots(figsize=(10, 6))
 
 - **Fig.1(b)**: `良恶性的 mz 强度百分比`
   - def plot_intensity_comparison
-  - fig, (ax1, ax2) = plt.subplots(2, 1, figsize==(7, 7), sharex=True)
+  - fig, ax = plt.subplots(figsize=(10, 6))
 
 
 # evaluation.py

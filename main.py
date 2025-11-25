@@ -50,12 +50,12 @@ TITLE_SIZE = 22
 TITLE_PAD = 12
 AXIS_LABEL_SIZE = 20 
 LABEL_PAD = 12
-XTICK_SIZE = 16  
-YTICK_SIZE = 16  
+XTICK_SIZE = 18  
+YTICK_SIZE = 18  
 LEGEND_SIZE = 14
 PLOT_LINE_WIDTH = 2 
 CBAR_LABEL_SIZE = 20
-CBAR_TICK_SIZE = 16
+CBAR_TICK_SIZE = 18
 CBAR_LABELPAD = 25
 SUBPLOT_RIGHT = 0.85
 SUBPLOT_HSPACE = 0.6
@@ -760,8 +760,8 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
     if not significant_pairs:
         print("在给定阈值下未找到强相关特征对。")
 
-    # 绘制热力图
-    plt.figure(figsize=(12, 10)) 
+    # 绘制热力图    
+    plt.figure(figsize=(12, 11)) 
 
     # 按照标签数值对特征进行排序
     mz_labels_float = [float(l) for l in mz_labels]
@@ -1302,9 +1302,9 @@ for model_name, model_class in models_to_evaluate.items():
         ftir_all = np.vstack((ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
         mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
 
-        # 特征选择: 基于SHAP分析选择Top 40个特征
-        ftir_top_indices = np.argsort(ftir_shap_difference)[-40:]
-        mz_top_indices = np.argsort(mz_shap_difference)[-40:]
+        # 特征选择: 基于SHAP分析选择Top 30个特征
+        ftir_top_indices = np.argsort(ftir_shap_difference)[-30:]
+        mz_top_indices = np.argsort(mz_shap_difference)[-30:]
 
         create_correlation_heatmap(
             ftir_all,
