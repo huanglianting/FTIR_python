@@ -35,12 +35,12 @@ TITLE_SIZE = 22
 TITLE_PAD = 12
 AXIS_LABEL_SIZE = 20 
 LABEL_PAD = 12
-XTICK_SIZE = 18  
-YTICK_SIZE = 18  
+XTICK_SIZE = 16  
+YTICK_SIZE = 16  
 LEGEND_SIZE = 14
 PLOT_LINE_WIDTH = 2 
 CBAR_LABEL_SIZE = 20
-CBAR_TICK_SIZE = 18
+CBAR_TICK_SIZE = 16
 CBAR_LABELPAD = 25
 SUBPLOT_RIGHT = 0.85
 SUBPLOT_HSPACE = 0.6
@@ -295,7 +295,7 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
     })
     cm_roc_data.to_csv(os.path.join(save_path, f'{method_name}_cm_roc_input_data.csv'), index=False)
     
-    plt.figure(figsize=(16, 7))
+    plt.figure(figsize=(15, 6))
     
     # 混淆矩阵热力图
     plt.subplot(1, 2, 1)
@@ -318,21 +318,21 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
     plt.xlabel('Predicted Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     plt.ylabel('True Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     plt.title(f'Confusion Matrix Heatmap(%)', fontsize=TITLE_SIZE, pad=TITLE_PAD)
-    ax1.set_xticklabels(ax1.get_xticklabels(), fontsize=XTICK_SIZE)
-    ax1.set_yticklabels(ax1.get_yticklabels(), fontsize=XTICK_SIZE)
+    ax1.set_xticklabels(ax1.get_xticklabels(), fontsize=XTICK_SIZE+1)
+    ax1.set_yticklabels(ax1.get_yticklabels(), fontsize=XTICK_SIZE+1)
     for _, spine in ax1.spines.items():
         spine.set_visible(True)
         spine.set_color('black')
         spine.set_linewidth(1.2)  
     ax1.tick_params(axis='both', which='major', 
                    length=5, width=1, direction='out',
-                   labelsize=XTICK_SIZE)
+                   labelsize=XTICK_SIZE+1)
     cbar = ax1.collections[0].colorbar
     # cbar.set_label('Percentage (%)', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
     cbar.outline.set_visible(True)
     cbar.outline.set_linewidth(1.2)
     cbar.outline.set_edgecolor('black')
-    cbar.ax.tick_params(labelsize=CBAR_TICK_SIZE)
+    cbar.ax.tick_params(labelsize=CBAR_TICK_SIZE+1)
 
     # ROC曲线 
     plt.subplot(1, 2, 2)
@@ -360,7 +360,7 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
         spine.set_linewidth(1.2)
     ax2.tick_params(axis='both', which='major', 
                    length=5, width=1, direction='out',
-                   labelsize=XTICK_SIZE)
+                   labelsize=XTICK_SIZE+1)
     
     plt.tight_layout()
     save_file = os.path.join(save_path, f'{method_name}_cm_roc.png')

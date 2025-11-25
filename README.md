@@ -5,17 +5,17 @@
 - **Fig.1(a)**: `良恶性的 FTIR 原始光谱`
   - 在def preprocess_data中调用，该函数用于预处理ftir和mz
   - 具体函数定义在 plot_spectrum_with_marked_peaks.py
-  - fig, ax = plt.subplots(figsize=(10, 6))
+  - fig, ax = plt.subplots(figsize=(7, 4))
 
 - **Fig.1(b)**: `良恶性的 mz 强度百分比`
   - def plot_intensity_comparison
-  - fig, ax = plt.subplots(figsize=(10, 6))
+  - fig, ax = plt.subplots(figsize=(7, 4))
 
 
 # evaluation.py
 - **Fig.4**: `混淆矩阵和ROC曲线`
   - def plot_cm_roc
-  - plt.figure(figsize=(16, 7))
+  - plt.figure(figsize=(15, 6))
 
 - **Fig.5**: `t-SNE`
   - def plot_tsne_features

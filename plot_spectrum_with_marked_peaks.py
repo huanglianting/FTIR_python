@@ -29,12 +29,12 @@ TITLE_SIZE = 22
 TITLE_PAD = 12
 AXIS_LABEL_SIZE = 20 
 LABEL_PAD = 12
-XTICK_SIZE = 18  
-YTICK_SIZE = 18  
+XTICK_SIZE = 16  
+YTICK_SIZE = 16  
 LEGEND_SIZE = 14
 PLOT_LINE_WIDTH = 2 
 CBAR_LABEL_SIZE = 20
-CBAR_TICK_SIZE = 18
+CBAR_TICK_SIZE = 16
 CBAR_LABELPAD = 25
 SUBPLOT_RIGHT = 0.85
 SUBPLOT_HSPACE = 0.6
@@ -65,7 +65,7 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
     std_2 = np.std(spectrum_2, axis=1)
 
     # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(7, 4))
 
     # # 绘制良性样本
     # ax1.plot(x, mean_1, color=soft_green, 
