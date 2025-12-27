@@ -15,7 +15,7 @@
 # evaluation.py
 - **Fig.4**: `混淆矩阵和ROC曲线`
   - def plot_cm_roc
-  - plt.figure(figsize=(15, 6))
+  - plt.figure(figsize=(16, 7))
 
 - **Fig.5**: `t-SNE`
   - def plot_tsne_features

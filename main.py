@@ -58,7 +58,7 @@ CBAR_LABEL_SIZE = 20
 CBAR_TICK_SIZE = 16
 CBAR_LABELPAD = 25
 SUBPLOT_RIGHT = 0.85
-SUBPLOT_HSPACE = 0.6
+SUBPLOT_HSPACE = 0.8
 plt.rcParams.update(UNIFIED_STYLE)
 
 
@@ -284,8 +284,8 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
-    print("\n关键波数分析 (Top 50 individual features):")
-    top_n_features = 50
+    print("\n关键波数分析 (Top 10 individual features):")
+    top_n_features = 10
     top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
     ftir_x_np = ftir_x.cpu().numpy()
     for i in top_indices:
@@ -300,7 +300,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
 
     start_wv = 900
     end_wv = 1800  
-    step = 50.0
+    step = 300.0
     wave_numbers = np.arange(start_wv, end_wv + step, step)
 
     # 找到最接近这些波数的索引
@@ -313,7 +313,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
             tick_labels.append(f"{int(wv)}")
 
     # 绘制SHAP热力图
-    plt.figure(figsize=(15, 8))  
+    plt.figure(figsize=(7, 4))  
     ax1 = plt.subplot(2, 1, 1)  
     ax2 = plt.subplot(2, 1, 2)  
 
@@ -339,7 +339,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     im1 = ax1.imshow(heatmap_data_benign, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax1.set_xticks(tick_positions)
-    ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
+    ax1.set_xticklabels(tick_labels, fontsize=XTICK_SIZE)
     ax1.set_yticks([])
     ax1.set_title('Benign', fontsize=TITLE_SIZE, pad=TITLE_PAD)  
 
@@ -348,7 +348,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     im2 = ax2.imshow(heatmap_data_cancer, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax2.set_xticks(tick_positions)
-    ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
+    ax2.set_xticklabels(tick_labels, fontsize=XTICK_SIZE)
     ax2.set_xlabel('Wavenumber (cm$^{-1}$)', fontsize=AXIS_LABEL_SIZE)
     ax2.set_yticks([])
     ax2.set_title('Malignant', fontsize=TITLE_SIZE, pad=TITLE_PAD)  
@@ -357,7 +357,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     plt.subplots_adjust(right=SUBPLOT_RIGHT, hspace=SUBPLOT_HSPACE) 
 
     # cbar_ax = plt.axes([0.87, 0.15, 0.01, 0.7])  
-    cbar = plt.colorbar(im1, ax=[ax1, ax2], orientation='vertical', aspect=30, pad=0.03)
+    cbar = plt.colorbar(im1, ax=[ax1, ax2], orientation='vertical', aspect=30, pad=0.08)
     cbar.set_label('Average SHAP value', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
     cbar.outline.set_edgecolor('black')
     cbar.outline.set_linewidth(1.2)
@@ -535,8 +535,8 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
-    print("\n关键MZ值分析 (Top 50 individual features):")
-    top_n_features = 50
+    print("\n关键MZ值分析 (Top 10 individual features):")
+    top_n_features = 10
     top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
     mz_x_np = mz_x.cpu().numpy()
     for i in top_indices:
@@ -576,7 +576,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
 
     # 使用固定数量的刻度
     n_groups = len(grouped_mz_centers)
-    target_ticks = min(15, n_groups)  # 目标刻度数
+    target_ticks = min(4, n_groups)  # 目标刻度数
     if target_ticks > 1:
         ideal_step = (n_groups - 1) / (target_ticks - 1)    # 计算刻度间隔
     else:
@@ -612,7 +612,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
             tick_positions.append(last_pos)
             tick_labels.append(f"{int(grouped_mz_centers[last_pos])}")
 
-    plt.figure(figsize=(15, 8))  
+    plt.figure(figsize=(7, 4))  
     ax1 = plt.subplot(2, 1, 1)  
     ax2 = plt.subplot(2, 1, 2)  
 
@@ -638,7 +638,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     im1 = ax1.imshow(heatmap_data_benign, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax1.set_xticks(tick_positions)
-    ax1.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
+    ax1.set_xticklabels(tick_labels, fontsize=XTICK_SIZE)
     ax1.set_yticks([])
     ax1.set_title('Benign', fontsize=TITLE_SIZE, pad=TITLE_PAD)
 
@@ -647,7 +647,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     im2 = ax2.imshow(heatmap_data_cancer, cmap=custom_cmap, aspect='auto', 
                     interpolation='nearest', vmin=vmin, vmax=vmax)
     ax2.set_xticks(tick_positions)
-    ax2.set_xticklabels(tick_labels, rotation=45, ha='right', fontsize=XTICK_SIZE)
+    ax2.set_xticklabels(tick_labels, fontsize=XTICK_SIZE)
     ax2.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE)
     ax2.set_yticks([])
     ax2.set_title('Malignant', fontsize=TITLE_SIZE, pad=TITLE_PAD)
@@ -656,7 +656,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     plt.subplots_adjust(right=SUBPLOT_RIGHT, hspace=SUBPLOT_HSPACE)  
 
     # cbar_ax = plt.axes([0.87, 0.15, 0.01, 0.7])  
-    cbar = plt.colorbar(im1, ax=[ax1, ax2], orientation='vertical', aspect=30, pad=0.03)
+    cbar = plt.colorbar(im1, ax=[ax1, ax2], orientation='vertical', aspect=30, pad=0.07)
     cbar.set_label('Average SHAP value', rotation=270, labelpad=CBAR_LABELPAD, fontsize=CBAR_LABEL_SIZE)
     cbar.outline.set_edgecolor('black')
     cbar.outline.set_linewidth(1.2)
@@ -743,11 +743,11 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
             corr_matrix[i, j] = corr
             pval_matrix[i, j] = pval
 
-    print("\n强相关特征对 (|r| >= 0.5 且 p < 0.05):")
+    print("\n强相关特征对 (|r| >= 0.5 且 p < 0.01):")
     significant_pairs = []
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
-            if abs(corr_matrix[i, j]) >= 0.5 and pval_matrix[i, j] < 0.05:
+            if abs(corr_matrix[i, j]) >= 0.5 and pval_matrix[i, j] < 0.01:
                 pair_info = (
                     f"FTIR: {ftir_labels[i]} cm-1, "
                     f"MZ: {mz_labels[j]}, "
@@ -761,7 +761,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
         print("在给定阈值下未找到强相关特征对。")
 
     # 绘制热力图    
-    plt.figure(figsize=(12, 10)) 
+    plt.figure(figsize=(9, 8)) 
 
     # 按照标签数值对特征进行排序
     mz_labels_float = [float(l) for l in mz_labels]
@@ -1302,9 +1302,9 @@ for model_name, model_class in models_to_evaluate.items():
         ftir_all = np.vstack((ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
         mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
 
-        # 特征选择: 基于SHAP分析选择Top 30个特征
-        ftir_top_indices = np.argsort(ftir_shap_difference)[-30:]
-        mz_top_indices = np.argsort(mz_shap_difference)[-30:]
+        # 特征选择: 基于SHAP分析选择Top 20个特征
+        ftir_top_indices = np.argsort(ftir_shap_difference)[-20:]
+        mz_top_indices = np.argsort(mz_shap_difference)[-20:]
 
         create_correlation_heatmap(
             ftir_all,
