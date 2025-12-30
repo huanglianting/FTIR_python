@@ -186,16 +186,16 @@ def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, 
         plt.xlabel("t-SNE 1", fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
         plt.ylabel("t-SNE 2", fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
         handles, labels = scatter.get_legend_handles_labels()
-        plt.legend(
-            handles=handles,
-            labels=['Benign', 'Malignant'],  # 明确标签
-            # frameon=True,
-            # edgecolor='black',
-            # fancybox=False,  # 禁用圆角
-            # shadow=False,     # 禁用阴影
-            loc='best', 
-            fontsize=LEGEND_SIZE
-        )
+        # plt.legend(
+        #     handles=handles,
+        #     labels=['Benign', 'Malignant'],  # 明确标签
+        #     # frameon=True,
+        #     # edgecolor='black',
+        #     # fancybox=False,  # 禁用圆角
+        #     # shadow=False,     # 禁用阴影
+        #     loc='best', 
+        #     fontsize=LEGEND_SIZE
+        # )
         ax = plt.gca()
         for spine in ax.spines.values():
             spine.set_color('black')
