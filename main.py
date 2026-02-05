@@ -21,7 +21,7 @@ from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
-    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, CMACFBiModalModel
+    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF
 import shap
 from scipy.stats import spearmanr
 import seaborn as sns
@@ -1170,7 +1170,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     f"DEBUG: ftir_train_fold.shape = {ftir_train_fold.shape}")
 
             elif model_name == "BiModalCMACF":
-                model = CMACFBiModalModel(
+                model = BiModalCMACF(
                     ftir_input_dim=ftir_train_fold.shape[1],
                     mz_input_dim=mz_train_fold.shape[1])
                 writer = SummaryWriter(
@@ -1303,7 +1303,7 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "CMACFModel": CMACFBiModalModel,
+    "CMACFModel": BiModalCMACF,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
@@ -1399,7 +1399,7 @@ for model_name, model_class in models_to_evaluate.items():
         )
 
     elif model_name == "BiModalCMACF":
-        model = CMACFBiModalModel(
+        model = BiModalCMACF(
             ftir_input_dim=ftir_train.shape[1],
             mz_input_dim=mz_train.shape[1]
         )
