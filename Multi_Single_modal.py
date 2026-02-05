@@ -358,7 +358,7 @@ class SVMClassifier:
         return self.clf.decision_function(X)
 
 
-# 横向对比模型1:CMACF
+# --------------------------横向对比模型1:CMACF--------------------------
 class ModalityMLP(nn.Module):
     def __init__(self, input_dim, output_dim=70):  # 输出70维（论文统一模态维度）
         super(ModalityMLP, self).__init__()
@@ -456,10 +456,7 @@ class CrossModalFusion(nn.Module):
         return cross_feature
 
 
-# 看到这
 class BimodalMapping(nn.Module):
-    """阶段3：双模态特征映射（仅保留论文PrivateLinear，去掉相似性验证）"""
-
     def __init__(self, cross_dim=490, hidden_dim=20):  # hidden_dim=20（论文Table3）
         super(BimodalMapping, self).__init__()
         # 论文Eq.7：PrivateLinear私有非线性映射（降维+增强互补性）
@@ -471,52 +468,55 @@ class BimodalMapping(nn.Module):
     def forward(self, cross_feature):
         return self.private_linear(cross_feature)  # 输出：20维
 
-# -------------------------- 3. 完整双模态CMACF模型（论文四阶段框架）--------------------------
 
-
-class BiModalCMACF(nn.Module):
+class BiModalCMACF(nn.Module):      # 完整双模态CMACF模型
     def __init__(self, ftir_input_dim, mz_input_dim, num_classes=2):
         super(BiModalCMACF, self).__init__()
-        # 阶段1：模态内特征提取（论文3.1节）
+        # 阶段1：模态内特征提取
         self.ftir_mlp = ModalityMLP(ftir_input_dim, output_dim=70)
         self.mz_mlp = ModalityMLP(mz_input_dim, output_dim=70)
-
-        # 阶段2：跨模态注意力交叉融合（论文3.2节）
+        # 阶段2：跨模态注意力交叉融合
         self.cross_fusion = CrossModalFusion(dim=70)
-
-        # 阶段3：双模态特征映射（论文3.3节简化版，无相似性）
+        # 阶段3：双模态特征映射
         self.bimodal_mapping = BimodalMapping(cross_dim=70*70, hidden_dim=20)
-
-        # 阶段4：序列交互特征级融合+分类（论文3.4节）
+        # 阶段4：序列交互特征级融合+分类
+        # 对应论文BatchNorm1D（输入160=70+70+20）
+        self.batch_norm = nn.BatchNorm1d(160)
         self.bilstm = nn.LSTM(
-            input_size=70+70+20,  # 融合维度：FTIR(70)+MZ(70)+映射特征(20)
-            hidden_size=70,        # 论文Table3：LSTM隐藏层70维
+            input_size=160,  # 融合维度：FTIR(70)+MZ(70)+映射特征(20)，对应论文270维
+            hidden_size=70,    # 论文Table3：LSTM隐藏层70维（完全沿用）
             num_layers=1,
             bidirectional=True,    # 双向LSTM
             batch_first=True
         )
-        self.fc = nn.Linear(70*2, num_classes)  # 双向→140维，二分类输出
+        self.linear1 = nn.Linear(70*2, 70)  # 第一Linear：140（双向）→70（论文中间维度）
+        self.linear2 = nn.Linear(70, num_classes)  # 第二Linear：70→2（二分类，论文是70→3）
         self.softmax = nn.Softmax(dim=1)  # 论文Eq.14：softmax分类
 
     def forward(self, ftir, mz):
         # 阶段1：模态内特征提取（论文Eq.2）
         z1 = self.ftir_mlp(ftir)  # FTIR→70维
         z2 = self.mz_mlp(mz)      # MZ→70维
-
         # 阶段2：跨模态交叉融合（Transformer+克罗内克积，论文Eq.6）
         cross_feature = self.cross_fusion(z1, z2)  # 490维
-
         # 阶段3：双模态特征映射（论文Eq.7）
         mapped_feature = self.bimodal_mapping(cross_feature)  # 20维
-
-        # 阶段4：序列交互融合（论文Eq.10：特征拼接）
-        fusion = torch.cat([z1, z2, mapped_feature], dim=-
-                           1).unsqueeze(1)  # [batch, 1, 160]
-        lstm_output, _ = self.bilstm(fusion)
-        # 论文Eq.13：使用全时间步信息（展平所有时间步）
-        lstm_output = lstm_output.reshape(lstm_output.shape[0], -1)
-
-        # 分类（论文Eq.14）
-        output = self.fc(lstm_output)
+        # 阶段4：序列交互融合（完全对齐论文Table3流程）
+        # 步骤1：特征拼接（论文Eq.10）
+        fusion = torch.cat([z1, z2, mapped_feature], dim=-1)  # [batch, 160]
+        # 步骤2：BatchNorm1D（论文Table3首层）
+        fusion_bn = self.batch_norm(fusion)
+        # 步骤3：适配LSTM输入格式 [batch, seq_len, input_size]
+        fusion_bn = fusion_bn.unsqueeze(1)  # [batch, 1, 160]
+        # 步骤4：LSTM
+        lstm_output, _ = self.bilstm(fusion_bn)
+        # 步骤5：使用全时间步信息（论文Eq.13，展平）
+        lstm_output = lstm_output.reshape(
+            lstm_output.shape[0], -1)  # [batch, 140]
+        # 步骤6：第一个Linear层（论文Table3）
+        linear1_out = self.linear1(lstm_output)
+        # 步骤7：第二个Linear层（论文Table3）
+        output = self.linear2(linear1_out)
+        # 步骤8：Softmax（论文Eq.14）
         output = self.softmax(output)
         return output

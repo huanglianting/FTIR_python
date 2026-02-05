@@ -29,20 +29,20 @@ UNIFIED_STYLE = {
     'xtick.major.size': 5,
     'ytick.major.size': 5,
     'font.family': 'Arial',
-    'axes.unicode_minus': False  
+    'axes.unicode_minus': False
 }
-soft_blue = '#377EB8'  
-soft_red = '#E41A1C' 
+soft_blue = '#377EB8'
+soft_red = '#E41A1C'
 soft_green = '#4DAF4A'
 soft_gray = '#b1b1b1'
 TITLE_SIZE = 22
 TITLE_PAD = 12
-AXIS_LABEL_SIZE = 20 
+AXIS_LABEL_SIZE = 20
 LABEL_PAD = 12
-XTICK_SIZE = 16  
-YTICK_SIZE = 16  
+XTICK_SIZE = 16
+YTICK_SIZE = 16
 LEGEND_SIZE = 14
-PLOT_LINE_WIDTH = 2 
+PLOT_LINE_WIDTH = 2
 CBAR_LABEL_SIZE = 20
 CBAR_TICK_SIZE = 16
 CBAR_LABELPAD = 25
@@ -64,11 +64,13 @@ def select_most_similar_sample(group_data):
     most_similar_idx = np.argmax(avg_similarity)
     return sample_names[most_similar_idx], sample_values[:, most_similar_idx]
 
+
 # 将归一化丰度转换为强度百分比
 def normalize_to_intensity_percentage(abundance_values):
     max_abundance = np.max(abundance_values)
     intensity_percentage = (abundance_values / max_abundance) * 100
     return intensity_percentage
+
 
 # 绘制良恶性的 mz 强度百分比
 def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, save_path=".", title="Intensity Comparison"):
@@ -82,8 +84,9 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
         'cancer_intensity': normalize_to_intensity_percentage(cancer_abundance),
         'normal_intensity': normalize_to_intensity_percentage(normal_abundance)
     })
-    intensity_data.to_csv(os.path.join(save_path, 'intensity_comparison_input_data.csv'), index=False)
-    
+    intensity_data.to_csv(os.path.join(
+        save_path, 'intensity_comparison_input_data.csv'), index=False)
+
     # 转换为强度百分比
     cancer_intensity = normalize_to_intensity_percentage(cancer_abundance)
     normal_intensity = normalize_to_intensity_percentage(normal_abundance)
@@ -97,7 +100,8 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     ax.bar(common_mz + mz_offset, cancer_intensity, color=soft_red,
            alpha=0.7, label='Malignant', width=bar_width)
     ax.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    ax.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    ax.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE,
+                  labelpad=LABEL_PAD)
 
     # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
     # # 绘制良性样本
@@ -109,29 +113,29 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     #         alpha=0.7, label='Malignant', width=2.2)
     # ax2.set_xlabel('m/z', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
     # ax2.set_ylabel('Intensity (%)', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
-    
+
     # 设置统一样式
     ax.grid(False)
-    ax.legend(loc='upper right', fontsize=LEGEND_SIZE)  
+    ax.legend(loc='upper right', fontsize=LEGEND_SIZE)
     ax.set_xlim(min(common_mz), max(common_mz))
     for spine in ax.spines.values():
         spine.set_color('black')
         spine.set_linewidth(1.2)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.tick_params(axis='both', which='major', 
-               length=5, width=1, direction='out', labelsize=XTICK_SIZE)
+    ax.tick_params(axis='both', which='major',
+                   length=5, width=1, direction='out', labelsize=XTICK_SIZE)
     # # 设置统一样式
     # for ax in [ax1, ax2]:
     #     ax.grid(False)
-    #     ax.legend(loc='upper right', fontsize=LEGEND_SIZE)  
+    #     ax.legend(loc='upper right', fontsize=LEGEND_SIZE)
     #     ax.set_xlim(min(common_mz), max(common_mz))
     #     for spine in ax.spines.values():
     #         spine.set_color('black')
     #         spine.set_linewidth(1.2)
     #     ax.spines['top'].set_visible(False)
     #     ax.spines['right'].set_visible(False)
-    #     ax.tick_params(axis='both', which='major', 
+    #     ax.tick_params(axis='both', which='major',
     #                length=5, width=1, direction='out', labelsize=XTICK_SIZE)
 
     plt.tight_layout()

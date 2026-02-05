@@ -21,7 +21,7 @@ from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
-    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier
+    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, CMACFBiModalModel
 import shap
 from scipy.stats import spearmanr
 import seaborn as sns
@@ -888,9 +888,8 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
 
     print(f"\n相关性热力图已保存至 {heatmap_path}")
 
+
 # ==================数据增强====================================
-
-
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
     torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
     B, L = x.shape  # 批量大小和特征长度
@@ -1166,6 +1165,32 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     model_type=model_name
                 )
                 writer.close()
+                print(f"DEBUG: ftir_train.shape = {ftir_train.shape}")
+                print(
+                    f"DEBUG: ftir_train_fold.shape = {ftir_train_fold.shape}")
+
+            elif model_name == "BiModalCMACF":
+                model = CMACFBiModalModel(
+                    ftir_input_dim=ftir_train_fold.shape[1],
+                    mz_input_dim=mz_train_fold.shape[1])
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                trained_model, _, _, _, val_accs = train_main_model(
+                    model,
+                    ftir_train_fold, mz_train_fold, y_train_fold,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    epochs=100,
+                    batch_size=params['batch_size'],
+                    writer=writer,
+                    lr=params['lr'],
+                    weight_decay=params['weight_decay'],
+                    label_smoothing=params['label_smoothing'],
+                    scheduler_factor=params['scheduler_factor'],
+                    early_stop_patience=params['early_stop_patience'],
+                    model_type=model_name
+                )
+                writer.close()
 
             elif model_name == "FTIROnly":
                 model = SingleFTIRModel(ftir_train.shape[1])
@@ -1278,6 +1303,7 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
+    "CMACFModel": CMACFBiModalModel,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
@@ -1371,6 +1397,31 @@ for model_name, model_class in models_to_evaluate.items():
             mz_top_indices,
             save_path
         )
+
+    elif model_name == "BiModalCMACF":
+        model = CMACFBiModalModel(
+            ftir_input_dim=ftir_train.shape[1],
+            mz_input_dim=mz_train.shape[1]
+        )
+        writer = SummaryWriter(f'./runs/final_{model_name}')
+        trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
+            model,
+            ftir_train, mz_train, y_train,
+            ftir_test, mz_test, y_test,
+            ftir_x, mz_x,
+            epochs=100,
+            batch_size=params['batch_size'],
+            writer=writer,
+            lr=params['lr'],
+            weight_decay=params['weight_decay'],
+            label_smoothing=params['label_smoothing'],
+            scheduler_factor=params['scheduler_factor'],
+            early_stop_patience=params['early_stop_patience'],
+            model_type=model_name
+        )
+        writer.close()
+        metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train.shape[1])
