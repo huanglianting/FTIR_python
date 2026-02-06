@@ -1165,9 +1165,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     model_type=model_name
                 )
                 writer.close()
-                print(f"DEBUG: ftir_train.shape = {ftir_train.shape}")
-                print(
-                    f"DEBUG: ftir_train_fold.shape = {ftir_train_fold.shape}")
 
             elif model_name == "BiModalCMACF":
                 model = BiModalCMACF(
@@ -1193,7 +1190,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 writer.close()
 
             elif model_name == "FTIROnly":
-                model = SingleFTIRModel(ftir_train.shape[1])
+                model = SingleFTIRModel(ftir_train_fold.shape[1])
                 writer = SummaryWriter(
                     f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_single_modal_model(
@@ -1214,7 +1211,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 writer.close()
 
             elif model_name == "MZOnly":
-                model = SingleMZModel(mz_train.shape[1])
+                model = SingleMZModel(mz_train_fold.shape[1])
                 writer = SummaryWriter(
                     f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_single_modal_model(
@@ -1302,7 +1299,7 @@ params = {
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    "MultiModal": MultiModalModel,
+    # "MultiModal": MultiModalModel,
     "CMACFModel": BiModalCMACF,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
