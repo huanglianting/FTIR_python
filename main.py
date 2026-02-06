@@ -1144,8 +1144,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
             print(f"训练集标签分布: {np.bincount(y_train_fold)}")
             print(f"验证集标签分布: {np.bincount(y_val_fold)}")
 
-            val_accs = []
-
             if model_name == "MultiModal":
                 model = MultiModalModel(
                     ftir_train_fold.shape[1], mz_train_fold.shape[1])

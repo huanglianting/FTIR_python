@@ -493,7 +493,7 @@ class BiModalCMACF(nn.Module):      # 完整双模态CMACF模型
         self.linear2 = nn.Linear(70, num_classes)  # 第二Linear：70→2（二分类，论文是70→3）
         self.softmax = nn.Softmax(dim=1)  # 论文Eq.14：softmax分类
 
-    def forward(self, ftir, mz):
+    def forward(self, ftir, mz, ftir_axis=None, mz_axis=None):
         # 阶段1：模态内特征提取（论文Eq.2）
         z1 = self.ftir_mlp(ftir)  # FTIR→70维
         z2 = self.mz_mlp(mz)      # MZ→70维
