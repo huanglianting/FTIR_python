@@ -457,7 +457,7 @@ class CrossModalFusion(nn.Module):
 
 
 class BimodalMapping(nn.Module):
-    def __init__(self, cross_dim=490, hidden_dim=20):  # hidden_dim=20（论文Table3）
+    def __init__(self, cross_dim=4900, hidden_dim=20):  # hidden_dim=20（论文Table3）
         super(BimodalMapping, self).__init__()
         # 论文Eq.7：PrivateLinear私有非线性映射（降维+增强互补性）
         self.private_linear = nn.Sequential(
