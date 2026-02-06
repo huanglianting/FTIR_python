@@ -358,7 +358,7 @@ class SVMClassifier:
         return self.clf.decision_function(X)
 
 
-# --------------------------横向对比模型1:CMACF--------------------------
+# --------------------------横向对比模型1:zhou2024cmacf--------------------------
 class ModalityMLP(nn.Module):
     def __init__(self, input_dim, output_dim=70):  # 输出70维（论文统一模态维度）
         super(ModalityMLP, self).__init__()

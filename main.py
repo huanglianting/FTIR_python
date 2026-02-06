@@ -772,9 +772,8 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
 
     return shap_difference
 
+
 # 计算选定的FTIR和MZ特征之间的Spearman相关性并绘制热力图
-
-
 def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, mz_indices, save_path):
     selected_ftir_data = ftir_data[:, ftir_indices]
     selected_mz_data = mz_data[:, mz_indices]
@@ -1100,14 +1099,24 @@ n_splits = 4
 # 确保同一患者所有样本在同一折
 sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
+# 超参数（通过网格搜索确定）
 param_grid = {
-    'lr': [3e-4],
-    'weight_decay': [1e-4],
-    'batch_size': [32],
+    'lr': [3e-4, 2e-4],
+    'weight_decay': [1e-4, 1e-5],
+    'batch_size': [32, 64],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [15]
+    'early_stop_patience': [10, 15]
 }
+# param_grid = {
+#     'lr': [3e-4],
+#     'weight_decay': [1e-4],
+#     'batch_size': [32],
+#     'label_smoothing': [0.1],
+#     'scheduler_factor': [0.5],
+#     'early_stop_patience': [15]
+# }
+
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1177,7 +1186,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_train_fold, mz_train_fold, y_train_fold,
                     ftir_val_fold, mz_val_fold, y_val_fold,
                     ftir_axis, mz_axis,
-                    epochs=100,
+                    # epochs=100,
+                    epochs=50,
                     batch_size=params['batch_size'],
                     writer=writer,
                     lr=params['lr'],
@@ -1279,23 +1289,14 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
     return pd.DataFrame(results)
 
 
-# 超参数（通过网格搜索确定）
-# param_grid = {
-#     'lr': [3e-4, 2e-4],
-#     'weight_decay': [1e-4, 1e-5],
-#     'batch_size': [32, 64],
-#     'label_smoothing': [0.1],
-#     'scheduler_factor': [0.5],
-#     'early_stop_patience': [10, 15]
+# params = {
+#     'lr': 3e-4,
+#     'weight_decay': 1e-4,
+#     'batch_size': 32,
+#     'label_smoothing': 0.1,
+#     'scheduler_factor': 0.5,
+#     'early_stop_patience': 15
 # }
-params = {
-    'lr': 3e-4,
-    'weight_decay': 1e-4,
-    'batch_size': 32,
-    'label_smoothing': 0.1,
-    'scheduler_factor': 0.5,
-    'early_stop_patience': 15
-}
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
@@ -1341,8 +1342,8 @@ for model_type in all_results_df['model_type'].unique():
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
-# for model_name, params in best_params_per_model.items():
-for model_name, model_class in models_to_evaluate.items():
+# for model_name, model_class in models_to_evaluate.items():
+for model_name, params in best_params_per_model.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
         model = MultiModalModel(
