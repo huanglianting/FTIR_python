@@ -1144,6 +1144,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
             print(f"训练集标签分布: {np.bincount(y_train_fold)}")
             print(f"验证集标签分布: {np.bincount(y_val_fold)}")
 
+            val_accs = []
+
             if model_name == "MultiModal":
                 model = MultiModalModel(
                     ftir_train_fold.shape[1], mz_train_fold.shape[1])
@@ -1300,7 +1302,7 @@ params = {
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     # "MultiModal": MultiModalModel,
-    "CMACFModel": BiModalCMACF,
+    "BiModalCMACF": BiModalCMACF,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
