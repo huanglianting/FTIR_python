@@ -452,7 +452,8 @@ class CrossModalFusion(nn.Module):
         a1 = single_head_transformer(z1)
         a2 = single_head_transformer(z2)
         # 步骤2：论文Eq.6：克罗内克积构建双模态特征对（IM特征对）
-        cross_feature = torch.kron(a1, a2)  # 输出：70×70=490维（匹配Table3输入）
+        cross_feature = torch.kron(
+            a1.unsqueeze(-1), a2.unsqueeze(-1)).view(a1.size(0), -1)  # [B, 70*70=4900]
         return cross_feature
 
 
