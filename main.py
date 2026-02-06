@@ -1314,32 +1314,32 @@ models_to_evaluate = {
     # "SVM": SVMClassifier
 }
 
-# all_model_dfs = []
-# for model_name, model_class in models_to_evaluate.items():
-#     print(f"\n\n 开始评估模型: {model_name}")
-#     if model_name == "SVM":
-#         pass
-#     else:
-#         df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
-#                                        ftir_x, mz_x, patient_indices_train, param_grid)
-#     all_model_dfs.append(df)
-#     # 合并所有模型结果
-#     all_results_df = pd.concat(all_model_dfs, ignore_index=True)
-#     all_results_df.to_csv(os.path.join(
-#         save_path, 'all_models_grid_search_results.csv'), index=False)
-#     print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
+all_model_dfs = []
+for model_name, model_class in models_to_evaluate.items():
+    print(f"\n\n 开始评估模型: {model_name}")
+    if model_name == "SVM":
+        pass
+    else:
+        df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
+                                       ftir_x, mz_x, patient_indices_train, param_grid)
+    all_model_dfs.append(df)
+    # 合并所有模型结果
+    all_results_df = pd.concat(all_model_dfs, ignore_index=True)
+    all_results_df.to_csv(os.path.join(
+        save_path, 'all_models_grid_search_results.csv'), index=False)
+    print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
 
-# # 加载 Grid Search 结果
-# all_results_df = pd.read_csv(os.path.join(
-#     save_path, 'all_models_grid_search_results.csv'))
-# # 找出每个模型的最佳参数（按 avg_accuracy）
-# best_params_per_model = {}
-# for model_type in all_results_df['model_type'].unique():
-#     df_model = all_results_df[all_results_df['model_type'] == model_type]
-#     best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
-#     best_params = eval(best_row['params'])
-#     best_params_per_model[model_type] = best_params
-#     print(f"[{model_type}] 最佳参数: {best_params}")
+# 加载 Grid Search 结果
+all_results_df = pd.read_csv(os.path.join(
+    save_path, 'all_models_grid_search_results.csv'))
+# 找出每个模型的最佳参数（按 avg_accuracy）
+best_params_per_model = {}
+for model_type in all_results_df['model_type'].unique():
+    df_model = all_results_df[all_results_df['model_type'] == model_type]
+    best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
+    best_params = eval(best_row['params'])
+    best_params_per_model[model_type] = best_params
+    print(f"[{model_type}] 最佳参数: {best_params}")
 
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
