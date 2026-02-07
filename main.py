@@ -21,7 +21,7 @@ from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
-    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF
+    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF
 import shap
 from scipy.stats import spearmanr
 import seaborn as sns
@@ -181,10 +181,9 @@ class EarlyStopping:
         torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
 
+
 # ==================可解释性分析====================================
 # 只对 FTIR 做 Gradient SHAP 分析，生成一维热力图
-
-
 def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test):
 
     model.eval()
@@ -465,9 +464,8 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
 
     return shap_difference
 
+
 # 只对 MZ 做 Gradient SHAP 分析，生成一维热力图
-
-
 def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test, patient_indices_train, patient_indices_test):
 
     model.eval()
@@ -1104,9 +1102,9 @@ param_grid = {
     'lr': [3e-4],
     'weight_decay': [1e-4],
     'batch_size': [32],
-    'label_smoothing': [0.1, 0.05],
+    'label_smoothing': [0.05],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [10, 15]
+    'early_stop_patience': [10]
 }
 
 # param_grid = {
@@ -1187,8 +1185,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_train_fold, mz_train_fold, y_train_fold,
                     ftir_val_fold, mz_val_fold, y_val_fold,
                     ftir_axis, mz_axis,
-                    # epochs=100,
-                    epochs=50,
+                    epochs=100,
+                    # epochs=50,
                     batch_size=params['batch_size'],
                     writer=writer,
                     lr=params['lr'],

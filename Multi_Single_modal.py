@@ -524,3 +524,111 @@ class BiModalCMACF(nn.Module):      # 完整双模态CMACF模型
         # 步骤8：Softmax（论文Eq.14）
         output = self.softmax(output)
         return output
+
+
+# --------------------------横向对比模型2:chen2024diagnosis--------------------------
+# 2.1 独立深度自编码器（论文2.3节）：将高维IR/Met映射到统一低维L=70
+class IndependentDeepAutoencoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim=70, dropout=0.25):
+        super().__init__()
+        # 编码器：输入维度→隐藏层→低维表示L=70（论文3层非线性变换）
+        self.encoder = nn.Sequential(
+            nn.BatchNorm1d(input_dim),  # 论文的归一化
+            nn.Dropout(dropout),
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        z = self.encoder(x)  # 低维表示 (batch, L)
+        return z
+
+
+# 2.2 跨模态特定迁移融合模块（论文2.4节）：Specific Network + Common Network + 拼接融合
+class CrossModalSpecificTransferFusion(nn.Module):
+    def __init__(self, latent_dim=70, spec_dim=35, comm_dim=70):
+        super().__init__()
+        # 2.2.1 Specific Network：提取单模态特有特征 (L→K=35)
+        self.ir_specific = nn.Sequential(
+            nn.Linear(latent_dim, spec_dim), nn.ReLU())
+        self.met_specific = nn.Sequential(
+            nn.Linear(latent_dim, spec_dim), nn.ReLU())
+        # 2.2.2 Common Network：提取跨模态共有特征 (2L→N=70)（论文2.4.2节）
+        self.common = nn.Sequential(
+            nn.Linear(2 * latent_dim, 2 * comm_dim),
+            nn.ReLU(),
+            nn.Linear(2 * comm_dim, comm_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, ir_z, met_z):
+        # 1. 提取特有特征
+        ir_spec = self.ir_specific(ir_z)  # (batch, K)
+        met_spec = self.met_specific(met_z)  # (batch, K)
+        # 2. 提取共有特征并切分（论文公式9/10）
+        comm_input = torch.cat([ir_z, met_z], dim=1)  # (batch, 2L)
+        comm_feat = self.common(comm_input)  # (batch, N=L)
+        # 线性切分共有特征为IR/Met部分（论文2.4.3节）
+        ir_comm, met_comm = torch.chunk(
+            comm_feat, 2, dim=1)  # 各(batch, L/2)
+        # 3. 迁移特征融合：VI^T = VI^C ⊕ VM^S ; VM^T = VM^C ⊕ VI^S（论文公式9/10）
+        ir_transfer = torch.cat([ir_comm, met_spec], dim=1)  # (batch, L)
+        met_transfer = torch.cat([met_comm, ir_spec], dim=1)  # (batch, L)
+        return ir_transfer, met_transfer
+
+
+# 2.3 决策层融合模块（论文2.5节）：迁移特征→分类器→结果平均
+class DecisionLevelFusion(nn.Module):
+    def __init__(self, latent_dim=70, num_classes=2, dropout=0.25):
+        super().__init__()
+
+        # 解码器：Dropout + 两层FC(70)+ReLU ；分类器：一层FC+Softmax（公式11）
+        def build_modal_branch():
+            return nn.Sequential(
+                nn.Dropout(dropout),
+                nn.Linear(latent_dim, latent_dim),
+                nn.ReLU(),
+                nn.Linear(latent_dim, latent_dim),
+                nn.ReLU(),
+                nn.Linear(latent_dim, num_classes),
+                nn.Softmax(dim=1)
+            )
+
+        # 红外光谱/代谢组学 独立分支（权重不共享，贴合论文）
+        self.ir_branch = build_modal_branch()    # IR的Decoder+Classifier
+        self.met_branch = build_modal_branch()   # Met的Decoder+Classifier
+
+    def forward(self, ir_transfer, met_transfer):
+        # 单模态独立推理：Decoder+Classifier → 得到Softmax概率（公式11）
+        ir_prob = self.ir_branch(ir_transfer)    # (batch, C)
+        met_prob = self.met_branch(met_transfer)  # (batch, C)
+        # 决策层融合：算术平均概率（公式12，论文核心要求）
+        final_prob = (ir_prob + met_prob) / 2
+        return final_prob
+
+
+# 2.4 CMSTF主模型（整合所有模块，论文核心框架）
+class CMSTF(nn.Module):
+    def __init__(self, ir_dim, met_dim):
+        super().__init__()
+        # 1. 独立深度自编码器
+        self.ir_ae = IndependentDeepAutoencoder(ir_dim)
+        self.met_ae = IndependentDeepAutoencoder(met_dim)
+        # 2. 跨模态特定迁移融合
+        self.cmstf = CrossModalSpecificTransferFusion()
+        # 3. 决策层融合
+        self.dlf = DecisionLevelFusion()
+
+    def forward(self, ir_x, met_x):
+        # 步骤1：自编码器提取低维表示
+        ir_z = self.ir_ae(ir_x)
+        met_z = self.met_ae(met_x)
+        # 步骤2：跨模态迁移融合
+        ir_transfer, met_transfer = self.cmstf(ir_z, met_z)
+        # 步骤3：决策层融合得到最终预测
+        final_logits = self.dlf(ir_transfer, met_transfer)
+        return final_logits
