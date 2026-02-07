@@ -1102,7 +1102,7 @@ param_grid = {
     'lr': [3e-4],
     'weight_decay': [1e-4],
     'batch_size': [32],
-    'label_smoothing': [0.05],
+    'label_smoothing': [0.05, 0.1],
     'scheduler_factor': [0.5],
     'early_stop_patience': [10]
 }
@@ -1178,6 +1178,30 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 model = BiModalCMACF(
                     ftir_input_dim=ftir_train_fold.shape[1],
                     mz_input_dim=mz_train_fold.shape[1])
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                trained_model, _, _, _, val_accs = train_main_model(
+                    model,
+                    ftir_train_fold, mz_train_fold, y_train_fold,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    # epochs=100,
+                    epochs=50,
+                    batch_size=params['batch_size'],
+                    writer=writer,
+                    lr=params['lr'],
+                    weight_decay=params['weight_decay'],
+                    label_smoothing=params['label_smoothing'],
+                    scheduler_factor=params['scheduler_factor'],
+                    early_stop_patience=params['early_stop_patience'],
+                    model_type=model_name
+                )
+                writer.close()
+
+            elif model_name == "CMSTF":
+                model = CMSTF(
+                    ir_dim=ftir_train_fold.shape[1],
+                    met_dim=mz_train_fold.shape[1])
                 writer = SummaryWriter(
                     f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_main_model(
@@ -1301,6 +1325,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 models_to_evaluate = {
     # "MultiModal": MultiModalModel,
     "BiModalCMACF": BiModalCMACF,
+    # "CMSTF": CMSTF,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
@@ -1399,6 +1424,31 @@ for model_name, params in best_params_per_model.items():
         model = BiModalCMACF(
             ftir_input_dim=ftir_train.shape[1],
             mz_input_dim=mz_train.shape[1]
+        )
+        writer = SummaryWriter(f'./runs/final_{model_name}')
+        trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
+            model,
+            ftir_train, mz_train, y_train,
+            ftir_test, mz_test, y_test,
+            ftir_x, mz_x,
+            epochs=100,
+            batch_size=params['batch_size'],
+            writer=writer,
+            lr=params['lr'],
+            weight_decay=params['weight_decay'],
+            label_smoothing=params['label_smoothing'],
+            scheduler_factor=params['scheduler_factor'],
+            early_stop_patience=params['early_stop_patience'],
+            model_type=model_name
+        )
+        writer.close()
+        metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
+
+    elif model_name == "CMSTF":
+        model = CMSTF(
+            ir_dim=ftir_train.shape[1],
+            met_dim=mz_train.shape[1]
         )
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
