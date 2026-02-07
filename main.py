@@ -1101,11 +1101,11 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 # 超参数（通过网格搜索确定）
 param_grid = {
-    'lr': [1e-3, 3e-4, 2e-4],
-    'weight_decay': [1e-3, 1e-4, 1e-5],
-    'batch_size': [32, 64],
+    'lr': [3e-4],
+    'weight_decay': [1e-4],
+    'batch_size': [32],
     'label_smoothing': [0.1, 0.05],
-    'scheduler_factor': [0.5, 0.2],
+    'scheduler_factor': [0.5],
     'early_stop_patience': [10, 15]
 }
 
