@@ -623,7 +623,7 @@ class CMSTF(nn.Module):
         # 3. 决策层融合
         self.dlf = DecisionLevelFusion()
 
-    def forward(self, ir_x, met_x):
+    def forward(self, ir_x, met_x, ir_axis=None, met_axis=None):
         # 步骤1：自编码器提取低维表示
         ir_z = self.ir_ae(ir_x)
         met_z = self.met_ae(met_x)
