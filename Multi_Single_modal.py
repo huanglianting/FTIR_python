@@ -604,6 +604,16 @@ class DecisionLevelFusion(nn.Module):
         self.ir_branch = build_modal_branch()    # IR的Decoder+Classifier
         self.met_branch = build_modal_branch()   # Met的Decoder+Classifier
 
+        # 关键：初始化权重，使初始预测接近均匀分布
+        for layer in self.ir_branch:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.xavier_uniform_(layer.weight)
+                torch.nn.init.constant_(layer.bias, 0)
+        for layer in self.met_branch:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.xavier_uniform_(layer.weight)
+                torch.nn.init.constant_(layer.bias, 0)
+
     def forward(self, ir_transfer, met_transfer):
         # 单模态独立推理：Decoder+Classifier → 得到Softmax概率（公式11）
         ir_prob = self.ir_branch(ir_transfer)    # (batch, C)
@@ -673,17 +683,10 @@ class PLSExtractor:
 
 # 2. MFCNN 核心模型
 class MFCNN_FeatureFusion(nn.Module):
-    def __init__(self, num_classes: int = 4, latent_dim: int = 54, dropout: float = 0.5):
-        """
-        多尺度卷积融合神经网络（MFCNN），论文表3(A)/图1(A)
-        :param num_classes: 分类数，论文为4（健康/NSCLC/胶质瘤/食管癌）
-        :param latent_dim: 特征融合后输入维度，论文为54（拉曼48+FTIR6）
-        :param dropout: 全连接层Dropout，论文为0.5
-        """
+    def __init__(self, num_classes=2, latent_dim=54, dropout=0.5):
         super().__init__()
         self.in_channels = 1  # 光谱为单通道1D序列
         self.filters = 64     # 论文固定滤波器数量64
-
         # 尺度1：1*1卷积 + BN + LeakyReLU + MaxPool1d(2)（First-Conv-1D）
         self.scale1 = nn.Sequential(
             nn.Conv1d(self.in_channels, self.filters,
@@ -722,7 +725,7 @@ class MFCNN_FeatureFusion(nn.Module):
         # 尺度4：直接MaxPool1d(2)（提取全局特征，Forth-Conv-1D）
         self.scale4 = nn.MaxPool1d(kernel_size=2, stride=2, padding='same')
 
-        # 计算拼接后特征维度，适配任意latent_dim
+        # here,计算拼接后特征维度，适配任意latent_dim
         self.fc_in_dim = (self.filters * 3 +
                           self.in_channels) * (latent_dim // 2)
         # 全连接分类头（论文：Dense2048 + Dropout0.5 + 分类层）
