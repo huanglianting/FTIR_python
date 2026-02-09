@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 from sklearn.svm import SVC
 import numpy as np
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.preprocessing import MinMaxScaler
 import cv2
 
 # ==================模块定义====================================
@@ -635,76 +637,41 @@ class CMSTF(nn.Module):
 
 
 # --------------------------横向对比模型3:leng2023raman--------------------------
-# 1. PLS特征提取模块（论文核心，适配光谱分类/特征融合）
+# 1. PLS特征提取模块
 class PLSExtractor:
-    """
-    PLS特征提取器（PLS-DA，适配光谱分类任务，论文3.2/3.3节）
-    基于sklearn.PLSRegression实现，支持按解释方差>阈值自动选维度/指定维度
-    用于：拉曼/FTIR单模态特征提取、低层次融合后特征提取
-    """
-
-    def __init__(self, var_threshold: float = 0.95, n_components: Optional[int] = None):
-        """
-        :param var_threshold: 累计解释方差阈值，论文为0.95，优先用此自动选维度
-        :param n_components: 手动指定提取维度，若为None则按var_threshold自动选择
-        """
-        self.var_threshold = var_threshold
-        self.n_components = n_components
-        self.pls = None
-        self.scaler = MinMaxScaler(feature_range=(0, 1))  # 论文Min-Max归一化
-        self.selected_dim: int = -1  # 实际提取的维度
-        self.explained_var: float = 0.0  # 实际累计解释方差
-
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "PLSExtractor":
-        """
-        拟合PLS模型（先归一化，再PLS）
-        :param X: 输入数据 (n_samples, n_features)，光谱原始数据/融合数据
-        :param y: 标签 (n_samples,)，用于PLS-DA分类导向的特征提取
-        :return: 自身
-        """
-        # 步骤1：Min-Max归一化（匹配论文3.数据处理）
-        X_scaled = self.scaler.fit_transform(X)
-        # 步骤2：初始化PLS，若未指定维度则用最大维度拟合以计算解释方差
-        max_comp = min(X_scaled.shape[0]-1, X_scaled.shape[1])
+    def __init__(self, n_components):
+        # n_components: PLS提取维度（论文固定值：拉曼48/FTIR6/低层次融合37）
+        self.n_components = n_components  # 论文固定维度，必传，无默认值（避免误用）
+        self.scaler = MinMaxScaler(feature_range=(0, 1))  # 论文强制MinMax归一化到[0,1]
         self.pls = PLSRegression(
-            n_components=max_comp, scale=False)  # 已手动归一化，scale=False
-        self.pls.fit(X_scaled, y)
-        # 步骤3：按累计解释方差选择维度
-        if self.n_components is None:
-            cum_var = np.cumsum(self.pls.explained_variance_ratio_)
-            self.selected_dim = np.argmax(cum_var >= self.var_threshold) + 1
-            self.explained_var = cum_var[self.selected_dim - 1]
-        else:
-            self.selected_dim = self.n_components
-            self.explained_var = np.cumsum(self.pls.explained_variance_ratio_)[
-                self.selected_dim - 1]
-        # 步骤4：用选定维度重新拟合PLS
-        self.pls = PLSRegression(n_components=self.selected_dim, scale=False)
-        self.pls.fit(X_scaled, y)
-        print(
-            f"PLS拟合完成 | 提取维度：{self.selected_dim} | 累计解释方差：{self.explained_var:.4f}")
+            n_components=self.n_components, scale=False)  # 已手动归一化，scale=False
+
+    def fit(self, X: np.ndarray, y: np.ndarray):
+        """
+        拟合PLS（先归一化，再PLS，严格按论文步骤）
+        :param X: 输入数据 (n_samples, n_features) 光谱原始数据/融合数据
+        :param y: 标签 (n_samples,) 论文用于PLS-DA分类导向的特征提取
+        """
+        X_scaled = self.scaler.fit_transform(X)  # 论文第一步：MinMax归一化
+        self.pls.fit(X_scaled, y)  # 论文第二步：固定维度PLS拟合
+        print(f"PLS拟合完成（论文指定维度）| 提取维度：{self.n_components}")
         return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """
-        特征变换（先归一化，再PLS降维）
-        :param X: 输入数据 (n_samples, n_features)
-        :return: PLS降维后特征 (n_samples, selected_dim)
+        PLS特征变换（先归一化，再变换，严格按论文步骤）
+        :return: PLS降维后特征 (n_samples, n_components)
         """
-        if self.pls is None:
-            raise ValueError("PLS模型未拟合，请先调用fit()方法")
         X_scaled = self.scaler.transform(X)
-        X_pls = self.pls.transform(X_scaled)
-        return X_pls
+        return self.pls.transform(X_scaled)
 
     def fit_transform(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
-        """拟合+变换"""
+        """拟合+变换，论文常用调用方式"""
         self.fit(X, y)
         return self.transform(X)
 
-# ===================== 2. MFCNN 核心模型（特征融合输入：拉曼PLS48+FTIRPLS6=54维）=====================
 
-
+# 2. MFCNN 核心模型
 class MFCNN_FeatureFusion(nn.Module):
     def __init__(self, num_classes: int = 4, latent_dim: int = 54, dropout: float = 0.5):
         """
@@ -782,9 +749,8 @@ class MFCNN_FeatureFusion(nn.Module):
         final_prob = self.fc_head(fusion_feat)
         return final_prob
 
-# ===================== 3. CNN-LSTM 核心模型（低层次融合输入：原始拼接3880维→PLS37维）=====================
 
-
+# 3. CNN-LSTM 核心模型（低层次融合输入：原始拼接3880维→PLS37维）
 class CNN_LSTM_LowLevelFusion(nn.Module):
     def __init__(self, num_classes: int = 4, raw_fusion_dim: int = 37, lstm_hid: int = 64, dropout: float = 0.2):
         """
