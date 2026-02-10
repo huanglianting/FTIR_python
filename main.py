@@ -1104,7 +1104,7 @@ param_grid = {
     'batch_size': [32, 64],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [10]
+    'early_stop_patience': [10, 15]
 }
 
 # param_grid = {
@@ -1324,8 +1324,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     # "MultiModal": MultiModalModel,
-    # "BiModalCMACF": BiModalCMACF,
-    "CMSTF": CMSTF,
+    "BiModalCMACF": BiModalCMACF,
+    # "CMSTF": CMSTF,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,

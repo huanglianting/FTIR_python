@@ -498,6 +498,24 @@ class BiModalCMACF(nn.Module):      # 完整双模态CMACF模型
         self.linear1 = nn.Linear(70*2, 70)  # 第一Linear：140（双向）→70（论文中间维度）
         self.linear2 = nn.Linear(70, num_classes)  # 第二Linear：70→2（二分类，论文是70→3）
         self.softmax = nn.Softmax(dim=1)  # 论文Eq.14：softmax分类
+        # 关键：添加更好的权重初始化
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        """初始化权重以提高收敛性"""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                # 使用 Xavier 初始化
+                torch.nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    torch.nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LSTM):
+                # LSTM权重初始化
+                for name, param in module.named_parameters():
+                    if 'weight' in name:
+                        torch.nn.init.xavier_uniform_(param)
+                    elif 'bias' in name:
+                        torch.nn.init.constant_(param, 0)
 
     def forward(self, ftir, mz, ftir_axis=None, mz_axis=None):
         # 阶段1：模态内特征提取（论文Eq.2）
@@ -809,14 +827,6 @@ class CNN_LSTM(nn.Module):
 
 # ===================== 4. 测试示例（PLS+模型调用，适配你的数据流程）=====================
 # if __name__ == "__main__":
-#     # 设备自动适配
-#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#     # 模拟论文维度数据：拉曼3000维，FTIR880维，标签4类，批次8
-#     batch_size = 8
-#     raman_raw = np.random.randn(100, 3000)  # (n_samples, 3000)
-#     ftir_raw = np.random.randn(100, 880)   # (n_samples, 880)
-#     y = np.random.randint(0, 4, size=100)   # 4类标签
-
 #     # -------------------- PLS特征提取：匹配论文3.2/3.3节 --------------------
 #     # 1. 特征融合PLS：拉曼单独提48维 + FTIR单独提6维（手动指定维度，匹配论文）
 #     pls_raman = PLSExtractor(n_components=48)  # 拉曼PLS48
