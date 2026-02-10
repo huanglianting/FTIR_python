@@ -7,10 +7,9 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.preprocessing import MinMaxScaler
 import cv2
 
+
 # ==================模块定义====================================
 # 定义模态特征提取的分支
-
-
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()

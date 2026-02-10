@@ -1231,17 +1231,21 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     n_components=6, scale=False)  # FTIR提取6维
                 ftir_train_scaled = ftir_scaler.fit_transform(
                     ftir_train_fold.numpy())
-                ftir_train_pls = ftir_pls.fit_transform(ftir_train_scaled)
+                ftir_train_pls = ftir_pls.fit_transform(
+                    ftir_train_scaled, y_train_fold.numpy())
                 mz_scaler = MinMaxScaler(feature_range=(0, 1))
                 mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
                 mz_train_scaled = mz_scaler.fit_transform(
                     mz_train_fold.numpy())
-                mz_train_pls = mz_pls.fit_transform(mz_train_scaled)
+                mz_train_pls = mz_pls.fit_transform(
+                    mz_train_scaled, y_train_fold.numpy())
                 # 验证集也需要转换
                 ftir_val_scaled = ftir_scaler.transform(ftir_val_fold.numpy())
-                ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
+                ftir_val_pls = ftir_pls.transform(
+                    ftir_val_scaled, y_val_fold.numpy())
                 mz_val_scaled = mz_scaler.transform(mz_val_fold.numpy())
-                mz_val_pls = mz_pls.transform(mz_val_scaled)
+                mz_val_pls = mz_pls.transform(
+                    mz_val_scaled, y_val_fold.numpy())
                 # 拼接特征
                 train_features = np.hstack(
                     [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1277,9 +1281,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 scaler = MinMaxScaler(feature_range=(0, 1))
                 pls = PLSRegression(n_components=37, scale=False)
                 train_scaled = scaler.fit_transform(train_concat)
-                train_pls = pls.fit_transform(train_scaled)
+                train_pls = pls.fit_transform(
+                    train_scaled, y_train_fold.numpy())
                 val_scaled = scaler.transform(val_concat)
-                val_pls = pls.transform(val_scaled)
+                val_pls = pls.transform(val_scaled, y_val_fold.numpy())
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
                 writer = SummaryWriter(
@@ -1447,17 +1452,26 @@ for model_type in all_results_df['model_type'].unique():
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
 training_history = {}
+# 创建最终训练时的验证集划分器（4折取1折作为验证集）
+sgkf_final = StratifiedGroupKFold(n_splits=4, shuffle=True, random_state=42)
+# 对原始训练数据划分新的训练集和验证集（按患者分组）
+train_idx, val_idx = next(sgkf_final.split(
+    ftir_train, y_train, groups=patient_indices_train))
+ftir_train_final, ftir_val_final = ftir_train[train_idx], ftir_train[val_idx]
+mz_train_final, mz_val_final = mz_train[train_idx], mz_train[val_idx]
+y_train_final, y_val_final = y_train[train_idx], y_train[val_idx]
+
 # for model_name, model_class in models_to_evaluate.items():
 for model_name, params in best_params_per_model.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
         model = MultiModalModel(
-            ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
+            ftir_input_dim=ftir_train_final.shape[1], mz_input_dim=mz_train_final.shape[1])
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
-            ftir_train, mz_train, y_train,
-            ftir_test, mz_test, y_test,
+            ftir_train_final, mz_train_final, y_train_final,
+            ftir_val_final, mz_val_final, y_val_final,
             ftir_x, mz_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1472,7 +1486,7 @@ for model_name, params in best_params_per_model.items():
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
-
+        """
         # SHAP分析函数
         ftir_shap_difference = perform_ftir_shap_analysis(
             model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
@@ -1481,16 +1495,13 @@ for model_name, params in best_params_per_model.items():
             model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test,
             patient_indices_train, patient_indices_test
         )
-
         # Spearman 相关性分析和热图
         ftir_all = np.vstack(
             (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
         mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
-
         # 特征选择: 基于SHAP分析选择Top 20个特征
         ftir_top_indices = np.argsort(ftir_shap_difference)[-20:]
         mz_top_indices = np.argsort(mz_shap_difference)[-20:]
-
         create_correlation_heatmap(
             ftir_all,
             mz_all,
@@ -1500,17 +1511,18 @@ for model_name, params in best_params_per_model.items():
             mz_top_indices,
             save_path
         )
+        """
 
     elif model_name == "BiModalCMACF":
         model = BiModalCMACF(
-            ftir_input_dim=ftir_train.shape[1],
-            mz_input_dim=mz_train.shape[1]
+            ftir_input_dim=ftir_train_final.shape[1],
+            mz_input_dim=mz_train_final.shape[1]
         )
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
-            ftir_train, mz_train, y_train,
-            ftir_test, mz_test, y_test,
+            ftir_train_final, mz_train_final, y_train_final,
+            ftir_val_final, mz_val_final, y_val_final,
             ftir_x, mz_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1528,14 +1540,14 @@ for model_name, params in best_params_per_model.items():
 
     elif model_name == "CMSTF":
         model = CMSTF(
-            ir_dim=ftir_train.shape[1],
-            met_dim=mz_train.shape[1]
+            ir_dim=ftir_train_final.shape[1],
+            met_dim=mz_train_final.shape[1]
         )
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
-            ftir_train, mz_train, y_train,
-            ftir_test, mz_test, y_test,
+            ftir_train_final, mz_train_final, y_train_final,
+            ftir_val_final, mz_val_final, y_val_final,
             ftir_x, mz_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1557,16 +1569,17 @@ for model_name, params in best_params_per_model.items():
         ftir_pls = PLSRegression(
             n_components=6, scale=False)  # FTIR提取6维
         ftir_train_scaled = ftir_scaler.fit_transform(ftir_train.numpy())
-        ftir_train_pls = ftir_pls.fit_transform(ftir_train_scaled)
+        ftir_train_pls = ftir_pls.fit_transform(
+            ftir_train_scaled, y_train.numpy())
         mz_scaler = MinMaxScaler(feature_range=(0, 1))
         mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
         mz_train_scaled = mz_scaler.fit_transform(mz_train.numpy())
-        mz_train_pls = mz_pls.fit_transform(mz_train_scaled)
+        mz_train_pls = mz_pls.fit_transform(mz_train_scaled, y_train.numpy())
         # 测试集也需要转换
         ftir_test_scaled = ftir_scaler.transform(ftir_test.numpy())
-        ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
+        ftir_test_pls = ftir_pls.transform(ftir_test_scaled, y_test.numpy())
         mz_test_scaled = mz_scaler.transform(mz_test.numpy())
-        mz_test_pls = mz_pls.transform(mz_test_scaled)
+        mz_test_pls = mz_pls.transform(mz_test_scaled, y_test.numpy())
         # 拼接特征
         train_features = np.hstack(
             [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1603,16 +1616,16 @@ for model_name, params in best_params_per_model.items():
         scaler = MinMaxScaler(feature_range=(0, 1))
         pls = PLSRegression(n_components=37, scale=False)
         train_scaled = scaler.fit_transform(train_concat)
-        train_pls = pls.fit_transform(train_scaled)
+        train_pls = pls.fit_transform(train_scaled, y_train.numpy())
         test_scaled = scaler.transform(test_concat)
-        test_pls = pls.transform(test_scaled)
+        test_pls = pls.transform(test_scaled, y_test.numpy())
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
             model,
-            train_features, y_train,
-            test_features, y_test,
+            train_pls, y_train,
+            test_pls, y_test,
             ftir_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1629,12 +1642,12 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
     elif model_name == "FTIROnly":
-        model = SingleFTIRModel(input_dim=ftir_train.shape[1])
+        model = SingleFTIRModel(input_dim=ftir_train_final.shape[1])
         writer = SummaryWriter(f'./runs/final_ftir_only')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
             model,
-            ftir_train, y_train,
-            ftir_test, y_test,
+            ftir_train_final, y_train_final,
+            ftir_val_final, y_val_final,
             ftir_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1651,12 +1664,12 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
     elif model_name == "MZOnly":
-        model = SingleMZModel(input_dim=mz_train.shape[1])
+        model = SingleMZModel(input_dim=mz_train_final.shape[1])
         writer = SummaryWriter(f'./runs/final_mz_only')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
             model,
-            mz_train, y_train,
-            mz_test, y_test,
+            mz_train_final, y_train_final,
+            mz_val_final, y_val_final,
             mz_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1695,12 +1708,12 @@ for model_name, params in best_params_per_model.items():
     else:
         model_class = eval(model_name)
         model = model_class(
-            ftir_input_dim=ftir_train.shape[1], mz_input_dim=mz_train.shape[1])
+            ftir_input_dim=ftir_train_final.shape[1], mz_input_dim=mz_train_final.shape[1])
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
-            ftir_train, mz_train, y_train,
-            ftir_test, mz_test, y_test,
+            ftir_train_final, mz_train_final, y_train_final,
+            ftir_val_final, mz_val_final, y_val_final,
             ftir_x, mz_x,
             epochs=100,
             batch_size=params['batch_size'],
