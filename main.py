@@ -21,7 +21,9 @@ from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
-    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF
+    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, PLSExtractor, MFCNN, CNN_LSTM
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.cross_decomposition import PLSRegression
 import shap
 from scipy.stats import spearmanr
 import seaborn as sns
@@ -1222,6 +1224,83 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 )
                 writer.close()
 
+            elif model_name == "MFCNN":
+                # 特征融合: 使用PLS提取特征
+                ftir_scaler = MinMaxScaler(feature_range=(0, 1))
+                ftir_pls = PLSRegression(
+                    n_components=6, scale=False)  # FTIR提取6维
+                ftir_train_scaled = ftir_scaler.fit_transform(
+                    ftir_train_fold.numpy())
+                ftir_train_pls = ftir_pls.fit_transform(ftir_train_scaled)
+                mz_scaler = MinMaxScaler(feature_range=(0, 1))
+                mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
+                mz_train_scaled = mz_scaler.fit_transform(
+                    mz_train_fold.numpy())
+                mz_train_pls = mz_pls.fit_transform(mz_train_scaled)
+                # 验证集也需要转换
+                ftir_val_scaled = ftir_scaler.transform(ftir_val_fold.numpy())
+                ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
+                mz_val_scaled = mz_scaler.transform(mz_val_fold.numpy())
+                mz_val_pls = mz_pls.transform(mz_val_scaled)
+                # 拼接特征
+                train_features = np.hstack(
+                    [ftir_train_pls, mz_train_pls])  # (70维)
+                val_features = np.hstack([ftir_val_pls, mz_val_pls])
+                # 创建模型
+                model = MFCNN(num_classes=2, latent_dim=54)  # 6+48=54维
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                trained_model, _, _, _, val_accs = train_single_modal_model(
+                    model,
+                    train_features, y_train_fold,
+                    val_features, y_val_fold,
+                    ftir_axis,  # 其实不需要用到axis，这里随便传一个进去
+                    epochs=100,
+                    batch_size=params['batch_size'],
+                    writer=writer,
+                    lr=params['lr'],
+                    weight_decay=params['weight_decay'],
+                    label_smoothing=params['label_smoothing'],
+                    scheduler_factor=params['scheduler_factor'],
+                    early_stop_patience=params['early_stop_patience'],
+                    model_type=model_name
+                )
+                writer.close()
+
+            elif model_name == "CNN_LSTM":
+                # 低层次融合：直接拼接原始特征然后用PLS降维
+                train_concat = np.hstack(
+                    [ftir_train_fold.numpy(), mz_train_fold.numpy()])
+                val_concat = np.hstack(
+                    [ftir_val_fold.numpy(), mz_val_fold.numpy()])
+                # PLS降维到37维
+                scaler = MinMaxScaler(feature_range=(0, 1))
+                pls = PLSRegression(n_components=37, scale=False)
+                train_scaled = scaler.fit_transform(train_concat)
+                train_pls = pls.fit_transform(train_scaled)
+                val_scaled = scaler.transform(val_concat)
+                val_pls = pls.transform(val_scaled)
+                # 创建模型
+                model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                trained_model, _, _, _, val_accs = train_single_modal_model(
+                    model,
+                    train_pls, y_train_fold,
+                    val_pls, y_val_fold,
+                    ftir_axis,  # 其实不需要用到axis，这里随便传一个进去
+                    epochs=100,
+                    batch_size=params['batch_size'],
+                    writer=writer,
+                    lr=params['lr'],
+                    weight_decay=params['weight_decay'],
+                    label_smoothing=params['label_smoothing'],
+                    scheduler_factor=params['scheduler_factor'],
+                    early_stop_patience=params['early_stop_patience'],
+                    model_type=model_name
+                )
+                writer.close()
+
             elif model_name == "FTIROnly":
                 model = SingleFTIRModel(ftir_train_fold.shape[1])
                 writer = SummaryWriter(
@@ -1324,8 +1403,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     # "MultiModal": MultiModalModel,
-    "BiModalCMACF": BiModalCMACF,
+    # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
+    "MFCNN": MFCNN,
+    "CNN_LSTM": CNN_LSTM
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
@@ -1468,6 +1549,83 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
+
+    elif model_name == "MFCNN":
+        # 特征融合: 使用PLS提取特征
+        ftir_scaler = MinMaxScaler(feature_range=(0, 1))
+        ftir_pls = PLSRegression(
+            n_components=6, scale=False)  # FTIR提取6维
+        ftir_train_scaled = ftir_scaler.fit_transform(ftir_train.numpy())
+        ftir_train_pls = ftir_pls.fit_transform(ftir_train_scaled)
+        mz_scaler = MinMaxScaler(feature_range=(0, 1))
+        mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
+        mz_train_scaled = mz_scaler.fit_transform(mz_train.numpy())
+        mz_train_pls = mz_pls.fit_transform(mz_train_scaled)
+        # 测试集也需要转换
+        ftir_test_scaled = ftir_scaler.transform(ftir_test.numpy())
+        ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
+        mz_test_scaled = mz_scaler.transform(mz_test.numpy())
+        mz_test_pls = mz_pls.transform(mz_test_scaled)
+        # 拼接特征
+        train_features = np.hstack(
+            [ftir_train_pls, mz_train_pls])  # (70维)
+        test_features = np.hstack([ftir_test_pls, mz_test_pls])
+        # 创建模型
+        model = MFCNN(num_classes=2, latent_dim=54)  # 6+48=54维
+        writer = SummaryWriter(f'./runs/final_{model_name}')
+        trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
+            model,
+            train_features, y_train,
+            test_features, y_test,
+            ftir_x,
+            epochs=100,
+            batch_size=params['batch_size'],
+            writer=writer,
+            lr=params['lr'],
+            weight_decay=params['weight_decay'],
+            label_smoothing=params['label_smoothing'],
+            scheduler_factor=params['scheduler_factor'],
+            early_stop_patience=params['early_stop_patience'],
+            model_type=model_name
+        )
+        writer.close()
+        metrics = evaluate_model(trained_model, test_features, None, y_test, ftir_x, mz_x,
+                                 name=model_name, model_type=model_name)
+
+    elif model_name == "CNN_LSTM":
+        # 低层次融合：直接拼接原始特征然后用PLS降维
+        train_concat = np.hstack(
+            [ftir_train.numpy(), mz_train.numpy()])
+        test_concat = np.hstack(
+            [ftir_test.numpy(), mz_test.numpy()])
+        # PLS降维到37维
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        pls = PLSRegression(n_components=37, scale=False)
+        train_scaled = scaler.fit_transform(train_concat)
+        train_pls = pls.fit_transform(train_scaled)
+        test_scaled = scaler.transform(test_concat)
+        test_pls = pls.transform(test_scaled)
+        # 创建模型
+        model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
+        writer = SummaryWriter(f'./runs/final_{model_name}')
+        trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
+            model,
+            train_features, y_train,
+            test_features, y_test,
+            ftir_x,
+            epochs=100,
+            batch_size=params['batch_size'],
+            writer=writer,
+            lr=params['lr'],
+            weight_decay=params['weight_decay'],
+            label_smoothing=params['label_smoothing'],
+            scheduler_factor=params['scheduler_factor'],
+            early_stop_patience=params['early_stop_patience'],
+            model_type=model_name
+        )
+        writer.close()
+        metrics = evaluate_model(trained_model, test_features, None, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
 
     elif model_name == "FTIROnly":

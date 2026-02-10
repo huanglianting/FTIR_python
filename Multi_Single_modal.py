@@ -713,7 +713,6 @@ class MFCNN(nn.Module):
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(kernel_size=2, stride=2, padding='same')
         )
-
         # 尺度2：3*1→5*1→7*1卷积 + BN + LeakyReLU + MaxPool1d(2)（Second-Conv-1D）
         self.scale2 = nn.Sequential(
             nn.Conv1d(self.in_channels, self.filters,
@@ -730,7 +729,6 @@ class MFCNN(nn.Module):
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding='same')
         )
-
         # 尺度3：3*1卷积 + BN + LeakyReLU + MaxPool1d(2)（Third-Conv-1D）
         self.scale3 = nn.Sequential(
             nn.Conv1d(self.in_channels, self.filters,
@@ -739,10 +737,8 @@ class MFCNN(nn.Module):
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding='same')
         )
-
         # 尺度4：直接MaxPool1d(2)（提取全局特征，Forth-Conv-1D）
         self.scale4 = nn.MaxPool1d(kernel_size=2, stride=2, padding='same')
-
         # 计算拼接后特征维度，适配任意latent_dim
         self.fc_in_dim = (self.filters * 3 +
                           self.in_channels) * (latent_dim // 2)
@@ -756,7 +752,7 @@ class MFCNN(nn.Module):
             nn.Softmax(dim=1)
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x, axis=None):
         s1 = self.scale1(x)  # (B,64,27)
         s2 = self.scale2(x)  # (B,64,27)
         s3 = self.scale3(x)  # (B,64,27)
@@ -813,7 +809,7 @@ class CNN_LSTM(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x, axis=None):
         # CNN提取局部光谱特征
         cnn_feat = self.cnn_backbone(x)  # (B,64, raw_fusion_dim//8)
         # 维度转置适配LSTM：(batch, seq_len, feat_dim)
@@ -823,32 +819,3 @@ class CNN_LSTM(nn.Module):
         # 全连接分类
         final_prob = self.fc_head(lstm_feat)
         return final_prob
-
-
-# ===================== 4. 测试示例（PLS+模型调用，适配你的数据流程）=====================
-# if __name__ == "__main__":
-#     # -------------------- PLS特征提取：匹配论文3.2/3.3节 --------------------
-#     # 1. 特征融合PLS：拉曼单独提48维 + FTIR单独提6维（手动指定维度，匹配论文）
-#     pls_raman = PLSExtractor(n_components=48)  # 拉曼PLS48
-#     pls_ftir = PLSExtractor(n_components=6)    # FTIRPLS6
-#     raman_feat = pls_raman.fit_transform(raman_raw, y)  # (100,48)
-#     ftir_feat = pls_ftir.fit_transform(ftir_raw, y)    # (100,6)
-#     fusion_feat = np.hstack([raman_feat, ftir_feat])    # (100,54) → MFCNN输入
-
-#     # 2. 低层次融合PLS：先拼接原始数据，再提37维（手动指定维度，匹配论文）
-#     raw_fusion = np.hstack([raman_raw, ftir_raw])       # (100,3880)
-#     pls_raw_fusion = PLSExtractor(n_components=37)
-#     raw_fusion_feat = pls_raw_fusion.fit_transform(raw_fusion, y)  # (100,37) → CNN-LSTM输入
-
-#     # -------------------- 模型实例化+前向传播 --------------------
-#     # 1. MFCNN（特征融合）
-#     mfcnn = MFCNN_FeatureFusion(num_classes=4, latent_dim=54).to(device)
-#     mfcnn_x = torch.from_numpy(fusion_feat).float().unsqueeze(1).to(device)  # (100,1,54)
-#     mfcnn_out = mfcnn(mfcnn_x[:batch_size])  # (8,4)
-#     print(f"MFCNN输出维度：{mfcnn_out.shape} → 预期(batch,4)")
-
-#     # 2. CNN-LSTM（低层次融合）
-#     cnn_lstm = CNN_LSTM_LowLevelFusion(num_classes=4, raw_fusion_dim=37).to(device)
-#     cnn_lstm_x = torch.from_numpy(raw_fusion_feat).float().unsqueeze(1).to(device)  # (100,1,37)
-#     cnn_lstm_out = cnn_lstm(cnn_lstm_x[:batch_size])  # (8,4)
-#     print(f"CNN-LSTM输出维度：{cnn_lstm_out.shape} → 预期(batch,4)")
