@@ -682,7 +682,7 @@ class PLSExtractor:
 
 
 # 2. MFCNN 核心模型
-class MFCNN_FeatureFusion(nn.Module):
+class MFCNN(nn.Module):
     def __init__(self, num_classes=2, latent_dim=54, dropout=0.5):
         super().__init__()
         self.in_channels = 1  # 光谱为单通道1D序列
@@ -725,7 +725,7 @@ class MFCNN_FeatureFusion(nn.Module):
         # 尺度4：直接MaxPool1d(2)（提取全局特征，Forth-Conv-1D）
         self.scale4 = nn.MaxPool1d(kernel_size=2, stride=2, padding='same')
 
-        # here,计算拼接后特征维度，适配任意latent_dim
+        # 计算拼接后特征维度，适配任意latent_dim
         self.fc_in_dim = (self.filters * 3 +
                           self.in_channels) * (latent_dim // 2)
         # 全连接分类头（论文：Dense2048 + Dropout0.5 + 分类层）
@@ -739,11 +739,6 @@ class MFCNN_FeatureFusion(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        前向传播：PyTorch Conv1d标准输入 (batch, in_channels, seq_len)
-        :param x: (batch, 1, 54) → 特征融合后的PLS特征
-        :return: (batch, num_classes) → 分类概率
-        """
         s1 = self.scale1(x)  # (B,64,27)
         s2 = self.scale2(x)  # (B,64,27)
         s3 = self.scale3(x)  # (B,64,27)
@@ -753,16 +748,9 @@ class MFCNN_FeatureFusion(nn.Module):
         return final_prob
 
 
-# 3. CNN-LSTM 核心模型（低层次融合输入：原始拼接3880维→PLS37维）
-class CNN_LSTM_LowLevelFusion(nn.Module):
-    def __init__(self, num_classes: int = 4, raw_fusion_dim: int = 37, lstm_hid: int = 64, dropout: float = 0.2):
-        """
-        CNN-LSTM网络（低层次融合版），论文表3(B)/图1(B)
-        :param num_classes: 分类数，论文为4
-        :param raw_fusion_dim: 低层次融合后PLS提取维度，论文为37
-        :param lstm_hid: LSTM隐藏层维度，论文未指定，默认64（可微调）
-        :param dropout: LSTM/全连接层Dropout，论文为0.2
-        """
+# 3. CNN-LSTM 核心模型
+class CNN_LSTM(nn.Module):
+    def __init__(self, num_classes=2, raw_fusion_dim=37, lstm_hid=64, dropout=0.2):
         super().__init__()
         self.in_channels = 1  # 光谱为单通道1D序列
         self.lstm_hid = lstm_hid
@@ -790,7 +778,7 @@ class CNN_LSTM_LowLevelFusion(nn.Module):
             nn.MaxPool1d(2, 2, padding='same'),
         )
 
-        # LSTM时序特征挖掘（论文指定Dropout=0.2，batch_first=True适配PyTorch）
+        # LSTM时序特征挖掘
         self.lstm = nn.LSTM(
             input_size=64, hidden_size=lstm_hid, num_layers=1,
             batch_first=True, dropout=dropout, bidirectional=False
@@ -802,18 +790,12 @@ class CNN_LSTM_LowLevelFusion(nn.Module):
         self.fc_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(self.lstm_out_dim, 2048),
-            nn.ReLU(inplace=True),
             nn.Dropout(dropout),
             nn.Linear(2048, num_classes),
-            nn.Softmax(dim=1)
+            nn.Sigmoid()
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        前向传播：PyTorch Conv1d标准输入 (batch, in_channels, seq_len)
-        :param x: (batch, 1, 37) → 低层次融合后的PLS特征
-        :return: (batch, num_classes) → 分类概率
-        """
         # CNN提取局部光谱特征
         cnn_feat = self.cnn_backbone(x)  # (B,64, raw_fusion_dim//8)
         # 维度转置适配LSTM：(batch, seq_len, feat_dim)
@@ -823,6 +805,7 @@ class CNN_LSTM_LowLevelFusion(nn.Module):
         # 全连接分类
         final_prob = self.fc_head(lstm_feat)
         return final_prob
+
 
 # ===================== 4. 测试示例（PLS+模型调用，适配你的数据流程）=====================
 # if __name__ == "__main__":

@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
+
 def load_and_preprocess(data_files, threshold1, threshold2, order, frame_len, save_path):
     x_all, spectrum_all = [], []
     for data in data_files:
@@ -21,10 +22,9 @@ def load_and_preprocess(data_files, threshold1, threshold2, order, frame_len, sa
         x = x[valid_idx]
         spectrum = AB[valid_idx, :]
         # Savitzky-Golay平滑并求二阶导数
-        spectrum = savgol_filter(spectrum, frame_len, order, axis=0, deriv=2)
+        # spectrum = savgol_filter(spectrum, frame_len, order, axis=0, deriv=2)
         x_all.append(x)
         spectrum_all.append(spectrum)
     x_combined = x_all[0]  # 所有x值相同，取第一个即可
     spectrum_combined = np.concatenate(spectrum_all, axis=1)
     return x_combined, spectrum_combined
-
