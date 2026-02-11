@@ -1239,13 +1239,21 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     mz_train_fold.numpy())
                 mz_train_pls = mz_pls.fit_transform(
                     mz_train_scaled, y_train_fold.numpy())
+                if isinstance(ftir_train_pls, tuple):
+                    ftir_train_pls = ftir_train_pls[0]
+                if isinstance(mz_train_pls, tuple):
+                    mz_train_pls = mz_train_pls[0]
                 # 验证集也需要转换
                 ftir_val_scaled = ftir_scaler.transform(ftir_val_fold.numpy())
                 ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
                 mz_val_scaled = mz_scaler.transform(mz_val_fold.numpy())
                 mz_val_pls = mz_pls.transform(mz_val_scaled)
-
+                if isinstance(ftir_val_pls, tuple):
+                    ftir_val_pls = ftir_val_pls[0]
+                if isinstance(mz_val_pls, tuple):
+                    mz_val_pls = mz_val_pls[0]
                 # 确保所有PLS结果都是二维数组
+
                 def ensure_2d(arr):
                     if len(arr.shape) == 1:
                         return arr.reshape(-1, 1)
@@ -1593,11 +1601,19 @@ for model_name, params in best_params_per_model.items():
         mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
         mz_train_scaled = mz_scaler.fit_transform(mz_train.numpy())
         mz_train_pls = mz_pls.fit_transform(mz_train_scaled, y_train.numpy())
+        if isinstance(ftir_train_pls, tuple):
+            ftir_train_pls = ftir_train_pls[0]
+        if isinstance(mz_train_pls, tuple):
+            mz_train_pls = mz_train_pls[0]
         # 测试集也需要转换
         ftir_test_scaled = ftir_scaler.transform(ftir_test.numpy())
         ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
         mz_test_scaled = mz_scaler.transform(mz_test.numpy())
         mz_test_pls = mz_pls.transform(mz_test_scaled)
+        if isinstance(ftir_test_pls, tuple):
+            ftir_test_pls = ftir_test_pls[0]
+        if isinstance(mz_test_pls, tuple):
+            mz_test_pls = mz_test_pls[0]
         # 确保两个PLS结果都是二维数组
         if len(ftir_train_pls.shape) == 1:
             ftir_train_pls = ftir_train_pls.reshape(-1, 1)
@@ -1654,8 +1670,12 @@ for model_name, params in best_params_per_model.items():
         train_pls = pls.fit_transform(train_scaled, y_train.numpy())
         test_scaled = scaler.transform(test_concat)
         test_pls = pls.transform(test_scaled)
-
+        if isinstance(train_pls, tuple):
+            train_pls = train_pls[0]
+        if isinstance(test_pls, tuple):
+            test_pls = test_pls[0]
         # 确保PLS结果是二维数组
+
         def ensure_2d(arr):
             if len(arr.shape) == 1:
                 return arr.reshape(-1, 1)
