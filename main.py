@@ -1257,7 +1257,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 train_pls, val_pls, _, _ = extract_raw_fusion_pls_features(
                     ftir_train_fold, mz_train_fold, y_train_fold,
                     ftir_val_fold, mz_val_fold, y_val_fold,
-                    ftir_components=37, mz_components=37
+                    n_components=37,
                 )
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
@@ -1384,8 +1384,8 @@ models_to_evaluate = {
     # "MultiModal": MultiModalModel,
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
-    "MFCNN": MFCNN,
-    # "CNN_LSTM": CNN_LSTM
+    # "MFCNN": MFCNN,
+    "CNN_LSTM": CNN_LSTM
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
@@ -1571,7 +1571,7 @@ for model_name, params in best_params_per_model.items():
         train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
             ftir_train, mz_train, y_train,
             ftir_test, mz_test, y_test,
-            ftir_components=37, mz_components=37
+            n_components=37
         )
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
