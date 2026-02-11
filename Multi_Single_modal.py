@@ -714,7 +714,7 @@ class MFCNN(nn.Module):
             nn.ReLU(inplace=True),
             nn.Dropout(dropout),
             nn.Linear(2048, num_classes),
-            nn.Softmax(dim=1)
+            # nn.Softmax(dim=1)
         )
 
     def forward(self, x, axis=None):

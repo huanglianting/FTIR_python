@@ -1385,7 +1385,7 @@ models_to_evaluate = {
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
     "MFCNN": MFCNN,
-    "CNN_LSTM": CNN_LSTM
+    # "CNN_LSTM": CNN_LSTM
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
