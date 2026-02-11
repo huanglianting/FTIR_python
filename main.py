@@ -21,7 +21,7 @@ from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
-    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, PLSExtractor, MFCNN, CNN_LSTM
+    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, extract_pls_features, extract_raw_fusion_pls_features
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cross_decomposition import PLSRegression
 import shap
@@ -1226,51 +1226,11 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
             elif model_name == "MFCNN":
                 # 特征融合: 使用PLS提取特征
-                ftir_scaler = MinMaxScaler(feature_range=(0, 1))
-                ftir_pls = PLSRegression(
-                    n_components=6, scale=False)  # FTIR提取6维
-                ftir_train_scaled = ftir_scaler.fit_transform(
-                    ftir_train_fold.numpy())
-                ftir_train_pls = ftir_pls.fit_transform(
-                    ftir_train_scaled, y_train_fold.numpy())
-                mz_scaler = MinMaxScaler(feature_range=(0, 1))
-                mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
-                mz_train_scaled = mz_scaler.fit_transform(
-                    mz_train_fold.numpy())
-                mz_train_pls = mz_pls.fit_transform(
-                    mz_train_scaled, y_train_fold.numpy())
-                if isinstance(ftir_train_pls, tuple):
-                    ftir_train_pls = ftir_train_pls[0]
-                if isinstance(mz_train_pls, tuple):
-                    mz_train_pls = mz_train_pls[0]
-                # 验证集也需要转换
-                ftir_val_scaled = ftir_scaler.transform(ftir_val_fold.numpy())
-                ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
-                mz_val_scaled = mz_scaler.transform(mz_val_fold.numpy())
-                mz_val_pls = mz_pls.transform(mz_val_scaled)
-                if isinstance(ftir_val_pls, tuple):
-                    ftir_val_pls = ftir_val_pls[0]
-                if isinstance(mz_val_pls, tuple):
-                    mz_val_pls = mz_val_pls[0]
-
-                def ensure_2d(arr):
-                    if len(arr.shape) == 1:
-                        return arr.reshape(-1, 1)
-                    return arr
-                ftir_train_pls = ensure_2d(ftir_train_pls)
-                mz_train_pls = ensure_2d(mz_train_pls)
-                ftir_val_pls = ensure_2d(ftir_val_pls)
-                mz_val_pls = ensure_2d(mz_val_pls)
-                # 将NumPy数组转换为PyTorch张量
-                ftir_train_pls = torch.tensor(
-                    ftir_train_pls, dtype=torch.float32)
-                ftir_val_pls = torch.tensor(ftir_val_pls, dtype=torch.float32)
-                mz_train_pls = torch.tensor(mz_train_pls, dtype=torch.float32)
-                mz_val_pls = torch.tensor(mz_val_pls, dtype=torch.float32)
-                # 拼接特征
-                train_features = np.hstack(
-                    [ftir_train_pls, mz_train_pls])  # (70维)
-                val_features = np.hstack([ftir_val_pls, mz_val_pls])
+                train_features, val_features, _, _, _, _ = extract_pls_features(
+                    ftir_train_fold, mz_train_fold, y_train_fold,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_components=6, mz_components=48
+                )
                 # 创建模型
                 model = MFCNN(num_classes=2, latent_dim=54)  # 6+48=54维
                 writer = SummaryWriter(
@@ -1294,35 +1254,11 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
             elif model_name == "CNN_LSTM":
                 # 低层次融合：直接拼接原始特征然后用PLS降维
-                train_concat = np.hstack(
-                    [ftir_train_fold.numpy(), mz_train_fold.numpy()])
-                val_concat = np.hstack(
-                    [ftir_val_fold.numpy(), mz_val_fold.numpy()])
-                # PLS降维到37维
-                scaler = MinMaxScaler(feature_range=(0, 1))
-                pls = PLSRegression(n_components=37, scale=False)
-                train_scaled = scaler.fit_transform(train_concat)
-                train_pls = pls.fit_transform(
-                    train_scaled, y_train_fold.numpy())
-                val_scaled = scaler.transform(val_concat)
-                val_pls = pls.transform(val_scaled)
-                if isinstance(train_pls, tuple):
-                    train_pls = train_pls[0]
-                if isinstance(val_pls, tuple):
-                    val_pls = val_pls[0]
-                # 确保PLS结果是二维数组
-
-                def ensure_2d(arr):
-                    if len(arr.shape) == 1:
-                        return arr.reshape(-1, 1)
-                    return arr
-                train_pls = ensure_2d(train_pls)
-                val_pls = ensure_2d(val_pls)
-                print(f"train_pls shape: {train_pls.shape}")
-                print(f"val_pls shape: {val_pls.shape}")
-                # 将NumPy数组转换为PyTorch张量
-                train_pls = torch.tensor(train_pls, dtype=torch.float32)
-                val_pls = torch.tensor(val_pls, dtype=torch.float32)
+                train_pls, val_pls, _, _ = extract_raw_fusion_pls_features(
+                    ftir_train_fold, mz_train_fold, y_train_fold,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_components=37, mz_components=37
+                )
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
                 writer = SummaryWriter(
@@ -1602,56 +1538,12 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
     elif model_name == "MFCNN":
-        # 特征融合: 使用PLS提取特征
-        ftir_scaler = MinMaxScaler(feature_range=(0, 1))
-        ftir_pls = PLSRegression(
-            n_components=6, scale=False)  # FTIR提取6维
-        ftir_train_scaled = ftir_scaler.fit_transform(ftir_train.numpy())
-        ftir_train_pls = ftir_pls.fit_transform(
-            ftir_train_scaled, y_train.numpy())
-        mz_scaler = MinMaxScaler(feature_range=(0, 1))
-        mz_pls = PLSRegression(n_components=48, scale=False)  # MZ提取48维
-        mz_train_scaled = mz_scaler.fit_transform(mz_train.numpy())
-        mz_train_pls = mz_pls.fit_transform(mz_train_scaled, y_train.numpy())
-        if isinstance(ftir_train_pls, tuple):
-            ftir_train_pls = ftir_train_pls[0]
-        if isinstance(mz_train_pls, tuple):
-            mz_train_pls = mz_train_pls[0]
-        # 测试集也需要转换
-        ftir_test_scaled = ftir_scaler.transform(ftir_test.numpy())
-        ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
-        mz_test_scaled = mz_scaler.transform(mz_test.numpy())
-        mz_test_pls = mz_pls.transform(mz_test_scaled)
-        if isinstance(ftir_test_pls, tuple):
-            ftir_test_pls = ftir_test_pls[0]
-        if isinstance(mz_test_pls, tuple):
-            mz_test_pls = mz_test_pls[0]
-        # 确保两个PLS结果都是二维数组
-        if len(ftir_train_pls.shape) == 1:
-            ftir_train_pls = ftir_train_pls.reshape(-1, 1)
-        if len(mz_train_pls.shape) == 1:
-            mz_train_pls = mz_train_pls.reshape(-1, 1)
-        print(f"ftir_train_pls shape: {ftir_train_pls.shape}")
-        print(f"mz_train_pls shape: {mz_train_pls.shape}")
-
-        def ensure_2d(arr):
-            if len(arr.shape) == 1:
-                return arr.reshape(-1, 1)
-            return arr
-        ftir_train_pls = ensure_2d(ftir_train_pls)
-        mz_train_pls = ensure_2d(mz_train_pls)
-        ftir_test_pls = ensure_2d(ftir_test_pls)
-        mz_test_pls = ensure_2d(mz_test_pls)
-        # 将NumPy数组转换为PyTorch张量
-        ftir_train_pls = torch.tensor(
-            ftir_train_pls, dtype=torch.float32)
-        ftir_test_pls = torch.tensor(ftir_test_pls, dtype=torch.float32)
-        mz_train_pls = torch.tensor(mz_train_pls, dtype=torch.float32)
-        mz_test_pls = torch.tensor(mz_test_pls, dtype=torch.float32)
-        # 拼接特征
-        train_features = np.hstack(
-            [ftir_train_pls, mz_train_pls])  # (70维)
-        test_features = np.hstack([ftir_test_pls, mz_test_pls])
+        # 使用封装的函数提取PLS特征
+        train_features, test_features, _, _, _, _ = extract_pls_features(
+            ftir_train, mz_train, y_train,
+            ftir_test, mz_test, y_test,
+            ftir_components=6, mz_components=48
+        )
         # 创建模型
         model = MFCNN(num_classes=2, latent_dim=54)  # 6+48=54维
         writer = SummaryWriter(f'./runs/final_{model_name}')
@@ -1676,33 +1568,11 @@ for model_name, params in best_params_per_model.items():
 
     elif model_name == "CNN_LSTM":
         # 低层次融合：直接拼接原始特征然后用PLS降维
-        train_concat = np.hstack(
-            [ftir_train.numpy(), mz_train.numpy()])
-        test_concat = np.hstack(
-            [ftir_test.numpy(), mz_test.numpy()])
-        # PLS降维到37维
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        pls = PLSRegression(n_components=37, scale=False)
-        train_scaled = scaler.fit_transform(train_concat)
-        train_pls = pls.fit_transform(train_scaled, y_train.numpy())
-        test_scaled = scaler.transform(test_concat)
-        test_pls = pls.transform(test_scaled)
-        if isinstance(train_pls, tuple):
-            train_pls = train_pls[0]
-        if isinstance(test_pls, tuple):
-            test_pls = test_pls[0]
-
-        def ensure_2d(arr):
-            if len(arr.shape) == 1:
-                return arr.reshape(-1, 1)
-            return arr
-        train_pls = ensure_2d(train_pls)
-        test_pls = ensure_2d(test_pls)
-        print(f"train_pls shape: {train_pls.shape}")
-        print(f"test_pls shape: {test_pls.shape}")
-        # 将NumPy数组转换为PyTorch张量
-        train_pls = torch.tensor(train_pls, dtype=torch.float32)
-        test_pls = torch.tensor(test_pls, dtype=torch.float32)
+        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
+            ftir_train, mz_train, y_train,
+            ftir_test, mz_test, y_test,
+            ftir_components=37, mz_components=37
+        )
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')

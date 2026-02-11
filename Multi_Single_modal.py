@@ -818,3 +818,92 @@ class CNN_LSTM(nn.Module):
         # 全连接分类
         final_prob = self.fc_head(lstm_feat)
         return final_prob
+
+
+def extract_pls_features(ftir_train, mz_train, y_train, ftir_val, mz_val, y_val,
+                         ftir_components=6, mz_components=48):
+    # 特征融合: 使用PLS提取特征
+    ftir_scaler = MinMaxScaler(feature_range=(0, 1))
+    ftir_pls = PLSRegression(n_components=ftir_components, scale=False)
+    ftir_train_scaled = ftir_scaler.fit_transform(ftir_train.numpy())
+    ftir_train_pls = ftir_pls.fit_transform(ftir_train_scaled, y_train.numpy())
+
+    mz_scaler = MinMaxScaler(feature_range=(0, 1))
+    mz_pls = PLSRegression(n_components=mz_components, scale=False)
+    mz_train_scaled = mz_scaler.fit_transform(mz_train.numpy())
+    mz_train_pls = mz_pls.fit_transform(mz_train_scaled, y_train.numpy())
+
+    # 处理可能的元组返回值
+    if isinstance(ftir_train_pls, tuple):
+        ftir_train_pls = ftir_train_pls[0]
+    if isinstance(mz_train_pls, tuple):
+        mz_train_pls = mz_train_pls[0]
+
+    # 验证集也需要转换
+    ftir_val_scaled = ftir_scaler.transform(ftir_val.numpy())
+    ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
+    mz_val_scaled = mz_scaler.transform(mz_val.numpy())
+    mz_val_pls = mz_pls.transform(mz_val_scaled)
+
+    if isinstance(ftir_val_pls, tuple):
+        ftir_val_pls = ftir_val_pls[0]
+    if isinstance(mz_val_pls, tuple):
+        mz_val_pls = mz_val_pls[0]
+
+    def ensure_2d(arr):
+        if len(arr.shape) == 1:
+            return arr.reshape(-1, 1)
+        return arr
+
+    # 确保二维数组
+    ftir_train_pls = ensure_2d(ftir_train_pls)
+    mz_train_pls = ensure_2d(mz_train_pls)
+    ftir_val_pls = ensure_2d(ftir_val_pls)
+    mz_val_pls = ensure_2d(mz_val_pls)
+
+    # 将NumPy数组转换为PyTorch张量
+    ftir_train_pls = torch.tensor(ftir_train_pls, dtype=torch.float32)
+    ftir_val_pls = torch.tensor(ftir_val_pls, dtype=torch.float32)
+    mz_train_pls = torch.tensor(mz_train_pls, dtype=torch.float32)
+    mz_val_pls = torch.tensor(mz_val_pls, dtype=torch.float32)
+
+    # 拼接特征
+    train_features = np.hstack([ftir_train_pls, mz_train_pls])
+    val_features = np.hstack([ftir_val_pls, mz_val_pls])
+
+    return train_features, val_features, ftir_scaler, ftir_pls, mz_scaler, mz_pls
+
+
+def extract_raw_fusion_pls_features(ftir_train, mz_train, y_train, ftir_test, mz_test, y_test, n_components=37):
+    # 拼接原始特征
+    train_concat = np.hstack([ftir_train.numpy(), mz_train.numpy()])
+    test_concat = np.hstack([ftir_test.numpy(), mz_test.numpy()])
+    # PLS降维
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    pls = PLSRegression(n_components=n_components, scale=False)
+    # 训练集处理
+    train_scaled = scaler.fit_transform(train_concat)
+    train_pls = pls.fit_transform(train_scaled, y_train.numpy())
+    # 测试集处理
+    test_scaled = scaler.transform(test_concat)
+    test_pls = pls.transform(test_scaled)
+    # 处理可能的元组返回值
+    if isinstance(train_pls, tuple):
+        train_pls = train_pls[0]
+    if isinstance(test_pls, tuple):
+        test_pls = test_pls[0]
+
+    # 确保二维数组
+    def ensure_2d(arr):
+        if len(arr.shape) == 1:
+            return arr.reshape(-1, 1)
+        return arr
+    train_pls = ensure_2d(train_pls)
+    test_pls = ensure_2d(test_pls)
+    print(f"train_pls shape: {train_pls.shape}")
+    print(f"test_pls shape: {test_pls.shape}")
+
+    train_pls = torch.tensor(train_pls, dtype=torch.float32)
+    test_pls = torch.tensor(test_pls, dtype=torch.float32)
+
+    return train_pls, test_pls, scaler, pls
