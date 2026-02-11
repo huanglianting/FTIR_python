@@ -664,45 +664,11 @@ class CMSTF(nn.Module):
 
 
 # --------------------------横向对比模型3:leng2023raman--------------------------
-# 1. PLS特征提取模块
-class PLSExtractor:
-    def __init__(self, n_components):
-        # n_components: PLS提取维度（论文固定值：拉曼48/FTIR6/低层次融合37）
-        self.n_components = n_components  # 论文固定维度，必传，无默认值（避免误用）
-        self.scaler = MinMaxScaler(feature_range=(0, 1))  # 论文强制MinMax归一化到[0,1]
-        self.pls = PLSRegression(
-            n_components=self.n_components, scale=False)  # 已手动归一化，scale=False
-
-    def fit(self, X: np.ndarray, y: np.ndarray):
-        """
-        拟合PLS（先归一化，再PLS，严格按论文步骤）
-        :param X: 输入数据 (n_samples, n_features) 光谱原始数据/融合数据
-        :param y: 标签 (n_samples,) 论文用于PLS-DA分类导向的特征提取
-        """
-        X_scaled = self.scaler.fit_transform(X)  # 论文第一步：MinMax归一化
-        self.pls.fit(X_scaled, y)  # 论文第二步：固定维度PLS拟合
-        print(f"PLS拟合完成（论文指定维度）| 提取维度：{self.n_components}")
-        return self
-
-    def transform(self, X: np.ndarray) -> np.ndarray:
-        """
-        PLS特征变换（先归一化，再变换，严格按论文步骤）
-        :return: PLS降维后特征 (n_samples, n_components)
-        """
-        X_scaled = self.scaler.transform(X)
-        return self.pls.transform(X_scaled)
-
-    def fit_transform(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
-        """拟合+变换，论文常用调用方式"""
-        self.fit(X, y)
-        return self.transform(X)
-
-
-# 2. MFCNN 核心模型
+# 1. MFCNN 核心模型
 class MFCNN(nn.Module):
-    def __init__(self, num_classes=2, latent_dim=54, dropout=0.5):
+    def __init__(self, num_classes=2, latent_dim=54, dropout=0.5, in_channels=1):
         super().__init__()
-        self.in_channels = 1  # 光谱为单通道1D序列
+        self.in_channels = in_channels
         self.filters = 64     # 论文固定滤波器数量64
         # 尺度1：1*1卷积 + BN + LeakyReLU + MaxPool1d(2)（First-Conv-1D）
         self.scale1 = nn.Sequential(
@@ -752,6 +718,8 @@ class MFCNN(nn.Module):
         )
 
     def forward(self, x, axis=None):
+        if len(x.shape) == 2:
+            x = x.unsqueeze(1)  # 增加通道维度 (B,1,latent_dim)
         s1 = self.scale1(x)  # (B,64,27)
         s2 = self.scale2(x)  # (B,64,27)
         s3 = self.scale3(x)  # (B,64,27)
@@ -761,7 +729,7 @@ class MFCNN(nn.Module):
         return final_prob
 
 
-# 3. CNN-LSTM 核心模型
+# 2. CNN-LSTM 核心模型
 class CNN_LSTM(nn.Module):
     def __init__(self, num_classes=2, raw_fusion_dim=37, lstm_hid=64, dropout=0.2):
         super().__init__()
