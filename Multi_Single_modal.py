@@ -673,7 +673,7 @@ class MFCNN(nn.Module):
         # 尺度1：1*1卷积 + BN + LeakyReLU + MaxPool1d(2)（First-Conv-1D）
         self.scale1 = nn.Sequential(
             nn.Conv1d(self.in_channels, self.filters,
-                      kernel_size=1, stride=1, padding=0),
+                      kernel_size=1, stride=1, padding='same'),
             nn.BatchNorm1d(self.filters),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
@@ -681,15 +681,15 @@ class MFCNN(nn.Module):
         # 尺度2：3*1→5*1→7*1卷积 + BN + LeakyReLU + MaxPool1d(2)（Second-Conv-1D）
         self.scale2 = nn.Sequential(
             nn.Conv1d(self.in_channels, self.filters,
-                      kernel_size=3, stride=1, padding=0),
+                      kernel_size=3, stride=1, padding='same'),
             nn.BatchNorm1d(self.filters),
             nn.LeakyReLU(inplace=True),
             nn.Conv1d(self.filters, self.filters,
-                      kernel_size=5, stride=1, padding=0),
+                      kernel_size=5, stride=1, padding='same'),
             nn.BatchNorm1d(self.filters),
             nn.LeakyReLU(inplace=True),
             nn.Conv1d(self.filters, self.filters,
-                      kernel_size=7, stride=1, padding=0),
+                      kernel_size=7, stride=1, padding='same'),
             nn.BatchNorm1d(self.filters),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding=0)
@@ -697,7 +697,7 @@ class MFCNN(nn.Module):
         # 尺度3：3*1卷积 + BN + LeakyReLU + MaxPool1d(2)（Third-Conv-1D）
         self.scale3 = nn.Sequential(
             nn.Conv1d(self.in_channels, self.filters,
-                      kernel_size=3, stride=1, padding=0),
+                      kernel_size=3, stride=1, padding='same'),
             nn.BatchNorm1d(self.filters),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding=0)
@@ -740,20 +740,20 @@ class CNN_LSTM(nn.Module):
         self.cnn_backbone = nn.Sequential(
             # 第一组：16滤波器+3*1/5*1卷积 + BN + LeakyReLU + MaxPool1d(2)
             nn.Conv1d(self.in_channels, 16, kernel_size=3,
-                      stride=1, padding=0),
+                      stride=1, padding='same'),
             nn.BatchNorm1d(16),
             nn.LeakyReLU(inplace=True),
-            nn.Conv1d(16, 16, kernel_size=5, stride=1, padding=0),
+            nn.Conv1d(16, 16, kernel_size=5, stride=1, padding='same'),
             nn.BatchNorm1d(16),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding=0),
             # 第二组：32滤波器+6*1卷积 + BN + LeakyReLU + MaxPool1d(2)
-            nn.Conv1d(16, 32, kernel_size=6, stride=1, padding=0),
+            nn.Conv1d(16, 32, kernel_size=6, stride=1, padding='same'),
             nn.BatchNorm1d(32),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding=0),
             # 第三组：64滤波器+4*1卷积 + BN + LeakyReLU + MaxPool1d(2)
-            nn.Conv1d(32, 64, kernel_size=4, stride=1, padding=0),
+            nn.Conv1d(32, 64, kernel_size=4, stride=1, padding='same'),
             nn.BatchNorm1d(64),
             nn.LeakyReLU(inplace=True),
             nn.MaxPool1d(2, 2, padding=0),
