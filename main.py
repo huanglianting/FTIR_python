@@ -1244,6 +1244,16 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
                 mz_val_scaled = mz_scaler.transform(mz_val_fold.numpy())
                 mz_val_pls = mz_pls.transform(mz_val_scaled)
+
+                # 确保所有PLS结果都是二维数组
+                def ensure_2d(arr):
+                    if len(arr.shape) == 1:
+                        return arr.reshape(-1, 1)
+                    return arr
+                ftir_train_pls = ensure_2d(ftir_train_pls)
+                mz_train_pls = ensure_2d(mz_train_pls)
+                ftir_val_pls = ensure_2d(ftir_val_pls)
+                mz_val_pls = ensure_2d(mz_val_pls)
                 # 拼接特征
                 train_features = np.hstack(
                     [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1283,6 +1293,16 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     train_scaled, y_train_fold.numpy())
                 val_scaled = scaler.transform(val_concat)
                 val_pls = pls.transform(val_scaled)
+                # 确保PLS结果是二维数组
+
+                def ensure_2d(arr):
+                    if len(arr.shape) == 1:
+                        return arr.reshape(-1, 1)
+                    return arr
+                train_pls = ensure_2d(train_pls)
+                val_pls = ensure_2d(val_pls)
+                print(f"train_pls shape: {train_pls.shape}")
+                print(f"val_pls shape: {val_pls.shape}")
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
                 writer = SummaryWriter(
@@ -1578,6 +1598,23 @@ for model_name, params in best_params_per_model.items():
         ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
         mz_test_scaled = mz_scaler.transform(mz_test.numpy())
         mz_test_pls = mz_pls.transform(mz_test_scaled)
+        # 确保两个PLS结果都是二维数组
+        if len(ftir_train_pls.shape) == 1:
+            ftir_train_pls = ftir_train_pls.reshape(-1, 1)
+        if len(mz_train_pls.shape) == 1:
+            mz_train_pls = mz_train_pls.reshape(-1, 1)
+        print(f"ftir_train_pls shape: {ftir_train_pls.shape}")
+        print(f"mz_train_pls shape: {mz_train_pls.shape}")
+        # 确保所有PLS结果都是二维数组
+
+        def ensure_2d(arr):
+            if len(arr.shape) == 1:
+                return arr.reshape(-1, 1)
+            return arr
+        ftir_train_pls = ensure_2d(ftir_train_pls)
+        mz_train_pls = ensure_2d(mz_train_pls)
+        ftir_test_pls = ensure_2d(ftir_test_pls)
+        mz_test_pls = ensure_2d(mz_test_pls)
         # 拼接特征
         train_features = np.hstack(
             [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1617,6 +1654,16 @@ for model_name, params in best_params_per_model.items():
         train_pls = pls.fit_transform(train_scaled, y_train.numpy())
         test_scaled = scaler.transform(test_concat)
         test_pls = pls.transform(test_scaled)
+
+        # 确保PLS结果是二维数组
+        def ensure_2d(arr):
+            if len(arr.shape) == 1:
+                return arr.reshape(-1, 1)
+            return arr
+        train_pls = ensure_2d(train_pls)
+        test_pls = ensure_2d(test_pls)
+        print(f"train_pls shape: {train_pls.shape}")
+        print(f"test_pls shape: {test_pls.shape}")
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')
