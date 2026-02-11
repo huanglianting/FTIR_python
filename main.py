@@ -1241,11 +1241,9 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     mz_train_scaled, y_train_fold.numpy())
                 # 验证集也需要转换
                 ftir_val_scaled = ftir_scaler.transform(ftir_val_fold.numpy())
-                ftir_val_pls = ftir_pls.transform(
-                    ftir_val_scaled, y_val_fold.numpy())
+                ftir_val_pls = ftir_pls.transform(ftir_val_scaled)
                 mz_val_scaled = mz_scaler.transform(mz_val_fold.numpy())
-                mz_val_pls = mz_pls.transform(
-                    mz_val_scaled, y_val_fold.numpy())
+                mz_val_pls = mz_pls.transform(mz_val_scaled)
                 # 拼接特征
                 train_features = np.hstack(
                     [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1284,7 +1282,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 train_pls = pls.fit_transform(
                     train_scaled, y_train_fold.numpy())
                 val_scaled = scaler.transform(val_concat)
-                val_pls = pls.transform(val_scaled, y_val_fold.numpy())
+                val_pls = pls.transform(val_scaled)
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
                 writer = SummaryWriter(
@@ -1577,9 +1575,9 @@ for model_name, params in best_params_per_model.items():
         mz_train_pls = mz_pls.fit_transform(mz_train_scaled, y_train.numpy())
         # 测试集也需要转换
         ftir_test_scaled = ftir_scaler.transform(ftir_test.numpy())
-        ftir_test_pls = ftir_pls.transform(ftir_test_scaled, y_test.numpy())
+        ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
         mz_test_scaled = mz_scaler.transform(mz_test.numpy())
-        mz_test_pls = mz_pls.transform(mz_test_scaled, y_test.numpy())
+        mz_test_pls = mz_pls.transform(mz_test_scaled)
         # 拼接特征
         train_features = np.hstack(
             [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1618,7 +1616,7 @@ for model_name, params in best_params_per_model.items():
         train_scaled = scaler.fit_transform(train_concat)
         train_pls = pls.fit_transform(train_scaled, y_train.numpy())
         test_scaled = scaler.transform(test_concat)
-        test_pls = pls.transform(test_scaled, y_test.numpy())
+        test_pls = pls.transform(test_scaled)
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')
