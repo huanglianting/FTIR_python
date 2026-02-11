@@ -867,9 +867,9 @@ def extract_pls_features(ftir_train, mz_train, y_train, ftir_val, mz_val, y_val,
     mz_train_pls = torch.tensor(mz_train_pls, dtype=torch.float32)
     mz_val_pls = torch.tensor(mz_val_pls, dtype=torch.float32)
 
-    # 拼接特征
-    train_features = np.hstack([ftir_train_pls, mz_train_pls])
-    val_features = np.hstack([ftir_val_pls, mz_val_pls])
+    # 拼接特征，改用torch.cat，确保返回张量
+    train_features = torch.cat([ftir_train_pls, mz_train_pls], dim=1)
+    val_features = torch.cat([ftir_val_pls, mz_val_pls], dim=1)
 
     return train_features, val_features, ftir_scaler, ftir_pls, mz_scaler, mz_pls
 
