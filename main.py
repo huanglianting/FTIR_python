@@ -1252,7 +1252,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_val_pls = ftir_val_pls[0]
                 if isinstance(mz_val_pls, tuple):
                     mz_val_pls = mz_val_pls[0]
-                # 确保所有PLS结果都是二维数组
 
                 def ensure_2d(arr):
                     if len(arr.shape) == 1:
@@ -1262,6 +1261,12 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 mz_train_pls = ensure_2d(mz_train_pls)
                 ftir_val_pls = ensure_2d(ftir_val_pls)
                 mz_val_pls = ensure_2d(mz_val_pls)
+                # 将NumPy数组转换为PyTorch张量
+                ftir_train_pls = torch.tensor(
+                    ftir_train_pls, dtype=torch.float32)
+                ftir_val_pls = torch.tensor(ftir_val_pls, dtype=torch.float32)
+                mz_train_pls = torch.tensor(mz_train_pls, dtype=torch.float32)
+                mz_val_pls = torch.tensor(mz_val_pls, dtype=torch.float32)
                 # 拼接特征
                 train_features = np.hstack(
                     [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1301,6 +1306,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     train_scaled, y_train_fold.numpy())
                 val_scaled = scaler.transform(val_concat)
                 val_pls = pls.transform(val_scaled)
+                if isinstance(train_pls, tuple):
+                    train_pls = train_pls[0]
+                if isinstance(val_pls, tuple):
+                    val_pls = val_pls[0]
                 # 确保PLS结果是二维数组
 
                 def ensure_2d(arr):
@@ -1311,6 +1320,9 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 val_pls = ensure_2d(val_pls)
                 print(f"train_pls shape: {train_pls.shape}")
                 print(f"val_pls shape: {val_pls.shape}")
+                # 将NumPy数组转换为PyTorch张量
+                train_pls = torch.tensor(train_pls, dtype=torch.float32)
+                val_pls = torch.tensor(val_pls, dtype=torch.float32)
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
                 writer = SummaryWriter(
@@ -1621,7 +1633,6 @@ for model_name, params in best_params_per_model.items():
             mz_train_pls = mz_train_pls.reshape(-1, 1)
         print(f"ftir_train_pls shape: {ftir_train_pls.shape}")
         print(f"mz_train_pls shape: {mz_train_pls.shape}")
-        # 确保所有PLS结果都是二维数组
 
         def ensure_2d(arr):
             if len(arr.shape) == 1:
@@ -1631,6 +1642,12 @@ for model_name, params in best_params_per_model.items():
         mz_train_pls = ensure_2d(mz_train_pls)
         ftir_test_pls = ensure_2d(ftir_test_pls)
         mz_test_pls = ensure_2d(mz_test_pls)
+        # 将NumPy数组转换为PyTorch张量
+        ftir_train_pls = torch.tensor(
+            ftir_train_pls, dtype=torch.float32)
+        ftir_test_pls = torch.tensor(ftir_test_pls, dtype=torch.float32)
+        mz_train_pls = torch.tensor(mz_train_pls, dtype=torch.float32)
+        mz_test_pls = torch.tensor(mz_test_pls, dtype=torch.float32)
         # 拼接特征
         train_features = np.hstack(
             [ftir_train_pls, mz_train_pls])  # (70维)
@@ -1674,7 +1691,6 @@ for model_name, params in best_params_per_model.items():
             train_pls = train_pls[0]
         if isinstance(test_pls, tuple):
             test_pls = test_pls[0]
-        # 确保PLS结果是二维数组
 
         def ensure_2d(arr):
             if len(arr.shape) == 1:
@@ -1684,6 +1700,9 @@ for model_name, params in best_params_per_model.items():
         test_pls = ensure_2d(test_pls)
         print(f"train_pls shape: {train_pls.shape}")
         print(f"test_pls shape: {test_pls.shape}")
+        # 将NumPy数组转换为PyTorch张量
+        train_pls = torch.tensor(train_pls, dtype=torch.float32)
+        test_pls = torch.tensor(test_pls, dtype=torch.float32)
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')
