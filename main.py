@@ -1040,7 +1040,16 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
         total = 0
         for inputs, labels in train_dataloader:
             optimizer.zero_grad()
-            inputs_noisy, axis = data_augmentation(inputs, axis)
+            # 这里判断输入维度，针对CNN_LSTM的三维输入做特殊处理
+            if inputs.dim() == 3:
+                # inputs形状 (B, seq_len, feature_dim)，先reshape为 (B, feature_dim)
+                B, seq_len, feat_dim = inputs.shape
+                inputs_2d = inputs.view(B, -1)
+                inputs_noisy, axis = data_augmentation(inputs_2d, axis)
+                # 恢复三维形状
+                inputs_noisy = inputs_noisy.view(B, seq_len, feat_dim)
+            else:
+                inputs_noisy, axis = data_augmentation(inputs, axis)
             outputs = model(inputs_noisy, axis)
             loss = criterion(outputs, labels)
             loss.backward()
