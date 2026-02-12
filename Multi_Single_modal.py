@@ -775,6 +775,36 @@ class CNN_LSTM(nn.Module):
             nn.Linear(2048, num_classes),
             nn.Sigmoid()
         )
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        """初始化权重以避免模型偏向某一类"""
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                # 使用Xavier初始化卷积层权重
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                # BatchNorm层权重初始化
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                # 使用Xavier初始化线性层权重
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    # 对于最后一层分类器，可以稍微初始化偏向中性值
+                    if m.out_features == 2:  # 最后一层
+                        nn.init.normal_(m.bias, mean=0.0, std=0.01)
+                    else:
+                        nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LSTM):
+                # LSTM权重初始化
+                for name, param in m.named_parameters():
+                    if 'weight' in name:
+                        nn.init.orthogonal_(param)  # 使用正交初始化
+                    elif 'bias' in name:
+                        nn.init.constant_(param, 0)
 
     def forward(self, x, axis=None):
         # CNN提取局部光谱特征
