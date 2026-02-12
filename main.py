@@ -1605,7 +1605,7 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
-        metrics = evaluate_model(trained_model, test_features, None, y_test, ftir_x, mz_x,
+        metrics = evaluate_model(trained_model, test_pls, None, y_test, ftir_x, mz_x,
                                  name=model_name, model_type=model_name)
 
     elif model_name == "FTIROnly":
