@@ -1259,6 +1259,8 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_val_fold, mz_val_fold, y_val_fold,
                     n_components=37,
                 )
+                train_pls = train_pls.unsqueeze(1)
+                val_pls = val_pls.unsqueeze(1)
                 # 创建模型
                 model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
                 writer = SummaryWriter(
@@ -1573,6 +1575,8 @@ for model_name, params in best_params_per_model.items():
             ftir_test, mz_test, y_test,
             n_components=37
         )
+        train_pls = train_pls.unsqueeze(1)  # (batch_size, 1, feature_dim)
+        test_pls = test_pls.unsqueeze(1)
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')
