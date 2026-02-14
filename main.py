@@ -890,23 +890,24 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
 
 # ==================数据增强====================================
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
-    torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
-    B, L = x.shape  # 批量大小和特征长度
-    axis = axis.squeeze().expand(B, -1)
-    # 高斯噪声
-    noise = torch.randn_like(x) * noise_std
-    x_aug = x + noise
-    # 随机缩放
-    scale = 1 + (torch.rand(B, 1, device=x.device) * 2 - 1) * scaling_factor
-    x_aug = x_aug * scale
-    # 随机偏移
-    max_shift = int(L * shift_range)
-    shifts = torch.randint(-max_shift, max_shift+1, (B,), device=x.device)
-    x_aug = torch.stack([
-        torch.roll(x_aug[i], shifts=shifts[i].item(), dims=-1)
-        for i in range(B)
-    ])
-    axis = axis + (shifts.float() / L).unsqueeze(1)
+    # torch.manual_seed(39)   # 41在mac的结果好，39在 kaggle 比较好
+    # B, L = x.shape  # 批量大小和特征长度
+    # axis = axis.squeeze().expand(B, -1)
+    # # 高斯噪声
+    # noise = torch.randn_like(x) * noise_std
+    # x_aug = x + noise
+    # # 随机缩放
+    # scale = 1 + (torch.rand(B, 1, device=x.device) * 2 - 1) * scaling_factor
+    # x_aug = x_aug * scale
+    # # 随机偏移
+    # max_shift = int(L * shift_range)
+    # shifts = torch.randint(-max_shift, max_shift+1, (B,), device=x.device)
+    # x_aug = torch.stack([
+    #     torch.roll(x_aug[i], shifts=shifts[i].item(), dims=-1)
+    #     for i in range(B)
+    # ])
+    # axis = axis + (shifts.float() / L).unsqueeze(1)
+    x_aug = x
     return x_aug, axis
 
 
