@@ -314,30 +314,29 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         cancer_mz_key = f'cancer_{i} [1]'
         # (48, 467)(N_samples, N_features)
         ftir_cancer = cancer_ftir[cancer_ftir_key].T
-        mz_cancer = cancer_mz[cancer_mz_key].reshape(1, -1)  # (1, 3888/4780)
-        print(f"ftir_cancer shape: {ftir_cancer.shape}")
-        print(f"mz_cancer shape before repeat: {mz_cancer.shape}")
-        # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同，变成 (N_samples, N_features)
-        mz_cancer_repeated = np.repeat(
-            mz_cancer, ftir_cancer.shape[0], axis=0)  # shape: (48, 2838)
-        print("mz_cancer_repeated shape:", mz_cancer_repeated.shape)
+        # 对每个患者的48张FTIR做平均，得到1张代表性谱图
+        ftir_cancer_agg = np.mean(
+            ftir_cancer, axis=0, keepdims=True)  # shape: (1, 467)
+        mz_cancer = cancer_mz[cancer_mz_key].reshape(1, -1)  # (1, 2838)
+        print(f"ftir_cancer shape: {ftir_cancer_agg.shape}")
+        print(f"mz_cancer shape: {mz_cancer.shape}")
         labels_cancer = np.ones(
-            ftir_cancer.shape[0], dtype=int)  # (48,), 癌症的标签标记为1
+            ftir_cancer_agg.shape[0], dtype=int)  # (1,), 癌症的标签标记为1
         print("labels_cancer shape:", labels_cancer.shape)
 
         # 处理正常样本
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
         ftir_normal = normal_ftir[normal_ftir_key].T
+        ftir_normal_agg = np.mean(
+            ftir_normal, axis=0, keepdims=True)  # shape: (1, 467)
         mz_normal = normal_mz[normal_mz_key].reshape(1, -1)
-        # 复制代谢组学数据，使其样本数量和 FTIR 数据的样本数量相同
-        mz_normal_repeated = np.repeat(mz_normal, ftir_normal.shape[0], axis=0)
         labels_normal = np.zeros(
-            ftir_normal.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
+            ftir_normal_agg.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
 
         # 合并患者i的所有样本
-        ftir_all = np.vstack([ftir_cancer, ftir_normal])
-        mz_all = np.vstack([mz_cancer_repeated, mz_normal_repeated])
+        ftir_all = np.vstack([ftir_cancer_agg, ftir_normal_agg])
+        mz_all = np.vstack([mz_cancer, mz_normal])
         labels_all = np.hstack([labels_cancer, labels_normal])
         patient_ids = np.full_like(labels_all, i)  # 为每个样本添加患者ID
         print(f"[患者 {i}] ftir_all shape:", ftir_all.shape)
