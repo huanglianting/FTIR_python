@@ -24,8 +24,8 @@ from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, 
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, extract_pls_features, extract_raw_fusion_pls_features
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cross_decomposition import PLSRegression
-import shap
-from scipy.stats import spearmanr
+# import shap
+# from scipy.stats import spearmanr
 import seaborn as sns
 
 matplotlib.use('Agg')

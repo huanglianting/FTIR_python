@@ -90,13 +90,13 @@ def plot_spectrum_with_marked_peaks(x, spectrum_1, spectrum_2, save_path, peak_w
     # 在同一张图中绘制良性样本和恶性样本
     ax.plot(x, mean_1, color=soft_green,
             linewidth=PLOT_LINE_WIDTH, label='Benign')
-    ax.fill_between(x, mean_1 - sem_1, mean_1 + sem_1,
+    ax.fill_between(x, mean_1 - std_1, mean_1 + std_1,
                     color=soft_green, alpha=0.2)
 
     ax.plot(x, mean_2, color=soft_red,
             linewidth=PLOT_LINE_WIDTH, label='Malignant')
-    ax.fill_between(x, mean_2 - sem_2, mean_2 +
-                    sem_2, color=soft_red, alpha=0.2)
+    ax.fill_between(x, mean_2 - std_2, mean_2 +
+                    std_2, color=soft_red, alpha=0.2)
 
     ax.set_xlabel(r'Wavenumber (cm$^{-1}$)',
                   fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
