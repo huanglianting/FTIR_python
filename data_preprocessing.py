@@ -374,14 +374,22 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     # 将所有患者的癌症和正常光谱堆叠起来
     all_patients_cancer = np.array(all_patients_cancer)  # (11, 467)
     all_patients_normal = np.array(all_patients_normal)  # (11, 467)
-    # 调用FTIR绘图函数
+    # 确保数组是正确的形状并转换为浮点类型
+    all_patients_cancer_array = np.asarray(all_patients_cancer, dtype=np.float32)  # (11, 467)
+    all_patients_normal_array = np.asarray(all_patients_normal, dtype=np.float32)  # (11, 467)
+
+    # 检查数组形状
+    print(f"all_patients_cancer_array shape: {all_patients_cancer_array.shape}")
+    print(f"all_patients_normal_array shape: {all_patients_normal_array.shape}")
+
+    # 调用FTIR绘图函数 - 确保输入的是 (467, n) 形状的数组
     plot_spectrum_with_marked_peaks(
         x=x_ftir,
-        spectrum_1=all_patients_normal.T,  # (467, 11) - 良性样本
-        spectrum_2=all_patients_cancer.T,  # (467, 11) - 恶性样本
+        spectrum_1=all_patients_normal_array.T,  # (467, 11) - 良性样本
+        spectrum_2=all_patients_cancer_array.T,  # (467, 11) - 恶性样本
         save_path=save_path,
         peak_wavenumbers=[990, 1030, 1075, 1100, 1150,
-                          1200, 1230, 1313, 1360, 1415, 1455, 1585, 1640]
+                        1200, 1230, 1313, 1360, 1415, 1455, 1585, 1640]
     )
     # 堆叠所有患者的数据
     train_ftir = np.vstack(train_ftir)  # (8*96, 467) = (768, 467)
