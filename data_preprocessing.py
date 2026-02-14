@@ -195,13 +195,6 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     all_cancer_spectra = np.hstack(
         list(cancer_ftir.values()))  # (467, N_samples)
 
-    plot_spectrum_with_marked_peaks(
-        x=x_ftir,
-        spectrum_1=all_normal_spectra,
-        spectrum_2=all_cancer_spectra,
-        save_path=save_path,
-        peak_wavenumbers=[990, 1030, 1075, 1100, 1150, 1200, 1230, 1313, 1360, 1415, 1455, 1585, 1640])
-
     # ===================================处理mz===========================================================
     df1 = pd.read_excel(mz_file_path1, header=1)  # 从第二行读取数据
     df2 = pd.read_excel(mz_file_path2, header=1)
@@ -307,6 +300,9 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     train_patients_list = patients[:8]
     test_patients_list = patients[8:]
 
+    # 提取11个患者的平均FTIR光谱用于绘图
+    all_patients_cancer = []
+    all_patients_normal = []
     # 遍历每个患者，处理并分配到对应集合
     for i in patients:  # 按打乱后的顺序处理患者
         # 处理癌症样本
@@ -315,27 +311,31 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         # (48, 467)(N_samples, N_features)
         ftir_cancer = cancer_ftir[cancer_ftir_key].T
         # 对每个患者的48张FTIR做平均，得到1张代表性谱图
-        ftir_cancer_agg = np.mean(
+        ftir_cancer_avg = np.mean(
             ftir_cancer, axis=0, keepdims=True)  # shape: (1, 467)
+        # 存储平均后的癌症光谱用于绘图
+        all_patients_cancer.append(ftir_cancer_avg)
         mz_cancer = cancer_mz[cancer_mz_key].reshape(1, -1)  # (1, 2838)
-        print(f"ftir_cancer shape: {ftir_cancer_agg.shape}")
+        print(f"ftir_cancer shape: {ftir_cancer_avg.shape}")
         print(f"mz_cancer shape: {mz_cancer.shape}")
         labels_cancer = np.ones(
-            ftir_cancer_agg.shape[0], dtype=int)  # (1,), 癌症的标签标记为1
+            ftir_cancer_avg.shape[0], dtype=int)  # (1,), 癌症的标签标记为1
         print("labels_cancer shape:", labels_cancer.shape)
 
         # 处理正常样本
         normal_ftir_key = f'normal{i}'
         normal_mz_key = f'normal_{i} [1]'
         ftir_normal = normal_ftir[normal_ftir_key].T
-        ftir_normal_agg = np.mean(
+        ftir_normal_avg = np.mean(
             ftir_normal, axis=0, keepdims=True)  # shape: (1, 467)
+        # 存储平均后的正常光谱用于绘图
+        all_patients_normal.append(ftir_normal_avg)
         mz_normal = normal_mz[normal_mz_key].reshape(1, -1)
         labels_normal = np.zeros(
-            ftir_normal_agg.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
+            ftir_normal_avg.shape[0], dtype=int)  # 对照组（正常）的标签标记为0
 
         # 合并患者i的所有样本
-        ftir_all = np.vstack([ftir_cancer_agg, ftir_normal_agg])
+        ftir_all = np.vstack([ftir_cancer_avg, ftir_normal_avg])
         mz_all = np.vstack([mz_cancer, mz_normal])
         labels_all = np.hstack([labels_cancer, labels_normal])
         patient_ids = np.full_like(labels_all, i)  # 为每个样本添加患者ID
@@ -371,6 +371,18 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
             test_labels.append(labels_shuffled)
             test_patient_ids.append(patient_ids_shuffled)
 
+    # 将所有患者的癌症和正常光谱堆叠起来
+    all_patients_cancer = np.array(all_patients_cancer)  # (11, 467)
+    all_patients_normal = np.array(all_patients_normal)  # (11, 467)
+    # 调用FTIR绘图函数
+    plot_spectrum_with_marked_peaks(
+        x=x_ftir,
+        spectrum_1=all_patients_normal.T,  # (467, 11) - 良性样本
+        spectrum_2=all_patients_cancer.T,  # (467, 11) - 恶性样本
+        save_path=save_path,
+        peak_wavenumbers=[990, 1030, 1075, 1100, 1150,
+                          1200, 1230, 1313, 1360, 1415, 1455, 1585, 1640]
+    )
     # 堆叠所有患者的数据
     train_ftir = np.vstack(train_ftir)  # (8*96, 467) = (768, 467)
     train_mz = np.vstack(train_mz)  # (768, 2838)
