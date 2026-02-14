@@ -24,8 +24,8 @@ from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, 
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, extract_pls_features, extract_raw_fusion_pls_features
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cross_decomposition import PLSRegression
-import shap
-from scipy.stats import spearmanr
+# import shap
+# from scipy.stats import spearmanr
 import seaborn as sns
 
 matplotlib.use('Agg')
@@ -1392,10 +1392,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    # "MultiModal": MultiModalModel,
+    "MultiModal": MultiModalModel,
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
-    "MFCNN": MFCNN,
+    # "MFCNN": MFCNN,
     # "CNN_LSTM": CNN_LSTM,
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
