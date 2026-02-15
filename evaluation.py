@@ -291,7 +291,12 @@ def perform_nonparametric_tests(model_results_dict):
     import numpy as np
     import pandas as pd
     from scipy import stats
-    from scikit_posthocs import posthoc_nemenyi_friedman
+    try:
+        from scikit_posthocs import posthoc_nemenyi_friedman
+        _has_posthocs = True
+    except Exception:
+        posthoc_nemenyi_friedman = None
+        _has_posthocs = False
 
     # 准备数据：每个模型在四折上的AUC值
     auc_data = []
@@ -304,8 +309,12 @@ def perform_nonparametric_tests(model_results_dict):
 
     auc_data = np.array(auc_data).T  # 转置为 (n_folds, n_models)
 
-    # Friedman检验（非参数版ANOVA）
-    friedman_stat, friedman_p = stats.friedmanchisquare(*auc_data.T)
+    n_models = len(model_names)
+    # Friedman检验（非参数版ANOVA），至少需要3个模型
+    if n_models >= 3:
+        friedman_stat, friedman_p = stats.friedmanchisquare(*auc_data.T)
+    else:
+        friedman_stat, friedman_p = (float('nan'), float('nan'))
 
     results = {
         'friedman_test': {
@@ -317,30 +326,31 @@ def perform_nonparametric_tests(model_results_dict):
 
     # 如果Friedman检验显著，进行事后检验
     if friedman_p < 0.05:
-        try:
-            # Nemenyi事后检验
+        if _has_posthocs and posthoc_nemenyi_friedman is not None and n_models >= 3:
             posthoc_results = posthoc_nemenyi_friedman(auc_data)
             results['posthoc_nemenyi'] = posthoc_results
-
-            # 也可以使用Wilcoxon符号秩检验进行两两比较
-            pairwise_comparisons = {}
-            n_models = len(model_names)
-
-            for i in range(n_models):
-                for j in range(i+1, n_models):
-                    # Wilcoxon符号秩检验
-                    stat, p = stats.wilcoxon(auc_data[:, i], auc_data[:, j])
-                    pairwise_comparisons[f"{model_names[i]}_vs_{model_names[j]}"] = {
-                        'statistic': stat,
-                        'p_value': p,
-                        'significant': p < 0.05
-                    }
-
-            results['pairwise_wilcoxon'] = pairwise_comparisons
-
-        except ImportError:
-            print("警告: scikit-posthocs 未安装，无法进行Nemenyi事后检验")
-            print("请安装: pip install scikit-posthocs")
+        else:
+            print("警告: scikit-posthocs 未安装，跳过 Nemenyi 事后检验；改用两两 Wilcoxon 比较")
+        pairwise_comparisons = {}
+        for i in range(n_models):
+            for j in range(i+1, n_models):
+                stat, p = stats.wilcoxon(auc_data[:, i], auc_data[:, j])
+                pairwise_comparisons[f"{model_names[i]}_vs_{model_names[j]}"] = {
+                    'statistic': stat,
+                    'p_value': p,
+                    'significant': p < 0.05
+                }
+        results['pairwise_wilcoxon'] = pairwise_comparisons
+    elif n_models == 2:
+        # 仅2个模型时直接进行两两 Wilcoxon 比较
+        stat, p = stats.wilcoxon(auc_data[:, 0], auc_data[:, 1])
+        results['pairwise_wilcoxon'] = {
+            f"{model_names[0]}_vs_{model_names[1]}": {
+                'statistic': stat,
+                'p_value': p,
+                'significant': p < 0.05
+            }
+        }
 
     return results
 
