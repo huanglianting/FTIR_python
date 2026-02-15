@@ -919,7 +919,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=lr, weight_decay=weight_decay)
+        model.parameters(), lr=lr, weight_decay=weight_decay,
+        betas=(0.9, 0.999),  # 调整beta参数
+        eps=1e-8)
     scheduler = ReduceLROnPlateau(
         optimizer, mode='min', factor=scheduler_factor, patience=3)
     early_stopping = EarlyStopping(patience=early_stop_patience, verbose=True,
@@ -927,7 +929,8 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
 
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     train_dataloader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, generator=g)
+        train_dataset, batch_size=batch_size, shuffle=True,
+        generator=g, drop_last=True)  # 丢弃最后一个不完整的批次
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
     val_dataloader = DataLoader(
         val_dataset, batch_size=batch_size, shuffle=False)
