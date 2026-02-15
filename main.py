@@ -1375,18 +1375,32 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 )
                 writer.close()
 
-            elif "svm" in model_name.lower():
+            elif (model_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]) or ("svm" in model_name.lower()):
                 train_features = np.hstack([ftir_train_fold.numpy(), mz_train_fold.numpy()]) \
                     if (isinstance(ftir_train_fold, torch.Tensor) and isinstance(mz_train_fold, torch.Tensor)) \
                     else np.hstack([ftir_train_fold, mz_train_fold])
-                test_features = np.hstack([ftir_val_fold.numpy(), mz_val_fold.numpy()]) \
+                val_features = np.hstack([ftir_val_fold.numpy(), mz_val_fold.numpy()]) \
                     if (isinstance(ftir_val_fold, torch.Tensor) and isinstance(mz_val_fold, torch.Tensor)) \
                     else np.hstack([ftir_val_fold, mz_val_fold])
-                model = SVMClassifier(kernel='rbf')
-                model.fit(train_features, y_train_fold.numpy())
-                preds = model.predict(test_features)
-                probs = model.predict_proba(test_features)[:, 1]
-                metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
+                if model_name == "SVM" or ("svm" in model_name.lower()):
+                    clf = SVMClassifier(kernel='rbf')
+                elif model_name == "LogReg":
+                    clf = LogRegClassifier()
+                elif model_name == "RandomForest":
+                    clf = RFClassifier()
+                elif model_name == "KNN":
+                    clf = KNNClassifier()
+                elif model_name == "GaussianNB":
+                    clf = NBClassifier()
+                elif model_name == "GBDT":
+                    clf = GBDTClassifier()
+                else:
+                    clf = SVMClassifier(kernel='rbf')
+                clf.fit(train_features, y_train_fold.numpy())
+                _ = clf.predict(val_features)
+                _ = (clf.predict_proba(val_features)[:, 1]
+                     if hasattr(clf, "predict_proba") else None)
+                metrics = evaluate_model(clf, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                                          name=model_name, model_type=model_name, is_svm=True)
                 val_accs = [metrics['accuracy']]
 
@@ -1454,6 +1468,14 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
+    # 经典机器学习基线（按 SVM 相同方式处理，model_class 在此不被直接使用）
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,
+    # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
     # "MFCNN": MFCNN,
@@ -1465,17 +1487,13 @@ models_to_evaluate = {
     # "CoAttnOnlyFusion": CoAttnOnlyFusion,
     # "SelfAttnFusion": SelfAttnFusion,
     # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
-    # "SVM": SVMClassifier
 }
 
 all_model_dfs = []
 for model_name, model_class in models_to_evaluate.items():
     print(f"\n\n 开始评估模型: {model_name}")
-    if model_name == "SVM":
-        pass
-    else:
-        df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
-                                       ftir_x, mz_x, patient_indices_train, param_grid)
+    df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
+                                   ftir_x, mz_x, patient_indices_train, param_grid)
     all_model_dfs.append(df)
     # 合并所有模型结果
     all_results_df = pd.concat(all_model_dfs, ignore_index=True)

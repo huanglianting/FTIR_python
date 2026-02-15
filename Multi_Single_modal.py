@@ -2,6 +2,10 @@ from scipy.interpolate import interp1d
 import torch
 import torch.nn as nn
 from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
 import numpy as np
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.preprocessing import MinMaxScaler
@@ -356,10 +360,18 @@ class SelfAttnOnlyFusion(nn.Module):
         return output
 
 
-# 消融试验6：SVM
+# --------------------------传统机器学习模型--------------------------
+# SVM
 class SVMClassifier:
-    def __init__(self, kernel='rbf'):
-        self.clf = SVC(kernel=kernel, probability=True)
+    def __init__(self, C=1.0, kernel='rbf', gamma='scale', probability=True, class_weight=None, random_state=42):
+        self.clf = SVC(
+            C=C,
+            kernel=kernel,
+            gamma=gamma,
+            probability=probability,
+            class_weight=class_weight,
+            random_state=random_state
+        )
 
     def fit(self, X, y):
         self.clf.fit(X, y)
@@ -372,6 +384,110 @@ class SVMClassifier:
 
     def decision_function(self, X):
         return self.clf.decision_function(X)
+
+
+# 逻辑回归
+class LogRegClassifier:
+    def __init__(self, C=1.0, penalty='l2', solver='liblinear'):
+        self.clf = LogisticRegression(C=C, penalty=penalty, solver=solver)
+
+    def fit(self, X, y):
+        self.clf.fit(X, y)
+
+    def predict(self, X):
+        return self.clf.predict(X)
+
+    def predict_proba(self, X):
+        return self.clf.predict_proba(X)
+
+    def decision_function(self, X):
+        if hasattr(self.clf, "decision_function"):
+            return self.clf.decision_function(X)
+        proba = self.clf.predict_proba(X)[:, 1]
+        return proba
+
+
+# 随机森林
+class RFClassifier:
+    def __init__(self, n_estimators=200, max_depth=None, random_state=42):
+        self.clf = RandomForestClassifier(
+            n_estimators=n_estimators, max_depth=max_depth, random_state=random_state
+        )
+
+    def fit(self, X, y):
+        self.clf.fit(X, y)
+
+    def predict(self, X):
+        return self.clf.predict(X)
+
+    def predict_proba(self, X):
+        return self.clf.predict_proba(X)
+
+    def decision_function(self, X):
+        proba = self.clf.predict_proba(X)[:, 1]
+        return proba
+
+
+# GBDT（梯度提升树）
+class GBDTClassifier:
+    def __init__(self, n_estimators=200, learning_rate=0.05, max_depth=3, random_state=42):
+        self.clf = GradientBoostingClassifier(
+            n_estimators=n_estimators, learning_rate=learning_rate,
+            max_depth=max_depth, random_state=random_state
+        )
+
+    def fit(self, X, y):
+        self.clf.fit(X, y)
+
+    def predict(self, X):
+        return self.clf.predict(X)
+
+    def predict_proba(self, X):
+        return self.clf.predict_proba(X)
+
+    def decision_function(self, X):
+        if hasattr(self.clf, "decision_function"):
+            return self.clf.decision_function(X)
+        proba = self.clf.predict_proba(X)[:, 1]
+        return proba
+
+
+# KNN
+class KNNClassifier:
+    def __init__(self, n_neighbors=5, weights='distance'):
+        self.clf = KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights)
+
+    def fit(self, X, y):
+        self.clf.fit(X, y)
+
+    def predict(self, X):
+        return self.clf.predict(X)
+
+    def predict_proba(self, X):
+        return self.clf.predict_proba(X)
+
+    def decision_function(self, X):
+        proba = self.clf.predict_proba(X)[:, 1]
+        return proba
+
+
+# 朴素贝叶斯
+class NBClassifier:
+    def __init__(self):
+        self.clf = GaussianNB()
+
+    def fit(self, X, y):
+        self.clf.fit(X, y)
+
+    def predict(self, X):
+        return self.clf.predict(X)
+
+    def predict_proba(self, X):
+        return self.clf.predict_proba(X)
+
+    def decision_function(self, X):
+        proba = self.clf.predict_proba(X)[:, 1]
+        return proba
 
 
 # --------------------------横向对比模型1:zhou2024cmacf--------------------------
