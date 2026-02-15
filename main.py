@@ -1119,23 +1119,13 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 #     'early_stop_patience': [10, 15]
 # }
 
-# 调参尝试1
-# param_grid = {
-#     'lr': [3e-4, 1e-4, 3e-5, 1e-5],  # 使用更低的学习率
-#     'weight_decay': [1e-3, 5e-4, 1e-4],  # 增加权重衰减（正则化）
-#     'batch_size': [32],  # 较小的批次有助于泛化
-#     'label_smoothing': [0.1],  # 增加标签平滑
-#     'scheduler_factor': [0.5],
-#     'early_stop_patience': [15]
-# }
-
-# 调参尝试2
+# 调参尝试3
 param_grid = {
     'lr': [3e-4],
-    'weight_decay': [1e-4],
+    'weight_decay': [1e-4, 5e-4],
     'batch_size': [16, 32],
-    'label_smoothing': [0.1, 0.2, 0.3],  # 增加标签平滑
-    'scheduler_factor': [0.1, 0.3, 0.5],  # 更激进的学习率衰减
+    'label_smoothing': [0.1, 0.2],
+    'scheduler_factor': [0.3, 0.5],
     'early_stop_patience': [10, 15]
 }
 
