@@ -1516,14 +1516,20 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    # "MultiModal": MultiModalModel,
-    # "MultiModalLite": MultiModalLite,
+    "MultiModal": MultiModalModel,
+    "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
     # "SVM": SVMClassifier,
     # "LogReg": LogRegClassifier,
     # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,   # 这个老是报错NAN 修复了很多次都不行，最新一次修复在version 67。
+    # "GaussianNB": NBClassifier,   # === 使用最优参数训练并评估模型: GaussianNB ===
+# Traceback (most recent call last):
+#   File "/kaggle/working/FTIR_python/main.py", line 1806, in <module>
+#     model_class = eval(model_name)
+#                   ^^^^^^^^^^^^^^^^
+#   File "<string>", line 1, in <module>
+# NameError: name 'GaussianNB' is not defined
     # "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
