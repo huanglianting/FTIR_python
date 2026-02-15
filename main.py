@@ -23,7 +23,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, \
-    extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier
+    extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier, LinearFusion
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cross_decomposition import PLSRegression
 import shap
@@ -1381,12 +1381,21 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 writer.close()
 
             elif (model_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]) or ("svm" in model_name.lower()):
-                train_features = np.hstack([ftir_train_fold.numpy(), mz_train_fold.numpy()]) \
-                    if (isinstance(ftir_train_fold, torch.Tensor) and isinstance(mz_train_fold, torch.Tensor)) \
-                    else np.hstack([ftir_train_fold, mz_train_fold])
-                val_features = np.hstack([ftir_val_fold.numpy(), mz_val_fold.numpy()]) \
-                    if (isinstance(ftir_val_fold, torch.Tensor) and isinstance(mz_val_fold, torch.Tensor)) \
-                    else np.hstack([ftir_val_fold, mz_val_fold])
+                # 经典模型：与评估阶段保持一致，拼接轴信息（重复到batch维）
+                if isinstance(ftir_train_fold, torch.Tensor):
+                    ftir_train_np = ftir_train_fold.numpy()
+                    mz_train_np = mz_train_fold.numpy()
+                    ftir_val_np = ftir_val_fold.numpy()
+                    mz_val_np = mz_val_fold.numpy()
+                else:
+                    ftir_train_np, mz_train_np = ftir_train_fold, mz_train_fold
+                    ftir_val_np, mz_val_np = ftir_val_fold, mz_val_fold
+                ftir_axis_train = ftir_axis.repeat(ftir_train_np.shape[0], 1).numpy()
+                mz_axis_train = mz_axis.repeat(mz_train_np.shape[0], 1).numpy()
+                ftir_axis_val = ftir_axis.repeat(ftir_val_np.shape[0], 1).numpy()
+                mz_axis_val = mz_axis.repeat(mz_val_np.shape[0], 1).numpy()
+                train_features = np.hstack([ftir_train_np, mz_train_np, ftir_axis_train, mz_axis_train])
+                val_features = np.hstack([ftir_val_np, mz_val_np, ftir_axis_val, mz_axis_val])
                 if model_name == "SVM" or ("svm" in model_name.lower()):
                     clf = SVMClassifier(kernel='rbf')
                 elif model_name == "LogReg":
@@ -1473,7 +1482,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    # 经典机器学习基线（按 SVM 相同方式处理，model_class 在此不被直接使用）
+    # 经典机器学习基线
     "SVM": SVMClassifier,
     "LogReg": LogRegClassifier,
     "RandomForest": RFClassifier,
@@ -1740,8 +1749,8 @@ for model_name, params in best_params_per_model.items():
         # 将 ftir_axis 和 mz_axis 扩展为与当前数据相同的 batch 维度，并拼接至特征维度
         train_features_with_axis = np.hstack([
             ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1),  # [batch_size, 467]
-            mz_x.repeat(mz_train.shape[0], 1)  # [batch_size, 2838]
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),  # [batch_size, 467]
+            mz_x.repeat(mz_train.shape[0], 1).numpy()  # [batch_size, 2838]
         ])
         test_features_with_axis = np.hstack([
             ftir_test.numpy(), mz_test.numpy(),
