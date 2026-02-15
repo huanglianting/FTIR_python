@@ -153,6 +153,198 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     return result_dict
 
 
+def calculate_fold_variability(all_fold_results):
+    """
+    计算四折交叉验证的折间变异指标
+    Args:
+        all_fold_results: 列表，每个元素是一个字典，包含每个折的测试结果
+    Returns:
+        dict: 包含均值、标准差、95%置信区间的统计结果
+    """
+    import numpy as np
+    from scipy import stats
+    import pandas as pd
+
+    # 将结果转换为DataFrame以便处理
+    df = pd.DataFrame(all_fold_results)
+
+    # 需要统计的指标
+    metrics = ['accuracy', 'precision',
+               'sensitivity', 'specificity', 'f1', 'auc']
+
+    stats_results = {}
+
+    for metric in metrics:
+        values = df[metric].values
+
+        # 计算均值和标准差
+        mean_val = np.mean(values)
+        std_val = np.std(values, ddof=1)  # 样本标准差
+
+        # 使用Bootstrap方法计算95%置信区间
+        n_bootstrap = 1000
+        bootstrap_means = []
+
+        for _ in range(n_bootstrap):
+            # 有放回抽样
+            sample = np.random.choice(values, size=len(values), replace=True)
+            bootstrap_means.append(np.mean(sample))
+
+        # 计算百分位数置信区间
+        ci_lower = np.percentile(bootstrap_means, 2.5)
+        ci_upper = np.percentile(bootstrap_means, 97.5)
+
+        stats_results[metric] = {
+            'mean': mean_val,
+            'std': std_val,
+            'ci_95_lower': ci_lower,
+            'ci_95_upper': ci_upper,
+            'format_str': f"{mean_val*100:.2f}% ± {std_val*100:.2f}%",
+            'ci_format_str': f"{ci_lower*100:.2f}% - {ci_upper*100:.2f}%"
+        }
+
+    return stats_results
+
+
+def perform_nonparametric_tests(model_results_dict):
+    """
+    对多个模型的性能进行非参数检验
+    Args:
+        model_results_dict: 字典，键为模型名，值为该模型在四折上的测试结果列表
+    Returns:
+        dict: 包含Friedman检验和事后检验的结果
+    """
+    import numpy as np
+    import pandas as pd
+    from scipy import stats
+    from scikit_posthocs import posthoc_nemenyi_friedman
+
+    # 准备数据：每个模型在四折上的AUC值
+    auc_data = []
+    model_names = []
+
+    for model_name, fold_results in model_results_dict.items():
+        auc_values = [result['auc'] for result in fold_results]
+        auc_data.append(auc_values)
+        model_names.append(model_name)
+
+    auc_data = np.array(auc_data).T  # 转置为 (n_folds, n_models)
+
+    # Friedman检验（非参数版ANOVA）
+    friedman_stat, friedman_p = stats.friedmanchisquare(*auc_data.T)
+
+    results = {
+        'friedman_test': {
+            'statistic': friedman_stat,
+            'p_value': friedman_p,
+            'significant': friedman_p < 0.05
+        }
+    }
+
+    # 如果Friedman检验显著，进行事后检验
+    if friedman_p < 0.05:
+        try:
+            # Nemenyi事后检验
+            posthoc_results = posthoc_nemenyi_friedman(auc_data)
+            results['posthoc_nemenyi'] = posthoc_results
+
+            # 也可以使用Wilcoxon符号秩检验进行两两比较
+            pairwise_comparisons = {}
+            n_models = len(model_names)
+
+            for i in range(n_models):
+                for j in range(i+1, n_models):
+                    # Wilcoxon符号秩检验
+                    stat, p = stats.wilcoxon(auc_data[:, i], auc_data[:, j])
+                    pairwise_comparisons[f"{model_names[i]}_vs_{model_names[j]}"] = {
+                        'statistic': stat,
+                        'p_value': p,
+                        'significant': p < 0.05
+                    }
+
+            results['pairwise_wilcoxon'] = pairwise_comparisons
+
+        except ImportError:
+            print("警告: scikit-posthocs 未安装，无法进行Nemenyi事后检验")
+            print("请安装: pip install scikit-posthocs")
+
+    return results
+
+
+def generate_statistical_report(model_stats_dict, save_path='./result'):
+    """
+    生成统计报告
+    Args:
+        model_stats_dict: 字典，键为模型名，值为calculate_fold_variability返回的统计结果
+        save_path: 保存路径
+    """
+    import os
+    import pandas as pd
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # 创建汇总表格
+    summary_data = []
+
+    for model_name, stats in model_stats_dict.items():
+        row = {'Model': model_name}
+
+        # 为每个指标添加均值和标准差
+        for metric in ['auc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'f1']:
+            if metric in stats:
+                row[f'{metric}_mean'] = stats[metric]['mean'] * 100
+                row[f'{metric}_std'] = stats[metric]['std'] * 100
+                row[f'{metric}_format'] = stats[metric]['format_str']
+
+        summary_data.append(row)
+
+    df_summary = pd.DataFrame(summary_data)
+
+    # 保存为CSV
+    csv_path = os.path.join(save_path, 'model_performance_statistics.csv')
+    df_summary.to_csv(csv_path, index=False, float_format='%.2f')
+
+    # 生成文本报告
+    report_path = os.path.join(save_path, 'statistical_report.txt')
+    with open(report_path, 'w') as f:
+        f.write("=" * 80 + "\n")
+        f.write("模型性能统计报告\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write("一、折间变异指标（均值 ± 标准差）\n")
+        f.write("-" * 60 + "\n")
+
+        for model_name, stats in model_stats_dict.items():
+            f.write(f"\n{model_name}:\n")
+            f.write(f"  AUC: {stats['auc']['format_str']}\n")
+            f.write(f"  准确率: {stats['accuracy']['format_str']}\n")
+            f.write(f"  灵敏度: {stats['sensitivity']['format_str']}\n")
+            f.write(f"  特异性: {stats['specificity']['format_str']}\n")
+            f.write(f"  精确率: {stats['precision']['format_str']}\n")
+            f.write(f"  F1分数: {stats['f1']['format_str']}\n")
+
+        f.write("\n\n二、95%置信区间（Bootstrap方法）\n")
+        f.write("-" * 60 + "\n")
+
+        for model_name, stats in model_stats_dict.items():
+            f.write(f"\n{model_name}:\n")
+            f.write(f"  AUC 95% CI: {stats['auc']['ci_format_str']}\n")
+            f.write(f"  灵敏度 95% CI: {stats['sensitivity']['ci_format_str']}\n")
+
+        f.write("\n\n三、统计说明\n")
+        f.write("-" * 60 + "\n")
+        f.write("1. 折间变异指标：标准差越小，说明模型在不同数据划分上的性能越稳定\n")
+        f.write("2. 95%置信区间：使用Bootstrap自助法计算，重复抽样1000次\n")
+        f.write("3. 置信区间表示：有95%的概率，模型的真实性能落在此范围内\n")
+        f.write("4. 所有统计均为非参数方法，适用于小样本数据\n")
+
+    print(f"统计报告已保存至: {report_path}")
+    print(f"详细数据已保存至: {csv_path}")
+
+    return df_summary
+
+
 def plot_tsne_features(tsne, ftir_feat, mz_feat, fused_feat, y_true, save_path, model_name):
     # 保存输入数据
     if not os.path.exists(save_path):

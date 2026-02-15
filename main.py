@@ -1,3 +1,4 @@
+from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests
 import random
 import os
 import itertools
@@ -27,6 +28,7 @@ from sklearn.cross_decomposition import PLSRegression
 import shap
 from scipy.stats import spearmanr
 import seaborn as sns
+import pickle
 
 matplotlib.use('Agg')
 # 统一图表样式配置
@@ -919,9 +921,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=lr, weight_decay=weight_decay,
-        betas=(0.9, 0.999),  # 调整beta参数
-        eps=1e-8)
+        model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
         optimizer, mode='min', factor=scheduler_factor, patience=3)
     early_stopping = EarlyStopping(patience=early_stop_patience, verbose=True,
@@ -929,8 +929,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
 
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
     train_dataloader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True,
-        generator=g, drop_last=True)  # 丢弃最后一个不完整的批次
+        train_dataset, batch_size=batch_size, shuffle=True, generator=g)
     val_dataset = TensorDataset(ftir_val, mz_val, y_val)
     val_dataloader = DataLoader(
         val_dataset, batch_size=batch_size, shuffle=False)
@@ -1162,12 +1161,14 @@ best_params = None
 
 def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train, ftir_axis, mz_axis,
                               patient_indices_train, param_grid):
+    detailed_results = []
     all_params = [dict(zip(param_grid.keys(), values))
                   for values in itertools.product(*param_grid.values())]
     results = []
     for params in all_params:
         print(f"\n=== [{model_name}] 测试参数组合: {params} ===")
         fold_accuracies = []
+        fold_detailed_results = []  # 收集当前参数组合的四折结果
         for fold, (train_idx, val_idx) in enumerate(sgkf.split(ftir_train, y_train, groups=patient_indices_train)):
             print(f"\n=========== 第 {fold + 1}/{n_splits} 折 ===========")
             # 提取对应的患者ID
@@ -1211,6 +1212,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 在训练完成后，评估验证集性能
+                val_metrics = evaluate_model(
+                    trained_model,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif model_name == "BiModalCMACF":
@@ -1406,6 +1420,25 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
             'params': str(params),
             'avg_accuracy': avg_acc
         })
+        # 保存当前参数组合的四折详细结果
+        detailed_results.append({
+            'model_type': model_name,
+            'params': params,
+            'fold_results': fold_detailed_results,
+            'avg_accuracy': avg_acc
+        })
+    # 新增：找到最佳参数后，保存该参数组合的四折结果
+    if detailed_results:
+        # 找到最佳参数组合
+        best_idx = np.argmax([r['avg_accuracy'] for r in detailed_results])
+        best_result = detailed_results[best_idx]
+        # 保存最佳参数的四折结果
+        best_results_path = os.path.join(
+            save_path, f'{model_name}_best_fold_results.pkl')
+        with open(best_results_path, 'wb') as f:
+            pickle.dump(best_result, f)
+        print(f"{model_name} 最佳参数的四折结果已保存至: {best_results_path}")
+
     return pd.DataFrame(results)
 
 
@@ -1745,6 +1778,114 @@ df_final = pd.DataFrame(final_test_results)
 df_final.to_csv(os.path.join(
     save_path, 'final_test_all_models_comparison.csv'), index=False)
 print("所有模型最终测试结果已保存至 final_test_all_models_comparison.csv")
+
+# ==================统计分析====================================
+print("\n" + "="*80)
+print("开始进行统计分析")
+print("="*80)
+
+# 导入新添加的统计函数
+
+# 收集所有模型的最佳四折结果
+all_model_fold_results = {}
+
+# 假设我们已经保存了每个模型的最佳四折结果
+for model_name in models_to_evaluate.keys():
+    results_path = os.path.join(
+        save_path, f'{model_name}_best_fold_results.pkl')
+
+    if os.path.exists(results_path):
+        import pickle
+        with open(results_path, 'rb') as f:
+            best_result = pickle.load(f)
+
+        # 提取四折测试结果
+        fold_results = best_result['fold_results']
+        all_model_fold_results[model_name] = fold_results
+
+        # 计算当前模型的折间变异指标
+        model_stats = calculate_fold_variability(fold_results)
+
+        print(f"\n{model_name} 折间变异指标:")
+        print(f"  AUC: {model_stats['auc']['format_str']}")
+        print(f"  准确率: {model_stats['accuracy']['format_str']}")
+        print(f"  灵敏度: {model_stats['sensitivity']['format_str']}")
+        print(f"  特异性: {model_stats['specificity']['format_str']}")
+
+        print(f"\n{model_name} 95%置信区间:")
+        print(f"  AUC: {model_stats['auc']['ci_format_str']}")
+        print(f"  灵敏度: {model_stats['sensitivity']['ci_format_str']}")
+
+# 如果有多于一个模型，进行非参数检验
+if len(all_model_fold_results) > 1:
+    print("\n" + "="*80)
+    print("进行模型间性能比较的非参数检验")
+    print("="*80)
+
+    test_results = perform_nonparametric_tests(all_model_fold_results)
+
+    print(f"\nFriedman检验结果:")
+    print(f"  统计量: {test_results['friedman_test']['statistic']:.4f}")
+    print(f"  P值: {test_results['friedman_test']['p_value']:.4f}")
+    print(f"  是否显著: {test_results['friedman_test']['significant']}")
+
+    if test_results['friedman_test']['significant'] and 'pairwise_wilcoxon' in test_results:
+        print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
+        for comparison, result in test_results['pairwise_wilcoxon'].items():
+            sig_symbol = "***" if result['significant'] else ""
+            print(f"  {comparison}: p={result['p_value']:.4f} {sig_symbol}")
+
+# 生成完整的统计报告
+print("\n" + "="*80)
+print("生成统计报告")
+print("="*80)
+
+# 计算所有模型的统计指标
+all_model_stats = {}
+for model_name, fold_results in all_model_fold_results.items():
+    all_model_stats[model_name] = calculate_fold_variability(fold_results)
+
+# 生成报告
+df_stats = generate_statistical_report(all_model_stats, save_path)
+
+# 将统计结果合并到最终测试结果中
+print("\n" + "="*80)
+print("最终模型性能汇总")
+print("="*80)
+
+for model_name, stats in all_model_stats.items():
+    print(f"\n{model_name}:")
+    print(
+        f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
+    print(f"  准确率: {stats['accuracy']['format_str']}")
+    print(
+        f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
+    print(f"  特异性: {stats['specificity']['format_str']}")
+    print(f"  精确率: {stats['precision']['format_str']}")
+    print(f"  F1分数: {stats['f1']['format_str']}")
+
+# 保存最终的汇总表格
+final_summary = []
+for model_name, stats in all_model_stats.items():
+    row = {
+        'Model': model_name,
+        'AUC': stats['auc']['format_str'],
+        'AUC_95CI': stats['auc']['ci_format_str'],
+        'Accuracy': stats['accuracy']['format_str'],
+        'Sensitivity': stats['sensitivity']['format_str'],
+        'Sensitivity_95CI': stats['sensitivity']['ci_format_str'],
+        'Specificity': stats['specificity']['format_str'],
+        'Precision': stats['precision']['format_str'],
+        'F1_Score': stats['f1']['format_str']
+    }
+    final_summary.append(row)
+
+df_final_summary = pd.DataFrame(final_summary)
+final_summary_path = os.path.join(
+    save_path, 'final_model_performance_summary.csv')
+df_final_summary.to_csv(final_summary_path, index=False)
+
+print(f"\n最终性能汇总已保存至: {final_summary_path}")
 
 
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
