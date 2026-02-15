@@ -17,13 +17,9 @@ class FTIREncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Dropout(0.2),    # 新增
-
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.2),    # 新增
-
             nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
             nn.Linear(64 * 32, 256),
@@ -45,13 +41,9 @@ class MZEncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Dropout(0.2),    # 新增
-
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.2),    # 新增
-
             nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
             nn.Linear(64 * 32, 256),
@@ -134,18 +126,17 @@ class MultiModalModel(nn.Module):
 
         # 新的分类头：
         self.classifier = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(0.5),  # 增加dropout
-            SimpleResidualBlock(256),
-            nn.Dropout(0.4),  # 增加dropout
-            nn.Linear(256, 128),  # 中间层
+            nn.Linear(512, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(0.3),  # 增加dropout
-            nn.Linear(128, 2),
-            nn.Softmax(dim=1)
+            nn.Dropout(0.6),
+            SimpleResidualBlock(128),
+            nn.Dropout(0.4),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):

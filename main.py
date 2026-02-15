@@ -1141,7 +1141,7 @@ param_grid = {
 #     'batch_size': [16, 24],  # 稍微降低批量大小
 #     'label_smoothing': [0.15, 0.2],  # 增加标签平滑
 #     'scheduler_factor': [0.2, 0.3],  # 更激进的学习率衰减
-#     'early_stop_patience': [15, 20]  # 增加耐心值
+#     'early_stop_patience': [10]
 # }
 
 # 古早最优参数
