@@ -159,7 +159,7 @@ class MultiModalLite(nn.Module):
         mz_feat = self.mz_extractor(mz, mz_axis)
         ftir_feat = self.proj_ftir(ftir_feat)
         mz_feat = self.proj_mz(mz_feat)
-        combined = self.fuser(ftir_feat, mz_feat)  # [B, 128]
+        combined = self.fuser(ftir_feat, mz_feat)  
         output = self.classifier(combined)  # [B, 2]
         return output
 

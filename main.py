@@ -1232,6 +1232,41 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 fold_accuracies.append(best_acc)
                 writer.close()
 
+            elif model_name == "MultiModalLite":
+                model = MultiModalLite(
+                    ftir_train_fold.shape[1], mz_train_fold.shape[1])
+                writer = SummaryWriter(
+                    f'./runs/gridsearch/{model_name}_fold{fold + 1}')
+                trained_model, _, _, _, val_accs = train_main_model(
+                    model,
+                    ftir_train_fold, mz_train_fold, y_train_fold,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    epochs=100,
+                    batch_size=params['batch_size'],
+                    writer=writer,
+                    lr=params['lr'],
+                    weight_decay=params['weight_decay'],
+                    label_smoothing=params['label_smoothing'],
+                    scheduler_factor=params['scheduler_factor'],
+                    early_stop_patience=params['early_stop_patience'],
+                    model_type=model_name
+                )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
+                writer.close()
+
             elif model_name == "BiModalCMACF":
                 model = BiModalCMACF(
                     ftir_input_dim=ftir_train_fold.shape[1],

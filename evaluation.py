@@ -4,8 +4,9 @@ import torch
 from sklearn.metrics import (
     accuracy_score, precision_score,
     recall_score, f1_score, roc_auc_score,
-    confusion_matrix, roc_curve
+    confusion_matrix, roc_curve, balanced_accuracy_score, matthews_corrcoef
 )
+from scipy.stats import beta
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -64,13 +65,9 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             test_features = np.hstack(
                 [ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
             preds = model.predict(test_features)
-            # 使用 predict_proba 获取稳定概率，避免决策函数归一化造成 NaN
-            if hasattr(model, "predict_proba"):
-                probs = model.predict_proba(test_features)[:, 1]
-            else:
-                scores = model.decision_function(test_features)
-                denom = (scores.max() - scores.min())
-                probs = (scores - scores.min()) / denom if denom != 0 else np.zeros_like(scores)
+            probs = model.decision_function(test_features)  # 使用决策函数代替概率
+            probs = (probs - probs.min()) / \
+                (probs.max() - probs.min())  # 可选归一化
         else:
             model.eval()
             with torch.no_grad():
@@ -88,16 +85,55 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
 
     # 计算性能指标
     acc = accuracy_score(y_true, preds)
+    bacc = balanced_accuracy_score(y_true, preds)
     prec = precision_score(y_true, preds, zero_division=0)
     rec = recall_score(y_true, preds, zero_division=0)
     f1 = f1_score(y_true, preds, zero_division=0)
     auc = roc_auc_score(y_true, probs)
     tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
     spec = tn / (tn + fp)
+    try:
+        mcc = matthews_corrcoef(y_true, preds)
+    except Exception:
+        mcc = 0.0
+    def clopper_pearson_ci(s, n, alpha=0.05):
+        if n == 0:
+            return (0.0, 1.0)
+        lower = 0.0 if s == 0 else beta.ppf(alpha/2, s, n - s + 1)
+        upper = 1.0 if s == n else beta.ppf(1 - alpha/2, s + 1, n - s)
+        return (float(lower), float(upper))
+    acc_ci = clopper_pearson_ci(int((preds == y_true).sum()), len(y_true))
+    sen_ci = clopper_pearson_ci(int(tp), int(tp + fn))
+    spe_ci = clopper_pearson_ci(int(tn), int(tn + fp))
+    def bootstrap_auc_ci(y, p, B=200, alpha=0.05):
+        rng = np.random.RandomState(42)
+        vals = []
+        y = np.asarray(y)
+        p = np.asarray(p)
+        n = len(y)
+        for _ in range(B):
+            idx = rng.randint(0, n, n)
+            yb, pb = y[idx], p[idx]
+            if len(np.unique(yb)) < 2:
+                continue
+            try:
+                vals.append(roc_auc_score(yb, pb))
+            except Exception:
+                pass
+        if len(vals) == 0:
+            return (float('nan'), float('nan'))
+        vals = np.sort(np.array(vals))
+        lo = np.percentile(vals, 100*alpha/2)
+        hi = np.percentile(vals, 100*(1-alpha/2))
+        return (float(lo), float(hi))
+    auc_ci = bootstrap_auc_ci(y_true, probs)
     print(
-        f"{name} - 准确率: {acc:.4f}, 精确率: {prec:.4f}, "
-        f"召回率(Sensitivity): {rec:.4f}, 特异性: {spec:.4f}, "
-        f"F1: {f1:.4f}, AUC: {auc:.4f}"
+        f"{name} - 准确率: {acc:.4f} [{acc_ci[0]:.3f},{acc_ci[1]:.3f}], "
+        f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f}, "
+        f"召回率(Sensitivity): {rec:.4f} [{sen_ci[0]:.3f},{sen_ci[1]:.3f}], "
+        f"特异性: {spec:.4f} [{spe_ci[0]:.3f},{spe_ci[1]:.3f}], "
+        f"F1: {f1:.4f}, AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
+        f"MCC: {mcc:.4f}"
     )
     # 每个类别的准确率
     class_0_mask = (y_true == 0)
@@ -112,11 +148,17 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         'model_type': model_type,
         'fold': fold,
         'accuracy': acc,
+        'balanced_accuracy': bacc,
         'precision': prec,
         'sensitivity': rec,
         'specificity': spec,
         'f1': f1,
         'auc': auc,
+        'mcc': mcc,
+        'accuracy_ci': acc_ci,
+        'sensitivity_ci': sen_ci,
+        'specificity_ci': spe_ci,
+        'auc_ci': auc_ci,
         'class_0_accuracy': class_0_acc,
         'class_1_accuracy': class_1_acc
     }
