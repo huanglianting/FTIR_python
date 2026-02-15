@@ -17,9 +17,13 @@ class FTIREncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
+            nn.Dropout(0.2),    # 新增
+
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
+            nn.Dropout(0.2),    # 新增
+
             nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
             nn.Linear(64 * 32, 256),
@@ -41,9 +45,13 @@ class MZEncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
+            nn.Dropout(0.2),    # 新增
+
             nn.Conv1d(32, 64, 5, stride=2),
             nn.BatchNorm1d(64),
             nn.ReLU(),
+            nn.Dropout(0.2),    # 新增
+
             nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
             nn.Linear(64 * 32, 256),
