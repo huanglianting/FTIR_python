@@ -4,7 +4,8 @@ import torch
 from sklearn.metrics import (
     accuracy_score, precision_score,
     recall_score, f1_score, roc_auc_score,
-    confusion_matrix, roc_curve, balanced_accuracy_score, matthews_corrcoef
+    confusion_matrix, roc_curve, balanced_accuracy_score, matthews_corrcoef,
+    average_precision_score, precision_recall_curve
 )
 from scipy.stats import beta
 import matplotlib.pyplot as plt
@@ -154,6 +155,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         'specificity': spec,
         'f1': f1,
         'auc': auc,
+        'average_precision': average_precision_score(y_true, probs),
         'mcc': mcc,
         'accuracy_ci': acc_ci,
         'sensitivity_ci': sen_ci,
@@ -169,8 +171,12 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     # # 绘制并保存 ROC 曲线
     # save_roc_curve(y_true, probs, auc, name, save_path)
 
-    plot_cm_roc(y_true, preds, probs, auc,
+    plot_cm_roc(y_true, preds, probs, auc, auc_ci,
                 save_path=save_path, method_name=name)
+    try:
+        save_pr_curve(y_true, probs, name, save_path)
+    except Exception as e:
+        print(f"保存PR曲线失败: {e}")
 
     # t-SNE 可视化
     if name == "MultiModal":
@@ -337,7 +343,7 @@ def generate_statistical_report(model_stats_dict, save_path='./result'):
         row = {'Model': model_name}
 
         # 为每个指标添加均值和标准差
-        for metric in ['auc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'f1']:
+        for metric in ['auc', 'accuracy', 'balanced_accuracy', 'sensitivity', 'specificity', 'precision', 'f1', 'mcc']:
             if metric in stats:
                 row[f'{metric}_mean'] = stats[metric]['mean'] * 100
                 row[f'{metric}_std'] = stats[metric]['std'] * 100
@@ -365,10 +371,14 @@ def generate_statistical_report(model_stats_dict, save_path='./result'):
             f.write(f"\n{model_name}:\n")
             f.write(f"  AUC: {stats['auc']['format_str']}\n")
             f.write(f"  准确率: {stats['accuracy']['format_str']}\n")
+            if 'balanced_accuracy' in stats:
+                f.write(f"  平衡准确率: {stats['balanced_accuracy']['format_str']}\n")
             f.write(f"  灵敏度: {stats['sensitivity']['format_str']}\n")
             f.write(f"  特异性: {stats['specificity']['format_str']}\n")
             f.write(f"  精确率: {stats['precision']['format_str']}\n")
             f.write(f"  F1分数: {stats['f1']['format_str']}\n")
+            if 'mcc' in stats:
+                f.write(f"  MCC: {stats['mcc']['format_str']}\n")
 
         f.write("\n\n二、95%置信区间（Bootstrap方法）\n")
         f.write("-" * 60 + "\n")
@@ -505,12 +515,15 @@ def save_confusion_matrix_heatmap(cm, save_path, method_name='Model', show_plot=
     return save_path
 
 
-def save_roc_curve(y_true, probs, auc, name, save_path):
+def save_roc_curve(y_true, probs, auc, auc_ci, name, save_path):
     fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)
 
     plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, color='#6495ED')
-    plt.plot([0, 1], [0, 1], color='#b1b1b1', linestyle='--')
+    plt.plot(fpr, tpr, color='#6495ED',
+             linewidth=PLOT_LINE_WIDTH,
+             label=f'ROC (AUC={auc:.3f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}])')
+    plt.plot([0, 1], [0, 1], color='#b1b1b1', linestyle='--',
+             linewidth=PLOT_LINE_WIDTH, label='Random')
     plt.xlim([-0.05, 1.05])
     plt.ylim([-0.05, 1.05])
     plt.xlabel('False Positive Rate',
@@ -520,13 +533,8 @@ def save_roc_curve(y_true, probs, auc, name, save_path):
     plt.title(f'Receiver Operating Characteristic (ROC) Curve',
               fontsize=TITLE_SIZE, pad=TITLE_PAD)
     plt.grid(False)
-    plt.legend(
-        # frameon=True,
-        # edgecolor='black',
-        # fancybox=False,
-        # shadow=False,
-        loc='upper right', fontsize=LEGEND_SIZE
-    )
+    plt.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
+               borderaxespad=0., fontsize=LEGEND_SIZE, frameon=True)
     # 设置坐标轴样式
     ax = plt.gca()
     for spine in ax.spines.values():
@@ -536,11 +544,12 @@ def save_roc_curve(y_true, probs, auc, name, save_path):
                    length=5, width=1, direction='out',
                    labelsize=XTICK_SIZE)
     plt.tight_layout()
-    plt.savefig(os.path.join(save_path, f'{name}_roc_curve.png'), dpi=300)
+    plt.savefig(os.path.join(save_path, f'{name}_roc_curve.png'),
+                dpi=300, bbox_inches='tight')
     plt.close()
 
 
-def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
+def plot_cm_roc(y_true, preds, probs, auc, auc_ci, save_path, method_name='Model'):
     # 保存输入数据
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -596,8 +605,11 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
     # ROC曲线
     plt.subplot(1, 2, 2)
     fpr, tpr, _ = roc_curve(y_true, probs, drop_intermediate=False)
-    plt.plot(fpr, tpr, color=soft_blue, linestyle='-',
-             linewidth=PLOT_LINE_WIDTH, label=f'ROC Curve (AUC = {auc:.4f})')
+    plt.plot(
+        fpr, tpr, color=soft_blue, linestyle='-',
+        linewidth=PLOT_LINE_WIDTH,
+        label=f'ROC (AUC={auc:.3f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}])'
+    )
     plt.plot([0, 1], [0, 1], color=soft_gray, linestyle='--',
              linewidth=PLOT_LINE_WIDTH, label='Random Classifier')
     plt.xlim([-0.05, 1.05])
@@ -609,13 +621,8 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
     plt.title(f'Receiver Operating Characteristic (ROC) Curve',
               fontsize=TITLE_SIZE, pad=TITLE_PAD)
     plt.grid(False)
-    # plt.legend(
-    #     frameon=True,
-    #     edgecolor='black',
-    #     fancybox=False,
-    #     shadow=False,
-    #     loc='lower right', fontsize=LEGEND_SIZE
-    # )
+    plt.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
+               borderaxespad=0., fontsize=LEGEND_SIZE, frameon=True)
     ax2 = plt.gca()
     for spine in ax2.spines.values():
         spine.set_color('black')
@@ -626,7 +633,79 @@ def plot_cm_roc(y_true, preds, probs, auc, save_path, method_name='Model'):
 
     plt.tight_layout()
     save_file = os.path.join(save_path, f'{method_name}_cm_roc.png')
-    plt.savefig(save_file, dpi=300)
+    plt.savefig(save_file, dpi=300, bbox_inches='tight')
     plt.close()
 
     return save_file
+
+def save_pr_curve(y_true, probs, name, save_path):
+    precision, recall, _ = precision_recall_curve(y_true, probs)
+    ap = average_precision_score(y_true, probs)
+    plt.figure(figsize=(8, 6))
+    plt.plot(recall, precision, color=soft_red, linewidth=PLOT_LINE_WIDTH,
+             label=f'PR (AP={ap:.3f})')
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('Recall', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('Precision', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.title('Precision-Recall Curve', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    plt.grid(False)
+    plt.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
+               borderaxespad=0., fontsize=LEGEND_SIZE, frameon=True)
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)
+    ax.tick_params(axis='both', which='major',
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_path, f'{name}_pr_curve.png'),
+                dpi=300, bbox_inches='tight')
+    plt.close()
+    return ap
+
+def plot_fold_variability(all_model_fold_results, save_path='./result'):
+    """
+    绘制折间变异性的箱线图/小提琴图
+    all_model_fold_results: dict[model_name] -> list of fold result dicts
+    """
+    import pandas as pd
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    records = []
+    for model, folds in all_model_fold_results.items():
+        for fr in folds:
+            rec = {'Model': model}
+            for k in ['accuracy', 'balanced_accuracy', 'sensitivity',
+                      'specificity', 'f1', 'auc', 'mcc', 'precision',
+                      'class_0_accuracy', 'class_1_accuracy']:
+                if k in fr:
+                    rec[k] = fr[k]
+            records.append(rec)
+    if not records:
+        return None
+    df = pd.DataFrame.from_records(records)
+    metrics = ['auc', 'balanced_accuracy', 'accuracy', 'sensitivity', 'specificity', 'f1', 'mcc']
+    for metric in metrics:
+        if metric not in df.columns:
+            continue
+        plt.figure(figsize=(8, 5))
+        sns.boxplot(data=df, x='Model', y=metric, color=soft_blue, width=0.6)
+        sns.stripplot(data=df, x='Model', y=metric, color=soft_red, size=5, alpha=0.6, jitter=True)
+        plt.ylabel(metric.upper() if metric != 'mcc' else 'MCC', fontsize=AXIS_LABEL_SIZE)
+        plt.xlabel('Model', fontsize=AXIS_LABEL_SIZE)
+        plt.title(f'Fold Variability of {metric.upper() if metric != "mcc" else "MCC"}',
+                  fontsize=TITLE_SIZE, pad=TITLE_PAD)
+        ax = plt.gca()
+        for spine in ax.spines.values():
+            spine.set_color('black')
+            spine.set_linewidth(1.2)
+        ax.tick_params(axis='both', which='major',
+                       length=5, width=1, direction='out',
+                       labelsize=XTICK_SIZE)
+        plt.tight_layout()
+        out = os.path.join(save_path, f'fold_variability_{metric}.png')
+        plt.savefig(out, dpi=300, bbox_inches='tight')
+        plt.close()
+    return True

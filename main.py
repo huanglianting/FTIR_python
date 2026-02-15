@@ -1,4 +1,4 @@
-from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests
+from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability
 import random
 import os
 import itertools
@@ -1835,10 +1835,12 @@ for model_name, params in best_params_per_model.items():
     final_test_results.append({
         'model_type': model_name,
         'accuracy': metrics['accuracy'],
+        'balanced_accuracy': metrics.get('balanced_accuracy', None),
         'precision': metrics['precision'],
         'sensitivity': metrics['sensitivity'],
         'specificity': metrics['specificity'],
         'f1': metrics['f1'],
+        'mcc': metrics.get('mcc', None),
         'auc': metrics['auc']
     })
 
@@ -1916,6 +1918,13 @@ for model_name, fold_results in all_model_fold_results.items():
 
 # 生成报告
 df_stats = generate_statistical_report(all_model_stats, save_path)
+
+# 绘制折间变异性的图（箱线图 + 点分布）
+try:
+    plot_fold_variability(all_model_fold_results, save_path)
+    print("折间变异性图已生成并保存至结果目录。")
+except Exception as e:
+    print(f"绘制折间变异性图失败: {e}")
 
 # 将统计结果合并到最终测试结果中
 print("\n" + "="*80)
