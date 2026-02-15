@@ -66,9 +66,28 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             test_features = np.hstack(
                 [ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
             preds = model.predict(test_features)
-            probs = model.decision_function(test_features)  # 使用决策函数代替概率
-            probs = (probs - probs.min()) / \
-                (probs.max() - probs.min())  # 可选归一化
+            # 概率获取：优先使用 predict_proba，其次对 decision_function 做sigmoid
+            probs = None
+            if hasattr(model, "predict_proba"):
+                try:
+                    proba = model.predict_proba(test_features)
+                    # 二分类取正类概率
+                    if proba.ndim == 2 and proba.shape[1] >= 2:
+                        probs = proba[:, 1]
+                    else:
+                        probs = proba.squeeze()
+                except Exception:
+                    probs = None
+            if probs is None:
+                try:
+                    scores = model.decision_function(test_features)
+                    # Sigmoid 将实数映射到(0,1)，避免 min-max 除零
+                    probs = 1.0 / (1.0 + np.exp(-scores))
+                except Exception:
+                    # 最后保底：用预测标签替代概率
+                    probs = (preds == 1).astype(float)
+            # 清理无效值，防止AUC报错
+            probs = np.nan_to_num(probs, nan=0.5, posinf=1.0, neginf=0.0)
         else:
             model.eval()
             with torch.no_grad():
@@ -90,9 +109,12 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     prec = precision_score(y_true, preds, zero_division=0)
     rec = recall_score(y_true, preds, zero_division=0)
     f1 = f1_score(y_true, preds, zero_division=0)
-    auc = roc_auc_score(y_true, probs)
+    try:
+        auc = roc_auc_score(y_true, probs)
+    except Exception:
+        auc = float('nan')
     tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-    spec = tn / (tn + fp)
+    spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
     try:
         mcc = matthews_corrcoef(y_true, preds)
     except Exception:

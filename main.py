@@ -1519,11 +1519,11 @@ models_to_evaluate = {
     "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    "SVM": SVMClassifier,
-    "LogReg": LogRegClassifier,
-    "RandomForest": RFClassifier,
-    "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,
+    # "SVM": SVMClassifier,
+    # "LogReg": LogRegClassifier,
+    # "RandomForest": RFClassifier,
+    # "KNN": KNNClassifier,
+    # "GaussianNB": NBClassifier,   # 这个老是报错NAN 修复了很多次都不行，最新一次修复在version 67。
     "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
