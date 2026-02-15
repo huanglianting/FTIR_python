@@ -950,6 +950,8 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
             outputs = model(ftir_noisy, mz_noisy, ftir_axis, mz_axis)
             loss = criterion(outputs, label_batch)
             loss.backward()
+            # 梯度裁剪防止梯度爆炸
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             train_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
@@ -1054,6 +1056,8 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
             outputs = model(inputs_noisy, axis)
             loss = criterion(outputs, labels)
             loss.backward()
+            # 梯度裁剪防止梯度爆炸
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             train_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
