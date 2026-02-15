@@ -921,8 +921,10 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     class_counts = torch.bincount(y_train).float()
-    class_weights = (y_train.shape[0] / (2.0 * class_counts)).to(y_train.device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
+    class_weights = (y_train.shape[0] /
+                     (2.0 * class_counts)).to(y_train.device)
+    criterion = nn.CrossEntropyLoss(
+        weight=class_weights, label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
@@ -1022,8 +1024,10 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
                              lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                              scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
     class_counts = torch.bincount(y_train).float()
-    class_weights = (y_train.shape[0] / (2.0 * class_counts)).to(y_train.device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
+    class_weights = (y_train.shape[0] /
+                     (2.0 * class_counts)).to(y_train.device)
+    criterion = nn.CrossEntropyLoss(
+        weight=class_weights, label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
@@ -1425,12 +1429,16 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 else:
                     ftir_train_np, mz_train_np = ftir_train_fold, mz_train_fold
                     ftir_val_np, mz_val_np = ftir_val_fold, mz_val_fold
-                ftir_axis_train = ftir_axis.repeat(ftir_train_np.shape[0], 1).numpy()
+                ftir_axis_train = ftir_axis.repeat(
+                    ftir_train_np.shape[0], 1).numpy()
                 mz_axis_train = mz_axis.repeat(mz_train_np.shape[0], 1).numpy()
-                ftir_axis_val = ftir_axis.repeat(ftir_val_np.shape[0], 1).numpy()
+                ftir_axis_val = ftir_axis.repeat(
+                    ftir_val_np.shape[0], 1).numpy()
                 mz_axis_val = mz_axis.repeat(mz_val_np.shape[0], 1).numpy()
-                train_features = np.hstack([ftir_train_np, mz_train_np, ftir_axis_train, mz_axis_train])
-                val_features = np.hstack([ftir_val_np, mz_val_np, ftir_axis_val, mz_axis_val])
+                train_features = np.hstack(
+                    [ftir_train_np, mz_train_np, ftir_axis_train, mz_axis_train])
+                val_features = np.hstack(
+                    [ftir_val_np, mz_val_np, ftir_axis_val, mz_axis_val])
                 if model_name == "SVM" or ("svm" in model_name.lower()):
                     clf = SVMClassifier(kernel='rbf')
                 elif model_name == "LogReg":
@@ -1523,7 +1531,7 @@ models_to_evaluate = {
     # "LogReg": LogRegClassifier,
     # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,  
+    # "GaussianNB": NBClassifier,
     # "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
