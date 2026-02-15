@@ -136,6 +136,33 @@ class MultiModalModel(nn.Module):
         return output
 
 
+# 轻量版多模态：保留 HybridFusion 但降低维度与头数
+class MultiModalLite(nn.Module):
+    def __init__(self, ftir_input_dim, mz_input_dim):
+        super(MultiModalLite, self).__init__()
+        self.ftir_extractor = FTIREncoder(ftir_input_dim)
+        self.mz_extractor = MZEncoder(mz_input_dim)
+        # 降维到64维再进行融合，减小容量但保留门控+注意力的结构归纳偏置
+        self.proj_ftir = nn.Linear(256, 64)
+        self.proj_mz = nn.Linear(256, 64)
+        self.fuser = HybridFusion(dim=64, num_heads=2)
+        self.classifier = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Linear(64, 2),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, ftir, mz, ftir_axis, mz_axis):
+        ftir_feat = self.ftir_extractor(ftir, ftir_axis)
+        mz_feat = self.mz_extractor(mz, mz_axis)
+        ftir_feat = self.proj_ftir(ftir_feat)
+        mz_feat = self.proj_mz(mz_feat)
+        combined = self.fuser(ftir_feat, mz_feat)  # [B, 128]
+        output = self.classifier(combined)  # [B, 2]
+        return output
+
 # ==================单模态模型定义====================================
 class SingleFTIRModel(nn.Module):
     def __init__(self, input_dim):

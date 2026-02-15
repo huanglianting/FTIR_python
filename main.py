@@ -21,7 +21,7 @@ from sklearn.preprocessing import StandardScaler
 from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
-from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
+from Multi_Single_modal import MultiModalModel, MultiModalLite, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, \
     extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier
 from sklearn.preprocessing import MinMaxScaler
@@ -1482,6 +1482,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
+    "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
     "SVM": SVMClassifier,
     "LogReg": LogRegClassifier,
@@ -1762,6 +1763,7 @@ for model_name, params in best_params_per_model.items():
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
 

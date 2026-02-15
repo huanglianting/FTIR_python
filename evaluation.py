@@ -64,9 +64,13 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             test_features = np.hstack(
                 [ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
             preds = model.predict(test_features)
-            probs = model.decision_function(test_features)  # 使用决策函数代替概率
-            probs = (probs - probs.min()) / \
-                (probs.max() - probs.min())  # 可选归一化
+            # 使用 predict_proba 获取稳定概率，避免决策函数归一化造成 NaN
+            if hasattr(model, "predict_proba"):
+                probs = model.predict_proba(test_features)[:, 1]
+            else:
+                scores = model.decision_function(test_features)
+                denom = (scores.max() - scores.min())
+                probs = (scores - scores.min()) / denom if denom != 0 else np.zeros_like(scores)
         else:
             model.eval()
             with torch.no_grad():
@@ -84,9 +88,9 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
 
     # 计算性能指标
     acc = accuracy_score(y_true, preds)
-    prec = precision_score(y_true, preds)
-    rec = recall_score(y_true, preds)
-    f1 = f1_score(y_true, preds)
+    prec = precision_score(y_true, preds, zero_division=0)
+    rec = recall_score(y_true, preds, zero_division=0)
+    f1 = f1_score(y_true, preds, zero_division=0)
     auc = roc_auc_score(y_true, probs)
     tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
     spec = tn / (tn + fp)
