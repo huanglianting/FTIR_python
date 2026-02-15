@@ -119,30 +119,15 @@ class MultiModalModel(nn.Module):
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
         self.fuser = HybridFusion(dim=256, num_heads=4)
-        # self.classifier = nn.Sequential(
-        #     nn.Linear(512, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     SimpleResidualBlock(256),
-        #     nn.Linear(256, 2),
-        #     nn.Softmax(dim=1)
-        # )
-
-        # 新的分类头：
         self.classifier = nn.Sequential(
-            nn.Linear(512, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.6),
-            SimpleResidualBlock(128),
-            nn.Dropout(0.4),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 2)
+            SimpleResidualBlock(256),
+            nn.Linear(256, 2),
+            nn.Softmax(dim=1)
         )
-
+        
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)

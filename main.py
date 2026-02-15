@@ -22,7 +22,8 @@ from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
 from Multi_Single_modal import MultiModalModel, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
-    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, extract_pls_features, extract_raw_fusion_pls_features
+    CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, \
+    extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.cross_decomposition import PLSRegression
 import shap
@@ -919,7 +920,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      ftir_axis, mz_axis, epochs, batch_size, writer,
                      lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
-    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    class_counts = torch.bincount(y_train).float()
+    class_weights = (y_train.shape[0] / (2.0 * class_counts)).to(y_train.device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
@@ -1018,7 +1021,9 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
                              epochs, batch_size, writer,
                              lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                              scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
-    criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+    class_counts = torch.bincount(y_train).float()
+    class_weights = (y_train.shape[0] / (2.0 * class_counts)).to(y_train.device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
