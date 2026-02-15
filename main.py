@@ -1523,13 +1523,7 @@ models_to_evaluate = {
     # "LogReg": LogRegClassifier,
     # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,   # === 使用最优参数训练并评估模型: GaussianNB ===
-# Traceback (most recent call last):
-#   File "/kaggle/working/FTIR_python/main.py", line 1806, in <module>
-#     model_class = eval(model_name)
-#                   ^^^^^^^^^^^^^^^^
-#   File "<string>", line 1, in <module>
-# NameError: name 'GaussianNB' is not defined
+    "GaussianNB": NBClassifier,  
     # "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
@@ -1800,6 +1794,26 @@ for model_name, params in best_params_per_model.items():
             mz_x.repeat(mz_test.shape[0], 1).numpy()
         ])
         model = SVMClassifier(kernel='rbf')
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1]
+        metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds, probs=probs,
+                                 name=model_name, model_type=model_name, is_svm=True)
+        continue
+    elif model_name == "GaussianNB":
+        # 与SVM相同，拼接轴向信息作为先验参考
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
+        model = NBClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[:, 1]

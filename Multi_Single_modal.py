@@ -89,7 +89,7 @@ class HybridFusion(nn.Module):
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
         self.attn = nn.MultiheadAttention(
-            embed_dim=dim, num_heads=num_heads, batch_first=True)
+            embed_dim=dim, num_heads=num_heads, batch_first=True, dropout=0.2)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
 
@@ -124,8 +124,7 @@ class MultiModalModel(nn.Module):
             nn.BatchNorm1d(256),
             nn.ReLU(),
             SimpleResidualBlock(256),
-            nn.Linear(256, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(256, 2)
         )
         
     def forward(self, ftir, mz, ftir_axis, mz_axis):
@@ -150,8 +149,7 @@ class MultiModalLite(nn.Module):
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Linear(64, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(64, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
