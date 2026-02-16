@@ -1,4 +1,4 @@
-from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability
+from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability, select_optimal_threshold
 import random
 import os
 import itertools
@@ -1604,7 +1604,16 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
+        with torch.no_grad():
+            outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
+            probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val)
+        with torch.no_grad():
+            outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
+            probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
+        preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds_test, probs=probs_test,
                                  name=model_name, model_type=model_name)
         """
         # SHAP分析函数
@@ -1655,7 +1664,16 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
+        with torch.no_grad():
+            outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
+            probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val)
+        with torch.no_grad():
+            outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
+            probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
+        preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds_test, probs=probs_test,
                                  name=model_name, model_type=model_name)
 
     elif model_name == "CMSTF":
@@ -1680,7 +1698,16 @@ for model_name, params in best_params_per_model.items():
             model_type=model_name
         )
         writer.close()
+        with torch.no_grad():
+            outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
+            probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val)
+        with torch.no_grad():
+            outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
+            probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
+        preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds_test, probs=probs_test,
                                  name=model_name, model_type=model_name)
 
     elif model_name == "MFCNN":

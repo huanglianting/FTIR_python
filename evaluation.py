@@ -227,6 +227,16 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     return result_dict
 
 
+def select_optimal_threshold(y_true, probs, method="youden"):
+    fpr, tpr, thresholds = roc_curve(y_true, probs)
+    j = tpr - fpr
+    idx = int(np.argmax(j))
+    thr = thresholds[idx]
+    if np.isnan(thr):
+        return 0.5
+    return float(thr)
+
+
 def calculate_fold_variability(all_fold_results):
     """
     计算四折交叉验证的折间变异指标
