@@ -1612,15 +1612,15 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    # "MultiModal": MultiModalModel,
-    # "MultiModalLite": MultiModalLite,
+    "MultiModal": MultiModalModel,
+    "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    "SVM": SVMClassifier,
-    "LogReg": LogRegClassifier,
-    "RandomForest": RFClassifier,
-    "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,
-    "GBDT": GBDTClassifier,
+    # "SVM": SVMClassifier,
+    # "LogReg": LogRegClassifier,
+    # "RandomForest": RFClassifier,
+    # "KNN": KNNClassifier,
+    # "GaussianNB": NBClassifier,
+    # "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
@@ -1708,7 +1708,8 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         """
         # SHAP分析函数
         ftir_shap_difference = perform_ftir_shap_analysis(
@@ -1770,7 +1771,8 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     elif model_name == "CMSTF":
         model = CMSTF(
@@ -1806,7 +1808,8 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     elif model_name == "MFCNN":
         # 使用最终训练/验证划分提取 PLS 特征，避免将测试集作为验证集造成泄露
@@ -1846,7 +1849,8 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, test_features, None, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     elif model_name == "CNN_LSTM":
         # 低层次融合：使用最终训练/验证划分拟合 PLS，避免把测试集作为验证集
@@ -1886,7 +1890,8 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, test_pls, None, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train_final.shape[1])
@@ -1908,7 +1913,8 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, None, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     elif model_name == "MZOnly":
         model = SingleMZModel(input_dim=mz_train_final.shape[1])
@@ -1930,7 +1936,8 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, None, mz_test, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     elif model_name == "SVM":
         train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
@@ -1941,20 +1948,16 @@ for model_name, params in best_params_per_model.items():
         probs = model.predict_proba(test_features)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                 name=model_name, model_type=model_name, is_svm=True,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         continue
 
     elif model_name == "GaussianNB":
-        # 与SVM相同，拼接轴向信息作为先验参考
         train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
+            ftir_train.numpy(), mz_train.numpy()
         ])
         test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
+            ftir_test.numpy(), mz_test.numpy()
         ])
         model = NBClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
@@ -1962,18 +1965,15 @@ for model_name, params in best_params_per_model.items():
         probs = model.predict_proba(test_features_with_axis)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                 name=model_name, model_type=model_name, is_svm=True,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         continue
     elif model_name == "LogReg":
         train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
+            ftir_train.numpy(), mz_train.numpy()
         ])
         test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
+            ftir_test.numpy(), mz_test.numpy()
         ])
         model = LogRegClassifier(
             C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
@@ -1983,18 +1983,15 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                 name=model_name, model_type=model_name, is_svm=True,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         continue
     elif model_name == "RandomForest":
         train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
+            ftir_train.numpy(), mz_train.numpy()
         ])
         test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
+            ftir_test.numpy(), mz_test.numpy()
         ])
         model = RFClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
@@ -2003,18 +2000,15 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                 name=model_name, model_type=model_name, is_svm=True,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         continue
     elif model_name == "KNN":
         train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
+            ftir_train.numpy(), mz_train.numpy()
         ])
         test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
+            ftir_test.numpy(), mz_test.numpy()
         ])
         model = KNNClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
@@ -2023,18 +2017,15 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                 name=model_name, model_type=model_name, is_svm=True,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         continue
     elif model_name == "GBDT":
         train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
+            ftir_train.numpy(), mz_train.numpy()
         ])
         test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
+            ftir_test.numpy(), mz_test.numpy()
         ])
         model = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9,
                                max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
@@ -2044,7 +2035,8 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                 name=model_name, model_type=model_name, is_svm=True,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
         continue
 
     else:
@@ -2069,7 +2061,8 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name,
+                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
 
     training_history[model_name] = {
         'train_losses': train_losses,
@@ -2433,14 +2426,10 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
             for m_name, _ in models_to_eval.items():
                 if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
                     tr_feat = np.hstack([
-                        ftir_tr.numpy(), mz_tr.numpy(),
-                        ftir_x.repeat(ftir_tr.shape[0], 1).numpy(),
-                        mz_x.repeat(mz_tr.shape[0], 1).numpy()
+                        ftir_tr.numpy(), mz_tr.numpy()
                     ])
                     te_feat = np.hstack([
-                        ftir_te.numpy(), mz_te.numpy(),
-                        ftir_x.repeat(ftir_te.shape[0], 1).numpy(),
-                        mz_x.repeat(mz_te.shape[0], 1).numpy()
+                        ftir_te.numpy(), mz_te.numpy()
                     ])
                     if m_name == "SVM":
                         clf = SVMClassifier(kernel='rbf')
@@ -2462,7 +2451,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                         clf, "predict_proba") else None
                     met = evaluate_model(clf, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=preds, probs=probs, name=f"{m_name}_outer{r}_fold{fold}",
-                                         model_type=m_name, is_svm=True)
+                                         model_type=m_name, is_svm=True, verbose=False, do_plots=PLOTS_IN_GRID_OR_CV)
                     results[m_name].append(met)
                 else:
                     p = best_params.get(m_name, {'batch_size': 32, 'lr': 3e-4, 'weight_decay': 1e-4,
@@ -2513,7 +2502,8 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                     pd_te = (pr_te >= thr).astype(int)
                     met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=pd_te, probs=pr_te,
-                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name)
+                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
+                                         verbose=False, do_plots=PLOTS_IN_GRID_OR_CV)
                     results[m_name].append(met)
     summary = {}
     for m, lst in results.items():
