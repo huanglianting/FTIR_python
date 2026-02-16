@@ -369,7 +369,7 @@ class SelfAttnOnlyFusion(nn.Module):
 # --------------------------传统机器学习模型--------------------------
 # SVM
 class SVMClassifier:
-    def __init__(self, C=1.0, kernel='rbf', gamma='scale', probability=True, class_weight=None, random_state=42):
+    def __init__(self, C=0.1, kernel='rbf', gamma='scale', probability=True, class_weight='balanced', random_state=42):
         self.clf = SVC(
             C=C,
             kernel=kernel,
@@ -394,7 +394,7 @@ class SVMClassifier:
 
 # 逻辑回归
 class LogRegClassifier:
-    def __init__(self, C=1.0, penalty='l2', solver='liblinear'):
+    def __init__(self, C=0.1, penalty='l2', solver='liblinear'):
         self.clf = LogisticRegression(C=C, penalty=penalty, solver=solver)
 
     def fit(self, X, y):
@@ -415,7 +415,7 @@ class LogRegClassifier:
 
 # 随机森林
 class RFClassifier:
-    def __init__(self, n_estimators=200, max_depth=None, random_state=42):
+    def __init__(self, n_estimators=100, max_depth=5, random_state=42):
         self.clf = RandomForestClassifier(
             n_estimators=n_estimators, max_depth=max_depth, random_state=random_state
         )
@@ -436,7 +436,7 @@ class RFClassifier:
 
 # GBDT（梯度提升树）
 class GBDTClassifier:
-    def __init__(self, n_estimators=200, learning_rate=0.05, max_depth=3, min_samples_leaf=1, subsample=1.0, max_features=None, random_state=42):
+    def __init__(self, n_estimators=100, learning_rate=0.05, max_depth=3, min_samples_leaf=5, subsample=0.8, max_features='sqrt', random_state=42):
         self.clf = GradientBoostingClassifier(
             n_estimators=n_estimators,
             learning_rate=learning_rate,
@@ -465,7 +465,7 @@ class GBDTClassifier:
 
 # KNN
 class KNNClassifier:
-    def __init__(self, n_neighbors=5, weights='distance'):
+    def __init__(self, n_neighbors=10, weights='distance'):
         self.clf = KNeighborsClassifier(
             n_neighbors=n_neighbors, weights=weights)
 
@@ -486,7 +486,7 @@ class KNNClassifier:
 # 朴素贝叶斯
 class NBClassifier:
     def __init__(self):
-        self.clf = GaussianNB()
+        self.clf = GaussianNB(var_smoothing=1e-9)
 
     def fit(self, X, y):
         self.clf.fit(X, y)

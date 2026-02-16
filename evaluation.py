@@ -59,10 +59,8 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             ftir_test_np = ftir_test.numpy() if isinstance(
                 ftir_test, torch.Tensor) else ftir_test
             mz_test_np = mz_test.numpy() if isinstance(mz_test, torch.Tensor) else mz_test
-            
-            # 修复：移除轴信息，避免数据泄漏
             test_features = np.hstack([ftir_test_np, mz_test_np])
-            
+
             preds = model.predict(test_features)
             # 概率获取：优先使用 predict_proba，其次对 decision_function 做sigmoid
             probs = None
@@ -117,6 +115,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         mcc = matthews_corrcoef(y_true, preds)
     except Exception:
         mcc = 0.0
+
     def clopper_pearson_ci(s, n, alpha=0.05):
         if n == 0:
             return (0.0, 1.0)
@@ -126,6 +125,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     acc_ci = clopper_pearson_ci(int((preds == y_true).sum()), len(y_true))
     sen_ci = clopper_pearson_ci(int(tp), int(tp + fn))
     spe_ci = clopper_pearson_ci(int(tn), int(tn + fp))
+
     def bootstrap_auc_ci(y, p, B=200, alpha=0.05):
         rng = np.random.RandomState(42)
         vals = []
@@ -304,7 +304,8 @@ def calculate_fold_variability(all_fold_results):
             bootstrap_means = []
             for _ in range(n_bootstrap):
                 # 有放回抽样
-                sample = np.random.choice(values, size=len(values), replace=True)
+                sample = np.random.choice(
+                    values, size=len(values), replace=True)
                 bootstrap_means.append(np.mean(sample))
             # 计算百分位数置信区间
             ci_lower = float(np.percentile(bootstrap_means, 2.5))
@@ -447,24 +448,34 @@ def generate_statistical_report(model_stats_dict, save_path='./result'):
 
         for model_name, stats in model_stats_dict.items():
             f.write(f"\n{model_name}:\n")
-            f.write(f"  AUC: {stats.get('auc', {}).get('format_str', 'N/A')}\n")
-            f.write(f"  准确率: {stats.get('accuracy', {}).get('format_str', 'N/A')}\n")
+            f.write(
+                f"  AUC: {stats.get('auc', {}).get('format_str', 'N/A')}\n")
+            f.write(
+                f"  准确率: {stats.get('accuracy', {}).get('format_str', 'N/A')}\n")
             if 'balanced_accuracy' in stats:
-                f.write(f"  平衡准确率: {stats.get('balanced_accuracy', {}).get('format_str', 'N/A')}\n")
-            f.write(f"  灵敏度: {stats.get('sensitivity', {}).get('format_str', 'N/A')}\n")
-            f.write(f"  特异性: {stats.get('specificity', {}).get('format_str', 'N/A')}\n")
-            f.write(f"  精确率: {stats.get('precision', {}).get('format_str', 'N/A')}\n")
-            f.write(f"  F1分数: {stats.get('f1', {}).get('format_str', 'N/A')}\n")
+                f.write(
+                    f"  平衡准确率: {stats.get('balanced_accuracy', {}).get('format_str', 'N/A')}\n")
+            f.write(
+                f"  灵敏度: {stats.get('sensitivity', {}).get('format_str', 'N/A')}\n")
+            f.write(
+                f"  特异性: {stats.get('specificity', {}).get('format_str', 'N/A')}\n")
+            f.write(
+                f"  精确率: {stats.get('precision', {}).get('format_str', 'N/A')}\n")
+            f.write(
+                f"  F1分数: {stats.get('f1', {}).get('format_str', 'N/A')}\n")
             if 'mcc' in stats:
-                f.write(f"  MCC: {stats.get('mcc', {}).get('format_str', 'N/A')}\n")
+                f.write(
+                    f"  MCC: {stats.get('mcc', {}).get('format_str', 'N/A')}\n")
 
         f.write("\n\n二、95%置信区间（Bootstrap方法）\n")
         f.write("-" * 60 + "\n")
 
         for model_name, stats in model_stats_dict.items():
             f.write(f"\n{model_name}:\n")
-            f.write(f"  AUC 95% CI: {stats.get('auc', {}).get('ci_format_str', 'N/A')}\n")
-            f.write(f"  灵敏度 95% CI: {stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(
+                f"  AUC 95% CI: {stats.get('auc', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(
+                f"  灵敏度 95% CI: {stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}\n")
 
         f.write("\n\n三、统计说明\n")
         f.write("-" * 60 + "\n")
@@ -716,6 +727,7 @@ def plot_cm_roc(y_true, preds, probs, auc, auc_ci, save_path, method_name='Model
 
     return save_file
 
+
 def save_pr_curve(y_true, probs, name, save_path):
     precision, recall, _ = precision_recall_curve(y_true, probs)
     ap = average_precision_score(y_true, probs)
@@ -743,6 +755,7 @@ def save_pr_curve(y_true, probs, name, save_path):
     plt.close()
     return ap
 
+
 def plot_fold_variability(all_model_fold_results, save_path='./result'):
     """
     绘制折间变异性的箱线图/小提琴图
@@ -764,14 +777,17 @@ def plot_fold_variability(all_model_fold_results, save_path='./result'):
     if not records:
         return None
     df = pd.DataFrame.from_records(records)
-    metrics = ['auc', 'balanced_accuracy', 'accuracy', 'sensitivity', 'specificity', 'f1', 'mcc']
+    metrics = ['auc', 'balanced_accuracy', 'accuracy',
+               'sensitivity', 'specificity', 'f1', 'mcc']
     for metric in metrics:
         if metric not in df.columns:
             continue
         plt.figure(figsize=(8, 5))
         sns.boxplot(data=df, x='Model', y=metric, color=soft_blue, width=0.6)
-        sns.stripplot(data=df, x='Model', y=metric, color=soft_red, size=5, alpha=0.6, jitter=True)
-        plt.ylabel(metric.upper() if metric != 'mcc' else 'MCC', fontsize=AXIS_LABEL_SIZE)
+        sns.stripplot(data=df, x='Model', y=metric,
+                      color=soft_red, size=5, alpha=0.6, jitter=True)
+        plt.ylabel(metric.upper() if metric !=
+                   'mcc' else 'MCC', fontsize=AXIS_LABEL_SIZE)
         plt.xlabel('Model', fontsize=AXIS_LABEL_SIZE)
         plt.title(f'Fold Variability of {metric.upper() if metric != "mcc" else "MCC"}',
                   fontsize=TITLE_SIZE, pad=TITLE_PAD)
