@@ -1278,8 +1278,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_train_fold, mz_train_fold, y_train_fold,
                     ftir_val_fold, mz_val_fold, y_val_fold,
                     ftir_axis, mz_axis,
-                    # epochs=100,
-                    epochs=50,
+                    epochs=100,
                     batch_size=params['batch_size'],
                     writer=writer,
                     lr=params['lr'],
@@ -1289,6 +1288,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif model_name == "CMSTF":
@@ -1303,7 +1315,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_val_fold, mz_val_fold, y_val_fold,
                     ftir_axis, mz_axis,
                     epochs=100,
-                    # epochs=50,
                     batch_size=params['batch_size'],
                     writer=writer,
                     lr=params['lr'],
@@ -1313,6 +1324,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif model_name == "MFCNN":
@@ -1341,6 +1365,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    val_features, None, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif model_name == "CNN_LSTM":
@@ -1371,6 +1408,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    val_pls, None, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif model_name == "FTIROnly":
@@ -1392,6 +1442,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    ftir_val_fold, None, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif model_name == "MZOnly":
@@ -1413,6 +1476,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 评估验证集
+                val_metrics = evaluate_model(
+                    trained_model,
+                    None, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path
+                )
+                fold_detailed_results.append(val_metrics)
+                best_acc = max(val_accs) if len(val_accs) > 0 else 0
+                fold_accuracies.append(best_acc)
                 writer.close()
 
             elif (model_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]) or ("svm" in model_name.lower()):
@@ -1670,9 +1746,11 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         with torch.no_grad():
-            outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
+            outputs_val = trained_model(
+                ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(
+        ), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1704,9 +1782,11 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         with torch.no_grad():
-            outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
+            outputs_val = trained_model(
+                ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(
+        ), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1852,108 +1932,74 @@ for model_name, params in best_params_per_model.items():
             mz_x.repeat(mz_test.shape[0], 1).numpy()
         ])
         model = SVMClassifier(kernel='rbf')
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1]
+        model.fit(train_pls.numpy(), y_train_final.numpy())
+        preds = model.predict(test_pls.numpy())
+        probs = model.predict_proba(test_pls.numpy())[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "GaussianNB":
-        # 与SVM相同，拼接轴向信息作为先验参考
-        train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
-        ])
-        test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
-        ])
+        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
+            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
+        )
         model = NBClassifier()
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1]
+        model.fit(train_pls.numpy(), y_train_final.numpy())
+        preds = model.predict(test_pls.numpy())
+        probs = model.predict_proba(test_pls.numpy())[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "LogReg":
-        train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
-        ])
-        test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
-        ])
-        model = LogRegClassifier(C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[
+        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
+            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
+        )
+        model = LogRegClassifier(
+            C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
+        model.fit(train_pls.numpy(), y_train_final.numpy())
+        preds = model.predict(test_pls.numpy())
+        probs = model.predict_proba(test_pls.numpy())[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "RandomForest":
-        train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
-        ])
-        test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
-        ])
+        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
+            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
+        )
         model = RFClassifier()
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[
+        model.fit(train_pls.numpy(), y_train_final.numpy())
+        preds = model.predict(test_pls.numpy())
+        probs = model.predict_proba(test_pls.numpy())[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "KNN":
-        train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
-        ])
-        test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
-        ])
+        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
+            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
+        )
         model = KNNClassifier()
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[
+        model.fit(train_pls.numpy(), y_train_final.numpy())
+        preds = model.predict(test_pls.numpy())
+        probs = model.predict_proba(test_pls.numpy())[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "GBDT":
-        train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
-            mz_x.repeat(mz_train.shape[0], 1).numpy()
-        ])
-        test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
-        ])
-        model = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9, max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[
+        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
+            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
+        )
+        model = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9,
+                               max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
+        model.fit(train_pls.numpy(), y_train_final.numpy())
+        preds = model.predict(test_pls.numpy())
+        probs = model.predict_proba(test_pls.numpy())[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
@@ -2037,13 +2083,18 @@ for model_name in models_to_evaluate.keys():
 
         print(f"\n{model_name} 折间变异指标:")
         print(f"  AUC: {model_stats.get('auc', {}).get('format_str', 'N/A')}")
-        print(f"  准确率: {model_stats.get('accuracy', {}).get('format_str', 'N/A')}")
-        print(f"  灵敏度: {model_stats.get('sensitivity', {}).get('format_str', 'N/A')}")
-        print(f"  特异性: {model_stats.get('specificity', {}).get('format_str', 'N/A')}")
+        print(
+            f"  准确率: {model_stats.get('accuracy', {}).get('format_str', 'N/A')}")
+        print(
+            f"  灵敏度: {model_stats.get('sensitivity', {}).get('format_str', 'N/A')}")
+        print(
+            f"  特异性: {model_stats.get('specificity', {}).get('format_str', 'N/A')}")
 
         print(f"\n{model_name} 95%置信区间:")
-        print(f"  AUC: {model_stats.get('auc', {}).get('ci_format_str', 'N/A')}")
-        print(f"  灵敏度: {model_stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}")
+        print(
+            f"  AUC: {model_stats.get('auc', {}).get('ci_format_str', 'N/A')}")
+        print(
+            f"  灵敏度: {model_stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}")
 
 # 如果有多于一个模型，进行非参数检验
 if len(all_model_fold_results) > 1:
@@ -2201,6 +2252,7 @@ for model_name, data in training_history.items():
 
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")
 
+
 def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
     def standardize_pair(tr, te):
         m = tr.mean(dim=0, keepdim=True)
@@ -2210,10 +2262,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
     ftir_all = torch.cat([ftir_train, ftir_test], dim=0)
     mz_all = torch.cat([mz_train, mz_test], dim=0)
     y_all = torch.cat([y_train, y_test], dim=0)
-    patients_all = torch.cat([patient_indices_train, torch.tensor(patient_indices_test, dtype=torch.long)], dim=0)
+    patients_all = torch.cat([patient_indices_train, torch.tensor(
+        patient_indices_test, dtype=torch.long)], dim=0)
     results = {m: [] for m in models_to_eval.keys()}
     for r in range(repeats):
-        outer = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42 + r)
+        outer = StratifiedGroupKFold(
+            n_splits=n_splits, shuffle=True, random_state=42 + r)
         for fold, (tr_idx, te_idx) in enumerate(outer.split(ftir_all, y_all, groups=patients_all)):
             ftir_tr, ftir_te = ftir_all[tr_idx], ftir_all[te_idx]
             mz_tr, mz_te = mz_all[tr_idx], mz_all[te_idx]
@@ -2221,27 +2275,26 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
             ftir_tr, ftir_te = standardize_pair(ftir_tr, ftir_te)
             mz_tr, mz_te = standardize_pair(mz_tr, mz_te)
             groups_tr = patients_all[tr_idx]
-            inner = StratifiedGroupKFold(n_splits=4, shuffle=True, random_state=7 + r)
-            tr_sub_idx, val_sub_idx = next(inner.split(ftir_tr, y_tr, groups=groups_tr))
+            inner = StratifiedGroupKFold(
+                n_splits=4, shuffle=True, random_state=7 + r)
+            tr_sub_idx, val_sub_idx = next(
+                inner.split(ftir_tr, y_tr, groups=groups_tr))
             ftir_tr_sub, ftir_val_sub = ftir_tr[tr_sub_idx], ftir_tr[val_sub_idx]
             mz_tr_sub, mz_val_sub = mz_tr[tr_sub_idx], mz_tr[val_sub_idx]
             y_tr_sub, y_val_sub = y_tr[tr_sub_idx], y_tr[val_sub_idx]
             for m_name, _ in models_to_eval.items():
                 if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
-                    tr_feat = np.hstack([
-                        ftir_tr.numpy(), mz_tr.numpy(),
-                        ftir_x.repeat(ftir_tr.shape[0], 1).numpy(),
-                        mz_x.repeat(mz_tr.shape[0], 1).numpy()
-                    ])
-                    te_feat = np.hstack([
-                        ftir_te.numpy(), mz_te.numpy(),
-                        ftir_x.repeat(ftir_te.shape[0], 1).numpy(),
-                        mz_x.repeat(mz_te.shape[0], 1).numpy()
-                    ])
+                    # 使用外层训练域拟合的 PLS 将特征降维，降低过拟合与极端AUC
+                    tr_pls, te_pls, _, _ = extract_raw_fusion_pls_features(
+                        ftir_tr, mz_tr, y_tr, ftir_te, mz_te, y_te, n_components=37
+                    )
+                    tr_feat = tr_pls.numpy()
+                    te_feat = te_pls.numpy()
                     if m_name == "SVM":
                         clf = SVMClassifier(kernel='rbf')
                     elif m_name == "LogReg":
-                        clf = LogRegClassifier(C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
+                        clf = LogRegClassifier(
+                            C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
                     elif m_name == "RandomForest":
                         clf = RFClassifier()
                     elif m_name == "KNN":
@@ -2249,10 +2302,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                     elif m_name == "GaussianNB":
                         clf = NBClassifier()
                     else:
-                        clf = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9, max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
+                        clf = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9,
+                                             max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
                     clf.fit(tr_feat, y_tr.numpy())
                     preds = clf.predict(te_feat)
-                    probs = clf.predict_proba(te_feat)[:, 1] if hasattr(clf, "predict_proba") else None
+                    probs = clf.predict_proba(te_feat)[:, 1] if hasattr(
+                        clf, "predict_proba") else None
                     met = evaluate_model(clf, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=preds, probs=probs, name=f"{m_name}_outer{r}_fold{fold}",
                                          model_type=m_name, is_svm=True)
@@ -2262,15 +2317,20 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                                                  'label_smoothing': 0.1, 'scheduler_factor': 0.5,
                                                  'early_stop_patience': 10})
                     if m_name == "MultiModal":
-                        model = MultiModalModel(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = MultiModalModel(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "MultiModalLite":
-                        model = MultiModalLite(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = MultiModalLite(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "BiModalCMACF":
-                        model = BiModalCMACF(ftir_input_dim=ftir_tr_sub.shape[1], mz_input_dim=mz_tr_sub.shape[1])
+                        model = BiModalCMACF(
+                            ftir_input_dim=ftir_tr_sub.shape[1], mz_input_dim=mz_tr_sub.shape[1])
                     elif m_name == "CMSTF":
-                        model = CMSTF(ir_dim=ftir_tr_sub.shape[1], met_dim=mz_tr_sub.shape[1])
+                        model = CMSTF(
+                            ir_dim=ftir_tr_sub.shape[1], met_dim=mz_tr_sub.shape[1])
                     else:
-                        model = MultiModalLite(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = MultiModalLite(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
                     trained_model, _, _, _, _ = train_main_model(
                         model,
