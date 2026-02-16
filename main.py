@@ -1136,22 +1136,13 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 # 调参尝试3
 param_grid = {
-    'lr': [3e-4],
+    'lr': [2e-4, 3e-4],
     'weight_decay': [1e-4, 5e-4],
-    'batch_size': [16, 32],
-    'label_smoothing': [0.1, 0.2],
+    'batch_size': [16],
+    'label_smoothing': [0.1],
     'scheduler_factor': [0.3, 0.5],
-    'early_stop_patience': [10, 15]
+    'early_stop_patience': [10]
 }
-# 调参尝试4
-# param_grid = {
-#     'lr': [1e-4],  # 降低学习率
-#     'weight_decay': [1e-3, 5e-4],  # 增加权重衰减
-#     'batch_size': [16, 24],  # 稍微降低批量大小
-#     'label_smoothing': [0.15, 0.2],  # 增加标签平滑
-#     'scheduler_factor': [0.2, 0.3],  # 更激进的学习率衰减
-#     'early_stop_patience': [10]
-# }
 
 # 古早最优参数
 # param_grid = {
@@ -1524,20 +1515,21 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    "MultiModal": MultiModalModel,
+    # "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
     # "SVM": SVMClassifier,
     # "LogReg": LogRegClassifier,
     # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
     # "MFCNN": MFCNN,
     # "CNN_LSTM": CNN_LSTM,
+    # 如需启用其他变体消融实验，取消注释以下条目
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
     # "ConcatFusion": ConcatFusion,
