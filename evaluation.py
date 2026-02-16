@@ -249,24 +249,33 @@ def calculate_fold_variability(all_fold_results):
     stats_results = {}
 
     for metric in metrics:
-        values = df[metric].values
+        if metric not in df.columns:
+            # 兼容旧版本结果缺失某列的情况，直接跳过
+            continue
+        values = pd.to_numeric(df[metric], errors='coerce').dropna().values
+        if values.size == 0:
+            continue
 
         # 计算均值和标准差
-        mean_val = np.mean(values)
-        std_val = np.std(values, ddof=1)  # 样本标准差
+        mean_val = float(np.mean(values))
+        # 当样本量为1时，标准差定义为0，避免 ddof=1 报错
+        std_val = float(np.std(values, ddof=1)) if values.size > 1 else 0.0
 
         # 使用Bootstrap方法计算95%置信区间
-        n_bootstrap = 1000
-        bootstrap_means = []
-
-        for _ in range(n_bootstrap):
-            # 有放回抽样
-            sample = np.random.choice(values, size=len(values), replace=True)
-            bootstrap_means.append(np.mean(sample))
-
-        # 计算百分位数置信区间
-        ci_lower = np.percentile(bootstrap_means, 2.5)
-        ci_upper = np.percentile(bootstrap_means, 97.5)
+        if values.size > 1:
+            n_bootstrap = 1000
+            bootstrap_means = []
+            for _ in range(n_bootstrap):
+                # 有放回抽样
+                sample = np.random.choice(values, size=len(values), replace=True)
+                bootstrap_means.append(np.mean(sample))
+            # 计算百分位数置信区间
+            ci_lower = float(np.percentile(bootstrap_means, 2.5))
+            ci_upper = float(np.percentile(bootstrap_means, 97.5))
+        else:
+            # 只有一个值时，CI 退化为该值本身
+            ci_lower = mean_val
+            ci_upper = mean_val
 
         stats_results[metric] = {
             'mean': mean_val,
