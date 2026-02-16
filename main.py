@@ -1453,7 +1453,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                                              ftir_val_np, mz_val_np, y_val_fold,
                                              ftir_axis, mz_axis,
                                              preds=preds_val, probs=probs_val,
-                                             name=f\"{model_name}_fold{fold+1}\",
+                                             name=f"{model_name}_fold{fold+1}",
                                              model_type=model_name, is_svm=True)
                 fold_detailed_results.append(metrics_val)
                 val_accs = [metrics_val.get('accuracy', 0.0)]
@@ -1711,19 +1711,30 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
     elif model_name == "MFCNN":
-        # 使用封装的函数提取PLS特征
-        train_features, test_features, _, _, _, _ = extract_pls_features(
-            ftir_train, mz_train, y_train,
-            ftir_test, mz_test, y_test,
+        # 使用最终训练/验证划分提取 PLS 特征，避免将测试集作为验证集造成泄露
+        train_features, val_features, ftir_scaler, ftir_pls, mz_scaler, mz_pls = extract_pls_features(
+            ftir_train_final, mz_train_final, y_train_final,
+            ftir_val_final, mz_val_final, y_val_final,
             ftir_components=6, mz_components=48
         )
-        # 创建模型
+        # 用训练拟合得到的 scaler/pls 转换测试集
+        ftir_test_scaled = ftir_scaler.transform(ftir_test.numpy())
+        ftir_test_pls = ftir_pls.transform(ftir_test_scaled)
+        mz_test_scaled = mz_scaler.transform(mz_test.numpy())
+        mz_test_pls = mz_pls.transform(mz_test_scaled)
+        if ftir_test_pls.ndim == 1:
+            ftir_test_pls = ftir_test_pls.reshape(-1, 1)
+        if mz_test_pls.ndim == 1:
+            mz_test_pls = mz_test_pls.reshape(-1, 1)
+        test_features_np = np.hstack([ftir_test_pls, mz_test_pls])
+        test_features = torch.tensor(test_features_np, dtype=torch.float32)
+        # 创建模型并在 train_final/val_final 上训练
         model = MFCNN(num_classes=2, latent_dim=54)  # 6+48=54维
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
             model,
-            train_features, y_train,
-            test_features, y_test,
+            train_features, y_train_final,
+            val_features, y_val_final,
             ftir_x,
             epochs=100,
             batch_size=params['batch_size'],
@@ -1740,21 +1751,30 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
     elif model_name == "CNN_LSTM":
-        # 低层次融合：直接拼接原始特征然后用PLS降维
-        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
-            ftir_train, mz_train, y_train,
-            ftir_test, mz_test, y_test,
+        # 低层次融合：使用最终训练/验证划分拟合 PLS，避免把测试集作为验证集
+        train_pls, val_pls, scaler, pls = extract_raw_fusion_pls_features(
+            ftir_train_final, mz_train_final, y_train_final,
+            ftir_val_final, mz_val_final, y_val_final,
             n_components=37
         )
+        # 使用训练拟合得到的 scaler/pls 转换测试集
+        test_concat = np.hstack([ftir_test.numpy(), mz_test.numpy()])
+        test_scaled = scaler.transform(test_concat)
+        test_pls_np = pls.transform(test_scaled)
+        if test_pls_np.ndim == 1:
+            test_pls_np = test_pls_np.reshape(-1, 1)
+        test_pls = torch.tensor(test_pls_np, dtype=torch.float32)
+        # CNN_LSTM 需要 (B, 1, feature_dim)
         train_pls = train_pls.unsqueeze(1)  # (batch_size, 1, feature_dim)
+        val_pls = val_pls.unsqueeze(1)
         test_pls = test_pls.unsqueeze(1)
         # 创建模型
         model = CNN_LSTM(num_classes=2, raw_fusion_dim=37)
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_single_modal_model(
             model,
-            train_pls, y_train,
-            test_pls, y_test,
+            train_pls, y_train_final,
+            val_pls, y_val_final,
             ftir_x,
             epochs=100,
             batch_size=params['batch_size'],
