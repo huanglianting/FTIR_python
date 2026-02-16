@@ -171,8 +171,7 @@ class SingleFTIRModel(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
             SimpleResidualBlock(128),
-            nn.Linear(128, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(128, 2)
         )
 
     def forward(self, ftir, ftir_axis):
@@ -190,8 +189,7 @@ class SingleMZModel(nn.Module):
             nn.BatchNorm1d(128),
             nn.ReLU(),
             SimpleResidualBlock(128),
-            nn.Linear(128, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(128, 2)
         )
 
     def forward(self, mz, mz_axis):
@@ -212,8 +210,7 @@ class ConcatFusion(nn.Module):
             nn.BatchNorm1d(dim),
             nn.ReLU(),
             SimpleResidualBlock(dim),
-            nn.Linear(dim, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(dim, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
@@ -233,8 +230,7 @@ class GateOnlyFusion(nn.Module):
         self.gate = nn.Sequential(
             nn.Linear(dim * 2, dim),
             nn.ReLU(),
-            nn.Linear(dim, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(dim, 2)
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         self.classifier = nn.Sequential(
@@ -273,8 +269,7 @@ class CoAttnOnlyFusion(nn.Module):
             nn.BatchNorm1d(dim//2),
             nn.ReLU(),
             SimpleResidualBlock(dim//2),
-            nn.Linear(dim//2, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(dim//2, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
@@ -299,8 +294,7 @@ class SelfAttnFusion(nn.Module):
         self.gate = nn.Sequential(
             nn.Linear(dim * 2, dim),
             nn.ReLU(),
-            nn.Linear(dim, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(dim, 2)
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
@@ -354,8 +348,7 @@ class SelfAttnOnlyFusion(nn.Module):
             nn.BatchNorm1d(dim//2),
             nn.ReLU(),
             SimpleResidualBlock(dim//2),
-            nn.Linear(dim//2, 2),
-            nn.Softmax(dim=1)
+            nn.Linear(dim//2, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
