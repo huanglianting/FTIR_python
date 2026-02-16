@@ -1229,9 +1229,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1266,9 +1264,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1304,9 +1300,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1342,9 +1336,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1385,9 +1377,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1430,9 +1420,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1466,9 +1454,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1502,9 +1488,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
@@ -1552,8 +1536,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_axis, mz_axis,
                     preds=preds_val, probs=probs_val,
                     name=f"{model_name}_fold{fold+1}",
-                    model_type=model_name, is_svm=True,
-                    verbose=False, do_plots=PLOTS_IN_GRID_OR_CV
+                    model_type=model_name, is_svm=True
                 )
                 fold_detailed_results.append(metrics_val)
                 val_accs = [metrics_val.get('accuracy', 0.0)]
@@ -1587,9 +1570,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     name=f"{model_name}_fold{fold+1}",
                     model_type=model_name,
                     fold=fold+1,
-                    save_path=save_path,
-                    verbose=False,
-                    do_plots=PLOTS_IN_GRID_OR_CV
+                    save_path=save_path
                 )
                 fold_detailed_results.append(val_metrics)
                 writer.close()
@@ -1721,8 +1702,7 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
         """
         # SHAP分析函数
         ftir_shap_difference = perform_ftir_shap_analysis(
@@ -1784,8 +1764,7 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "CMSTF":
         model = CMSTF(
@@ -1821,8 +1800,7 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "MFCNN":
         # 使用最终训练/验证划分提取 PLS 特征，避免将测试集作为验证集造成泄露
@@ -1862,8 +1840,7 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, test_features, None, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "CNN_LSTM":
         # 低层次融合：使用最终训练/验证划分拟合 PLS，避免把测试集作为验证集
@@ -1903,8 +1880,7 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, test_pls, None, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "FTIROnly":
         model = SingleFTIRModel(input_dim=ftir_train_final.shape[1])
@@ -1926,8 +1902,7 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, None, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "MZOnly":
         model = SingleMZModel(input_dim=mz_train_final.shape[1])
@@ -1949,8 +1924,7 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, None, mz_test, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     elif model_name == "SVM":
         train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
@@ -1962,8 +1936,7 @@ for model_name, params in best_params_per_model.items():
         probs = model.predict_proba(test_features)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name, is_svm=True)
         continue
 
     elif model_name == "GaussianNB":
@@ -1979,8 +1952,7 @@ for model_name, params in best_params_per_model.items():
         probs = model.predict_proba(test_features_with_axis)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "LogReg":
         train_features_with_axis = np.hstack([
@@ -1997,8 +1969,7 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "RandomForest":
         train_features_with_axis = np.hstack([
@@ -2015,8 +1986,7 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "KNN":
         train_features_with_axis = np.hstack([
@@ -2033,8 +2003,7 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "GBDT":
         train_features_with_axis = np.hstack([
@@ -2051,8 +2020,7 @@ for model_name, params in best_params_per_model.items():
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name, is_svm=True)
         continue
 
     else:
@@ -2077,8 +2045,7 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
-                                 name=model_name, model_type=model_name,
-                                 verbose=VERBOSE_FINAL_EVAL, do_plots=PLOTS_IN_FINAL)
+                                 name=model_name, model_type=model_name)
 
     training_history[model_name] = {
         'train_losses': train_losses,
@@ -2470,7 +2437,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                         clf, "predict_proba") else None
                     met = evaluate_model(clf, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=preds, probs=probs, name=f"{m_name}_outer{r}_fold{fold}",
-                                         model_type=m_name, is_svm=True, verbose=False, do_plots=PLOTS_IN_GRID_OR_CV)
+                                         model_type=m_name, is_svm=True)
                     results[m_name].append(met)
                 else:
                     p = best_params.get(m_name, {'batch_size': 32, 'lr': 3e-4, 'weight_decay': 1e-4,
@@ -2521,8 +2488,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                     pd_te = (pr_te >= thr).astype(int)
                     met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=pd_te, probs=pr_te,
-                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
-                                         verbose=False, do_plots=PLOTS_IN_GRID_OR_CV)
+                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name)
                     results[m_name].append(met)
     summary = {}
     for m, lst in results.items():
