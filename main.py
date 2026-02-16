@@ -1154,6 +1154,11 @@ param_grid = {
 #     'early_stop_patience': [15]
 # }
 
+RUN_FIXED_TEST_EVAL = True
+RUN_REPEATED_OUTER_CV = True
+THRESHOLD_METHOD = "target_sensitivity"  # "f1" 或 "target_sensitivity"
+TARGET_SENSITIVITY = 0.8
+USE_CONSERVATIVE_BASELINES = True
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1607,7 +1612,7 @@ for model_name, params in best_params_per_model.items():
         with torch.no_grad():
             outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method="f1")
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1667,7 +1672,7 @@ for model_name, params in best_params_per_model.items():
         with torch.no_grad():
             outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method="f1")
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1701,7 +1706,7 @@ for model_name, params in best_params_per_model.items():
         with torch.no_grad():
             outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method="f1")
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1885,7 +1890,7 @@ for model_name, params in best_params_per_model.items():
             ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
             mz_x.repeat(mz_test.shape[0], 1).numpy()
         ])
-        model = LogRegClassifier()
+        model = LogRegClassifier(C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -1945,7 +1950,7 @@ for model_name, params in best_params_per_model.items():
             ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
             mz_x.repeat(mz_test.shape[0], 1).numpy()
         ])
-        model = GBDTClassifier()
+        model = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9, max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -2031,14 +2036,14 @@ for model_name in models_to_evaluate.keys():
         model_stats = calculate_fold_variability(fold_results)
 
         print(f"\n{model_name} 折间变异指标:")
-        print(f"  AUC: {model_stats['auc']['format_str']}")
-        print(f"  准确率: {model_stats['accuracy']['format_str']}")
-        print(f"  灵敏度: {model_stats['sensitivity']['format_str']}")
-        print(f"  特异性: {model_stats['specificity']['format_str']}")
+        print(f"  AUC: {model_stats.get('auc', {}).get('format_str', 'N/A')}")
+        print(f"  准确率: {model_stats.get('accuracy', {}).get('format_str', 'N/A')}")
+        print(f"  灵敏度: {model_stats.get('sensitivity', {}).get('format_str', 'N/A')}")
+        print(f"  特异性: {model_stats.get('specificity', {}).get('format_str', 'N/A')}")
 
         print(f"\n{model_name} 95%置信区间:")
-        print(f"  AUC: {model_stats['auc']['ci_format_str']}")
-        print(f"  灵敏度: {model_stats['sensitivity']['ci_format_str']}")
+        print(f"  AUC: {model_stats.get('auc', {}).get('ci_format_str', 'N/A')}")
+        print(f"  灵敏度: {model_stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}")
 
 # 如果有多于一个模型，进行非参数检验
 if len(all_model_fold_results) > 1:
@@ -2195,3 +2200,143 @@ for model_name, data in training_history.items():
     plt.close()
 
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")
+
+def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
+    def standardize_pair(tr, te):
+        m = tr.mean(dim=0, keepdim=True)
+        s = tr.std(dim=0, keepdim=True)
+        s = torch.where(s == 0, torch.ones_like(s), s)
+        return (tr - m) / s, (te - m) / s
+    ftir_all = torch.cat([ftir_train, ftir_test], dim=0)
+    mz_all = torch.cat([mz_train, mz_test], dim=0)
+    y_all = torch.cat([y_train, y_test], dim=0)
+    patients_all = torch.cat([patient_indices_train, torch.tensor(patient_indices_test, dtype=torch.long)], dim=0)
+    results = {m: [] for m in models_to_eval.keys()}
+    for r in range(repeats):
+        outer = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42 + r)
+        for fold, (tr_idx, te_idx) in enumerate(outer.split(ftir_all, y_all, groups=patients_all)):
+            ftir_tr, ftir_te = ftir_all[tr_idx], ftir_all[te_idx]
+            mz_tr, mz_te = mz_all[tr_idx], mz_all[te_idx]
+            y_tr, y_te = y_all[tr_idx], y_all[te_idx]
+            ftir_tr, ftir_te = standardize_pair(ftir_tr, ftir_te)
+            mz_tr, mz_te = standardize_pair(mz_tr, mz_te)
+            groups_tr = patients_all[tr_idx]
+            inner = StratifiedGroupKFold(n_splits=4, shuffle=True, random_state=7 + r)
+            tr_sub_idx, val_sub_idx = next(inner.split(ftir_tr, y_tr, groups=groups_tr))
+            ftir_tr_sub, ftir_val_sub = ftir_tr[tr_sub_idx], ftir_tr[val_sub_idx]
+            mz_tr_sub, mz_val_sub = mz_tr[tr_sub_idx], mz_tr[val_sub_idx]
+            y_tr_sub, y_val_sub = y_tr[tr_sub_idx], y_tr[val_sub_idx]
+            for m_name, _ in models_to_eval.items():
+                if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
+                    tr_feat = np.hstack([
+                        ftir_tr.numpy(), mz_tr.numpy(),
+                        ftir_x.repeat(ftir_tr.shape[0], 1).numpy(),
+                        mz_x.repeat(mz_tr.shape[0], 1).numpy()
+                    ])
+                    te_feat = np.hstack([
+                        ftir_te.numpy(), mz_te.numpy(),
+                        ftir_x.repeat(ftir_te.shape[0], 1).numpy(),
+                        mz_x.repeat(mz_te.shape[0], 1).numpy()
+                    ])
+                    if m_name == "SVM":
+                        clf = SVMClassifier(kernel='rbf')
+                    elif m_name == "LogReg":
+                        clf = LogRegClassifier(C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
+                    elif m_name == "RandomForest":
+                        clf = RFClassifier()
+                    elif m_name == "KNN":
+                        clf = KNNClassifier()
+                    elif m_name == "GaussianNB":
+                        clf = NBClassifier()
+                    else:
+                        clf = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9, max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
+                    clf.fit(tr_feat, y_tr.numpy())
+                    preds = clf.predict(te_feat)
+                    probs = clf.predict_proba(te_feat)[:, 1] if hasattr(clf, "predict_proba") else None
+                    met = evaluate_model(clf, ftir_te, mz_te, y_te, ftir_x, mz_x,
+                                         preds=preds, probs=probs, name=f"{m_name}_outer{r}_fold{fold}",
+                                         model_type=m_name, is_svm=True)
+                    results[m_name].append(met)
+                else:
+                    p = best_params.get(m_name, {'batch_size': 32, 'lr': 3e-4, 'weight_decay': 1e-4,
+                                                 'label_smoothing': 0.1, 'scheduler_factor': 0.5,
+                                                 'early_stop_patience': 10})
+                    if m_name == "MultiModal":
+                        model = MultiModalModel(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "MultiModalLite":
+                        model = MultiModalLite(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "BiModalCMACF":
+                        model = BiModalCMACF(ftir_input_dim=ftir_tr_sub.shape[1], mz_input_dim=mz_tr_sub.shape[1])
+                    elif m_name == "CMSTF":
+                        model = CMSTF(ir_dim=ftir_tr_sub.shape[1], met_dim=mz_tr_sub.shape[1])
+                    else:
+                        model = MultiModalLite(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
+                    trained_model, _, _, _, _ = train_main_model(
+                        model,
+                        ftir_tr_sub, mz_tr_sub, y_tr_sub,
+                        ftir_val_sub, mz_val_sub, y_val_sub,
+                        ftir_x, mz_x,
+                        epochs=100,
+                        batch_size=p['batch_size'],
+                        writer=writer,
+                        lr=p['lr'],
+                        weight_decay=p['weight_decay'],
+                        label_smoothing=p['label_smoothing'],
+                        scheduler_factor=p['scheduler_factor'],
+                        early_stop_patience=p['early_stop_patience'],
+                        model_type=m_name
+                    )
+                    writer.close()
+                    with torch.no_grad():
+                        o_val = trained_model(ftir_val_sub, mz_val_sub, ftir_x, mz_x)
+                        pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
+                    thr = select_optimal_threshold(y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+                    with torch.no_grad():
+                        o_te = trained_model(ftir_te, mz_te, ftir_x, mz_x)
+                        pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
+                    pd_te = (pr_te >= thr).astype(int)
+                    met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
+                                         preds=pd_te, probs=pr_te,
+                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name)
+                    results[m_name].append(met)
+    summary = {}
+    for m, lst in results.items():
+        if not lst:
+            continue
+        df = pd.DataFrame(lst)
+        s = {}
+        for metric in ['auc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'f1']:
+            if metric in df.columns:
+                vals = pd.to_numeric(df[metric], errors='coerce').dropna().values
+                if vals.size:
+                    mean = float(np.mean(vals))
+                    std = float(np.std(vals, ddof=1 if vals.size > 1 else 0))
+                    ci_half = 1.96 * std / np.sqrt(vals.size) if vals.size > 1 else float('nan')
+                    s[metric] = {
+                        'mean': mean, 'std': std,
+                        'ci_low': mean - ci_half if vals.size > 1 else float('nan'),
+                        'ci_high': mean + ci_half if vals.size > 1 else float('nan')
+                    }
+        summary[m] = s
+    rows = []
+    for m, s in summary.items():
+        row = {'Model': m}
+        for metric, stats in s.items():
+            row[f'{metric}_mean'] = stats['mean']
+            row[f'{metric}_std'] = stats['std']
+            row[f'{metric}_ci_low'] = stats['ci_low']
+            row[f'{metric}_ci_high'] = stats['ci_high']
+        rows.append(row)
+    df_out = pd.DataFrame(rows)
+    df_out.to_csv(os.path.join(save_path, 'repeated_outer_cv_summary.csv'), index=False)
+    print("\n==== Repeated Outer CV Summary ====")
+    if not df_out.empty:
+        display_df = df_out.copy()
+        for col in display_df.columns:
+            if col.endswith('_mean') or col.endswith('_std') or col.endswith('_ci_low') or col.endswith('_ci_high'):
+                display_df[col] = display_df[col].apply(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
+        print(display_df.to_string(index=False))
+    return results, summary
+
+_ = run_repeated_outer_cv(models_to_evaluate, best_params_per_model, repeats=5, n_splits=4)

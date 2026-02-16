@@ -449,24 +449,24 @@ def generate_statistical_report(model_stats_dict, save_path='./result'):
 
         for model_name, stats in model_stats_dict.items():
             f.write(f"\n{model_name}:\n")
-            f.write(f"  AUC: {stats['auc']['format_str']}\n")
-            f.write(f"  准确率: {stats['accuracy']['format_str']}\n")
+            f.write(f"  AUC: {stats.get('auc', {}).get('format_str', 'N/A')}\n")
+            f.write(f"  准确率: {stats.get('accuracy', {}).get('format_str', 'N/A')}\n")
             if 'balanced_accuracy' in stats:
-                f.write(f"  平衡准确率: {stats['balanced_accuracy']['format_str']}\n")
-            f.write(f"  灵敏度: {stats['sensitivity']['format_str']}\n")
-            f.write(f"  特异性: {stats['specificity']['format_str']}\n")
-            f.write(f"  精确率: {stats['precision']['format_str']}\n")
-            f.write(f"  F1分数: {stats['f1']['format_str']}\n")
+                f.write(f"  平衡准确率: {stats.get('balanced_accuracy', {}).get('format_str', 'N/A')}\n")
+            f.write(f"  灵敏度: {stats.get('sensitivity', {}).get('format_str', 'N/A')}\n")
+            f.write(f"  特异性: {stats.get('specificity', {}).get('format_str', 'N/A')}\n")
+            f.write(f"  精确率: {stats.get('precision', {}).get('format_str', 'N/A')}\n")
+            f.write(f"  F1分数: {stats.get('f1', {}).get('format_str', 'N/A')}\n")
             if 'mcc' in stats:
-                f.write(f"  MCC: {stats['mcc']['format_str']}\n")
+                f.write(f"  MCC: {stats.get('mcc', {}).get('format_str', 'N/A')}\n")
 
         f.write("\n\n二、95%置信区间（Bootstrap方法）\n")
         f.write("-" * 60 + "\n")
 
         for model_name, stats in model_stats_dict.items():
             f.write(f"\n{model_name}:\n")
-            f.write(f"  AUC 95% CI: {stats['auc']['ci_format_str']}\n")
-            f.write(f"  灵敏度 95% CI: {stats['sensitivity']['ci_format_str']}\n")
+            f.write(f"  AUC 95% CI: {stats.get('auc', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(f"  灵敏度 95% CI: {stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}\n")
 
         f.write("\n\n三、统计说明\n")
         f.write("-" * 60 + "\n")

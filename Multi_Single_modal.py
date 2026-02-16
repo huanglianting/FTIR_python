@@ -433,10 +433,15 @@ class RFClassifier:
 
 # GBDT（梯度提升树）
 class GBDTClassifier:
-    def __init__(self, n_estimators=200, learning_rate=0.05, max_depth=3, random_state=42):
+    def __init__(self, n_estimators=200, learning_rate=0.05, max_depth=3, min_samples_leaf=1, subsample=1.0, max_features=None, random_state=42):
         self.clf = GradientBoostingClassifier(
-            n_estimators=n_estimators, learning_rate=learning_rate,
-            max_depth=max_depth, random_state=random_state
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
+            subsample=subsample,
+            max_features=max_features,
+            random_state=random_state
         )
 
     def fit(self, X, y):
