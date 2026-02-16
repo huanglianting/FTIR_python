@@ -2419,8 +2419,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                         clf = RFClassifier(
                             n_estimators=50, max_depth=2)
                     elif m_name == "KNN":
+                        n_samples = len(tr_feat)
+                        default_neighbors = 25  # 默认值
+                        n_neighbors = min(default_neighbors,
+                                          max(1, n_samples - 1))
                         clf = KNNClassifier(
-                            n_neighbors=25, weights='uniform')
+                            n_neighbors=n_neighbors, weights='uniform')
                     elif m_name == "GaussianNB":
                         clf = NBClassifier()
                     else:

@@ -369,13 +369,13 @@ class SelfAttnOnlyFusion(nn.Module):
 # --------------------------传统机器学习模型--------------------------
 # SVM
 class SVMClassifier:
-    def __init__(self, C=0.1, kernel='rbf', gamma='scale', probability=True, class_weight='balanced', random_state=42):
+    def __init__(self, C=0.1, kernel='rbf', gamma='scale', probability=True, random_state=42):
         self.clf = SVC(
             C=C,
             kernel=kernel,
             gamma=gamma,
             probability=probability,
-            class_weight=class_weight,
+            class_weight='balanced',
             random_state=random_state
         )
 
@@ -394,8 +394,10 @@ class SVMClassifier:
 
 # 逻辑回归
 class LogRegClassifier:
-    def __init__(self, C=0.1, penalty='l2', solver='liblinear'):
-        self.clf = LogisticRegression(C=C, penalty=penalty, solver=solver)
+    def __init__(self, C=0.01, penalty='l2', solver='liblinear', max_iter=1000):
+        self.clf = LogisticRegression(C=C, penalty=penalty, solver=solver,
+                                      max_iter=max_iter, random_state=42,
+                                      class_weight='balanced')
 
     def fit(self, X, y):
         self.clf.fit(X, y)
@@ -415,9 +417,9 @@ class LogRegClassifier:
 
 # 随机森林
 class RFClassifier:
-    def __init__(self, n_estimators=100, max_depth=5, random_state=42):
+    def __init__(self, n_estimators=50, max_depth=3, min_samples_split=5, min_samples_leaf=5, max_features='sqrt', random_state=42):
         self.clf = RandomForestClassifier(
-            n_estimators=n_estimators, max_depth=max_depth, random_state=random_state
+            n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf, max_features=max_features, random_state=random_state
         )
 
     def fit(self, X, y):
@@ -466,10 +468,22 @@ class GBDTClassifier:
 # KNN
 class KNNClassifier:
     def __init__(self, n_neighbors=5, weights='distance'):
-        self.clf = KNeighborsClassifier(
-            n_neighbors=n_neighbors, weights=weights)
+        self.n_neighbors = n_neighbors
+        self.weights = weights
+        self.clf = None  # 延迟初始化
 
     def fit(self, X, y):
+        # 动态调整n_neighbors，确保不超过样本数
+        n_samples = X.shape[0]
+        actual_n_neighbors = min(self.n_neighbors, n_samples)
+        if actual_n_neighbors < 1:
+            actual_n_neighbors = 1
+
+        # 创建分类器
+        self.clf = KNeighborsClassifier(
+            n_neighbors=actual_n_neighbors,
+            weights=self.weights
+        )
         self.clf.fit(X, y)
 
     def predict(self, X):

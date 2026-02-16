@@ -77,13 +77,27 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             if probs is None:
                 try:
                     scores = model.decision_function(test_features)
-                    # Sigmoid 将实数映射到(0,1)，避免 min-max 除零
-                    probs = 1.0 / (1.0 + np.exp(-scores))
+                    # 改进的Sigmoid转换：先标准化scores
+                    if len(scores) > 1:
+                        # 避免除零
+                        score_std = np.std(scores)
+                        if score_std > 1e-10:
+                            scores_normalized = (
+                                scores - np.mean(scores)) / score_std
+                        else:
+                            scores_normalized = scores
+                    else:
+                        scores_normalized = scores
+                    # 使用更稳定的sigmoid
+                    probs = 1.0 / \
+                        (1.0 + np.exp(-np.clip(scores_normalized, -10, 10)))
                 except Exception:
                     # 最后保底：用预测标签替代概率
                     probs = (preds == 1).astype(float)
             # 清理无效值，防止AUC报错
             probs = np.nan_to_num(probs, nan=0.5, posinf=1.0, neginf=0.0)
+            # 确保概率在合理范围内
+            probs = np.clip(probs, 0.001, 0.999)
         else:
             model.eval()
             with torch.no_grad():
@@ -350,7 +364,8 @@ def perform_nonparametric_tests(model_results_dict):
     model_names = []
 
     for model_name, fold_results in model_results_dict.items():
-        auc_values = [result.get('auc', float('nan')) for result in fold_results]
+        auc_values = [result.get('auc', float('nan'))
+                      for result in fold_results]
         auc_data.append(auc_values)
         model_names.append(model_name)
 
