@@ -51,7 +51,8 @@ plt.rcParams.update(UNIFIED_STYLE)
 
 def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                    preds=None, probs=None, name="Model", model_type="undefined",
-                   fold=1, save_path='./result', is_svm=False):
+                   fold=1, save_path='./result', is_svm=False,
+                   verbose=False, do_plots=False):
     y_true = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
     # 如果没有提供 preds 和 probs
     if preds is None or probs is None:
@@ -148,22 +149,24 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         hi = np.percentile(vals, 100*(1-alpha/2))
         return (float(lo), float(hi))
     auc_ci = bootstrap_auc_ci(y_true, probs)
-    print(
-        f"{name} - 准确率: {acc:.4f} [{acc_ci[0]:.3f},{acc_ci[1]:.3f}], "
-        f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f}, "
-        f"召回率(Sensitivity): {rec:.4f} [{sen_ci[0]:.3f},{sen_ci[1]:.3f}], "
-        f"特异性: {spec:.4f} [{spe_ci[0]:.3f},{spe_ci[1]:.3f}], "
-        f"F1: {f1:.4f}, AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
-        f"MCC: {mcc:.4f}"
-    )
+    if verbose:
+        print(
+            f"{name} - 准确率: {acc:.4f} [{acc_ci[0]:.3f},{acc_ci[1]:.3f}], "
+            f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f}, "
+            f"召回率(Sensitivity): {rec:.4f} [{sen_ci[0]:.3f},{sen_ci[1]:.3f}], "
+            f"特异性: {spec:.4f} [{spe_ci[0]:.3f},{spe_ci[1]:.3f}], "
+            f"F1: {f1:.4f}, AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
+            f"MCC: {mcc:.4f}"
+        )
     # 每个类别的准确率
     class_0_mask = (y_true == 0)
     class_1_mask = (y_true == 1)
     class_0_acc = (preds[class_0_mask] == y_true[class_0_mask]).mean()
     class_1_acc = (preds[class_1_mask] == y_true[class_1_mask]).mean()
-    print(
-        f"{name} - 类别0准确率: {class_0_acc:.4f}, 类别1准确率: {class_1_acc:.4f}"
-    )
+    if verbose:
+        print(
+            f"{name} - 类别0准确率: {class_0_acc:.4f}, 类别1准确率: {class_1_acc:.4f}"
+        )
 
     result_dict = {
         'model_type': model_type,
@@ -191,15 +194,17 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     # # 绘制并保存 ROC 曲线
     # save_roc_curve(y_true, probs, auc, name, save_path)
 
-    plot_cm_roc(y_true, preds, probs, auc, auc_ci,
-                save_path=save_path, method_name=name)
-    try:
-        save_pr_curve(y_true, probs, name, save_path)
-    except Exception as e:
-        print(f"保存PR曲线失败: {e}")
+    if do_plots:
+        plot_cm_roc(y_true, preds, probs, auc, auc_ci,
+                    save_path=save_path, method_name=name)
+        try:
+            save_pr_curve(y_true, probs, name, save_path)
+        except Exception as e:
+            if verbose:
+                print(f"保存PR曲线失败: {e}")
 
     # t-SNE 可视化
-    if name == "MultiModal":
+    if do_plots and name == "MultiModal":
         with torch.no_grad():
             ftir_feat = model.ftir_extractor(ftir_test, ftir_axis) if hasattr(
                 model, 'ftir_extractor') else None
