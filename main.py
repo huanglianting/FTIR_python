@@ -1517,13 +1517,13 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    # "MultiModal": MultiModalModel,
+    "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    # "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
-    # "KNN": KNNClassifier,
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
     "GaussianNB": NBClassifier,
     "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
     # 如需启用其他深度模型，取消注释以下条目
@@ -1837,7 +1837,8 @@ for model_name, params in best_params_per_model.items():
         model = LogRegClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        probs = model.predict_proba(test_features_with_axis)[
+            :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
@@ -1856,7 +1857,8 @@ for model_name, params in best_params_per_model.items():
         model = RFClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        probs = model.predict_proba(test_features_with_axis)[
+            :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
@@ -1875,7 +1877,8 @@ for model_name, params in best_params_per_model.items():
         model = KNNClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        probs = model.predict_proba(test_features_with_axis)[
+            :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
@@ -1894,7 +1897,8 @@ for model_name, params in best_params_per_model.items():
         model = GBDTClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        probs = model.predict_proba(test_features_with_axis)[
+            :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
