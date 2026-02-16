@@ -1610,7 +1610,7 @@ models_to_evaluate = {
     "RandomForest": RFClassifier,
     "KNN": KNNClassifier,
     "GaussianNB": NBClassifier,
-    "GBDT": GBDTClassifier,   
+    "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
@@ -1686,9 +1686,11 @@ for model_name, params in best_params_per_model.items():
         )
         writer.close()
         with torch.no_grad():
-            outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
+            outputs_val = trained_model(
+                ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(
+        ), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1932,74 +1934,110 @@ for model_name, params in best_params_per_model.items():
             mz_x.repeat(mz_test.shape[0], 1).numpy()
         ])
         model = SVMClassifier(kernel='rbf')
-        model.fit(train_pls.numpy(), y_train_final.numpy())
-        preds = model.predict(test_pls.numpy())
-        probs = model.predict_proba(test_pls.numpy())[:, 1]
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "GaussianNB":
-        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
-            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
-        )
+        # 与SVM相同，拼接轴向信息作为先验参考
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
         model = NBClassifier()
-        model.fit(train_pls.numpy(), y_train_final.numpy())
-        preds = model.predict(test_pls.numpy())
-        probs = model.predict_proba(test_pls.numpy())[:, 1]
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "LogReg":
-        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
-            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
-        )
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
         model = LogRegClassifier(
             C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
-        model.fit(train_pls.numpy(), y_train_final.numpy())
-        preds = model.predict(test_pls.numpy())
-        probs = model.predict_proba(test_pls.numpy())[
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "RandomForest":
-        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
-            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
-        )
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
         model = RFClassifier()
-        model.fit(train_pls.numpy(), y_train_final.numpy())
-        preds = model.predict(test_pls.numpy())
-        probs = model.predict_proba(test_pls.numpy())[
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "KNN":
-        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
-            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
-        )
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
         model = KNNClassifier()
-        model.fit(train_pls.numpy(), y_train_final.numpy())
-        preds = model.predict(test_pls.numpy())
-        probs = model.predict_proba(test_pls.numpy())[
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "GBDT":
-        train_pls, test_pls, _, _ = extract_raw_fusion_pls_features(
-            ftir_train_final, mz_train_final, y_train_final, ftir_test, mz_test, y_test, n_components=37
-        )
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
         model = GBDTClassifier(learning_rate=0.03, max_depth=3, min_samples_leaf=2, subsample=0.9,
                                max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
-        model.fit(train_pls.numpy(), y_train_final.numpy())
-        preds = model.predict(test_pls.numpy())
-        probs = model.predict_proba(test_pls.numpy())[
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
@@ -2102,18 +2140,46 @@ if len(all_model_fold_results) > 1:
     print("进行模型间性能比较的非参数检验")
     print("="*80)
 
-    test_results = perform_nonparametric_tests(all_model_fold_results)
+    # 检查每个模型的数据格式是否正确
+    for model_name, fold_results in all_model_fold_results.items():
+        print(f"\n检查 {model_name} 的数据格式:")
+        print(f"  折数: {len(fold_results)}")
+        for i, result in enumerate(fold_results):
+            if 'auc' in result:
+                print(f"  第{i+1}折 AUC: {result['auc']}")
+            else:
+                print(f"  第{i+1}折 缺少AUC数据")
 
-    print(f"\nFriedman检验结果:")
-    print(f"  统计量: {test_results['friedman_test']['statistic']:.4f}")
-    print(f"  P值: {test_results['friedman_test']['p_value']:.4f}")
-    print(f"  是否显著: {test_results['friedman_test']['significant']}")
+    # 修复：确保所有模型都有完整的AUC数据
+    cleaned_results = {}
+    for model_name, fold_results in all_model_fold_results.items():
+        valid_results = []
+        for result in fold_results:
+            # 检查是否包含必要的指标
+            if 'auc' in result and result['auc'] is not None:
+                valid_results.append(result)
+        if valid_results:
+            cleaned_results[model_name] = valid_results
+            print(f"{model_name}: 有效结果 {len(valid_results)} 个")
+        else:
+            print(f"{model_name}: 没有有效结果，跳过")
 
-    if test_results['friedman_test']['significant'] and 'pairwise_wilcoxon' in test_results:
-        print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
-        for comparison, result in test_results['pairwise_wilcoxon'].items():
-            sig_symbol = "***" if result['significant'] else ""
-            print(f"  {comparison}: p={result['p_value']:.4f} {sig_symbol}")
+    if len(cleaned_results) > 1:
+        test_results = perform_nonparametric_tests(cleaned_results)
+
+        print(f"\nFriedman检验结果:")
+        print(f"  统计量: {test_results['friedman_test']['statistic']:.4f}")
+        print(f"  P值: {test_results['friedman_test']['p_value']:.4f}")
+        print(f"  是否显著: {test_results['friedman_test']['significant']}")
+
+        if test_results['friedman_test']['significant'] and 'pairwise_wilcoxon' in test_results:
+            print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
+            for comparison, result in test_results['pairwise_wilcoxon'].items():
+                sig_symbol = "***" if result['significant'] else ""
+                print(
+                    f"  {comparison}: p={result['p_value']:.4f} {sig_symbol}")
+    else:
+        print("有效模型数量不足，跳过非参数检验")
 
 # 生成完整的统计报告
 print("\n" + "="*80)
@@ -2123,7 +2189,13 @@ print("="*80)
 # 计算所有模型的统计指标
 all_model_stats = {}
 for model_name, fold_results in all_model_fold_results.items():
-    all_model_stats[model_name] = calculate_fold_variability(fold_results)
+    # 过滤掉无效的结果
+    valid_results = [
+        r for r in fold_results if 'auc' in r and r['auc'] is not None]
+    if valid_results:
+        all_model_stats[model_name] = calculate_fold_variability(valid_results)
+    else:
+        print(f"警告: {model_name} 没有有效的折结果，跳过统计计算")
 
 # 生成报告
 df_stats = generate_statistical_report(all_model_stats, save_path)
@@ -2142,14 +2214,27 @@ print("="*80)
 
 for model_name, stats in all_model_stats.items():
     print(f"\n{model_name}:")
-    print(
-        f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
-    print(f"  准确率: {stats['accuracy']['format_str']}")
-    print(
-        f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
-    print(f"  特异性: {stats['specificity']['format_str']}")
-    print(f"  精确率: {stats['precision']['format_str']}")
-    print(f"  F1分数: {stats['f1']['format_str']}")
+    if 'auc' in stats:
+        print(
+            f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
+    else:
+        print(f"  AUC: N/A")
+
+    if 'sensitivity' in stats:
+        print(
+            f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
+    else:
+        print(f"  灵敏度: N/A")
+
+    if 'accuracy' in stats:
+        print(f"  准确率: {stats['accuracy']['format_str']}")
+    if 'specificity' in stats:
+        print(f"  特异性: {stats['specificity']['format_str']}")
+    if 'precision' in stats:
+        print(f"  精确率: {stats['precision']['format_str']}")
+    if 'f1' in stats:
+        print(f"  F1分数: {stats['f1']['format_str']}")
+
 
 # 保存最终的汇总表格
 final_summary = []
@@ -2284,12 +2369,16 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
             y_tr_sub, y_val_sub = y_tr[tr_sub_idx], y_tr[val_sub_idx]
             for m_name, _ in models_to_eval.items():
                 if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
-                    # 使用外层训练域拟合的 PLS 将特征降维，降低过拟合与极端AUC
-                    tr_pls, te_pls, _, _ = extract_raw_fusion_pls_features(
-                        ftir_tr, mz_tr, y_tr, ftir_te, mz_te, y_te, n_components=37
-                    )
-                    tr_feat = tr_pls.numpy()
-                    te_feat = te_pls.numpy()
+                    tr_feat = np.hstack([
+                        ftir_tr.numpy(), mz_tr.numpy(),
+                        ftir_x.repeat(ftir_tr.shape[0], 1).numpy(),
+                        mz_x.repeat(mz_tr.shape[0], 1).numpy()
+                    ])
+                    te_feat = np.hstack([
+                        ftir_te.numpy(), mz_te.numpy(),
+                        ftir_x.repeat(ftir_te.shape[0], 1).numpy(),
+                        mz_x.repeat(mz_te.shape[0], 1).numpy()
+                    ])
                     if m_name == "SVM":
                         clf = SVMClassifier(kernel='rbf')
                     elif m_name == "LogReg":
@@ -2349,9 +2438,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                     )
                     writer.close()
                     with torch.no_grad():
-                        o_val = trained_model(ftir_val_sub, mz_val_sub, ftir_x, mz_x)
-                        pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
-                    thr = select_optimal_threshold(y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+                        o_val = trained_model(
+                            ftir_val_sub, mz_val_sub, ftir_x, mz_x)
+                        pr_val = torch.softmax(o_val, dim=1)[
+                            :, 1].cpu().numpy()
+                    thr = select_optimal_threshold(y_val_sub.cpu().numpy(
+                    ), pr_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
                     with torch.no_grad():
                         o_te = trained_model(ftir_te, mz_te, ftir_x, mz_x)
                         pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
@@ -2368,11 +2460,13 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
         s = {}
         for metric in ['auc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'f1']:
             if metric in df.columns:
-                vals = pd.to_numeric(df[metric], errors='coerce').dropna().values
+                vals = pd.to_numeric(
+                    df[metric], errors='coerce').dropna().values
                 if vals.size:
                     mean = float(np.mean(vals))
                     std = float(np.std(vals, ddof=1 if vals.size > 1 else 0))
-                    ci_half = 1.96 * std / np.sqrt(vals.size) if vals.size > 1 else float('nan')
+                    ci_half = 1.96 * std / \
+                        np.sqrt(vals.size) if vals.size > 1 else float('nan')
                     s[metric] = {
                         'mean': mean, 'std': std,
                         'ci_low': mean - ci_half if vals.size > 1 else float('nan'),
@@ -2389,14 +2483,18 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
             row[f'{metric}_ci_high'] = stats['ci_high']
         rows.append(row)
     df_out = pd.DataFrame(rows)
-    df_out.to_csv(os.path.join(save_path, 'repeated_outer_cv_summary.csv'), index=False)
+    df_out.to_csv(os.path.join(
+        save_path, 'repeated_outer_cv_summary.csv'), index=False)
     print("\n==== Repeated Outer CV Summary ====")
     if not df_out.empty:
         display_df = df_out.copy()
         for col in display_df.columns:
             if col.endswith('_mean') or col.endswith('_std') or col.endswith('_ci_low') or col.endswith('_ci_high'):
-                display_df[col] = display_df[col].apply(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
+                display_df[col] = display_df[col].apply(
+                    lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
         print(display_df.to_string(index=False))
     return results, summary
 
-_ = run_repeated_outer_cv(models_to_evaluate, best_params_per_model, repeats=5, n_splits=4)
+
+_ = run_repeated_outer_cv(
+    models_to_evaluate, best_params_per_model, repeats=5, n_splits=4)
