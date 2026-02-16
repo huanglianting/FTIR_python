@@ -1524,17 +1524,17 @@ models_to_evaluate = {
     "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    # "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
-    # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,   
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,   
     # 如需启用其他深度模型，取消注释以下条目
-    "BiModalCMACF": BiModalCMACF,
-    "CMSTF": CMSTF,
-    "MFCNN": MFCNN,
-    "CNN_LSTM": CNN_LSTM,
+    # "BiModalCMACF": BiModalCMACF,
+    # "CMSTF": CMSTF,
+    # "MFCNN": MFCNN,
+    # "CNN_LSTM": CNN_LSTM,
     # 如需启用其他变体消融实验，取消注释以下条目
     "FTIROnly": SingleFTIRModel,
     "MZOnly": SingleMZModel,
@@ -1607,7 +1607,7 @@ for model_name, params in best_params_per_model.items():
         with torch.no_grad():
             outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val)
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method="f1")
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1667,7 +1667,7 @@ for model_name, params in best_params_per_model.items():
         with torch.no_grad():
             outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val)
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method="f1")
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1701,7 +1701,7 @@ for model_name, params in best_params_per_model.items():
         with torch.no_grad():
             outputs_val = trained_model(ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
-        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val)
+        thr = select_optimal_threshold(y_val_final.cpu().numpy(), probs_val, method="f1")
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()

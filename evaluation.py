@@ -227,14 +227,43 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     return result_dict
 
 
-def select_optimal_threshold(y_true, probs, method="youden"):
-    fpr, tpr, thresholds = roc_curve(y_true, probs)
-    j = tpr - fpr
-    idx = int(np.argmax(j))
-    thr = thresholds[idx]
-    if np.isnan(thr):
+def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=None):
+    y_true = np.asarray(y_true)
+    probs = np.asarray(probs)
+    if method == "youden":
+        fpr, tpr, thresholds = roc_curve(y_true, probs)
+        j = tpr - fpr
+        idx = int(np.argmax(j))
+        thr = thresholds[idx]
+        if np.isnan(thr):
+            return 0.5
+        return float(thr)
+    elif method == "f1":
+        # 遍历唯一概率作为候选阈值，选使F1最大的阈值
+        uniq = np.unique(probs)
+        # 加入极值，确保覆盖全范围
+        candidates = np.concatenate(([0.0], uniq, [1.0]))
+        best_thr, best_f1 = 0.5, -1.0
+        for thr in candidates:
+            preds = (probs >= thr).astype(int)
+            f1 = f1_score(y_true, preds, zero_division=0)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_thr = thr
+        return float(best_thr)
+    elif method == "target_sensitivity":
+        if target_sensitivity is None:
+            target_sensitivity = 0.8
+        fpr, tpr, thresholds = roc_curve(y_true, probs)
+        # 选择满足灵敏度>=目标的最大阈值以尽量保证特异性
+        mask = tpr >= target_sensitivity
+        if not np.any(mask):
+            return float(np.median(probs))
+        sel_thresholds = thresholds[mask]
+        thr = np.max(sel_thresholds)
+        return float(thr)
+    else:
         return 0.5
-    return float(thr)
 
 
 def calculate_fold_variability(all_fold_results):
