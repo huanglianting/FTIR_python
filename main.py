@@ -933,7 +933,7 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
         optimizer, mode='min', factor=scheduler_factor, patience=3)
-    early_stopping = EarlyStopping(patience=early_stop_patience, verbose=True,
+    early_stopping = EarlyStopping(patience=early_stop_patience, verbose=False,
                                    path=f'./checkpoints/{model_type}_best_model.pth')
 
     train_dataset = TensorDataset(ftir_train, mz_train, y_train)
@@ -1036,7 +1036,7 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
         model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = ReduceLROnPlateau(
         optimizer, mode='min', factor=scheduler_factor, patience=3)
-    early_stopping = EarlyStopping(patience=early_stop_patience, verbose=True,
+    early_stopping = EarlyStopping(patience=early_stop_patience, verbose=False,
                                    path=f'./checkpoints/{model_type}_best_model.pth')
 
     train_dataset = TensorDataset(x_train, y_train)
@@ -1496,7 +1496,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 writer.close()
 
             elif (model_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]) or ("svm" in model_name.lower()):
-                # 修复：移除轴信息，避免数据泄漏
                 if isinstance(ftir_train_fold, torch.Tensor):
                     ftir_train_np = ftir_train_fold.numpy()
                     mz_train_np = mz_train_fold.numpy()
@@ -1506,7 +1505,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     ftir_train_np, mz_train_np = ftir_train_fold, mz_train_fold
                     ftir_val_np, mz_val_np = ftir_val_fold, mz_val_fold
 
-                # 关键修改：不包含轴信息
                 train_features = np.hstack([ftir_train_np, mz_train_np])
                 val_features = np.hstack([ftir_val_np, mz_val_np])
 
@@ -1609,12 +1607,12 @@ models_to_evaluate = {
     "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    "SVM": SVMClassifier,
-    "LogReg": LogRegClassifier,
-    "RandomForest": RFClassifier,
-    "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,
-    "GBDT": GBDTClassifier,
+    # "SVM": SVMClassifier,
+    # "LogReg": LogRegClassifier,
+    # "RandomForest": RFClassifier,
+    # "KNN": KNNClassifier,
+    # "GaussianNB": NBClassifier,
+    # "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
