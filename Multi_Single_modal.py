@@ -92,7 +92,6 @@ class HybridFusion(nn.Module):
             embed_dim=dim, num_heads=num_heads, batch_first=True, dropout=0.2)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
-        self.alpha = nn.Parameter(torch.tensor(0.65))
 
     def forward(self, ftir_feat, mz_feat):
         # Gate Fusion Part
@@ -107,8 +106,9 @@ class HybridFusion(nn.Module):
         cross_ftir, _ = self.attn(ftir_seq, mz_seq, mz_seq)
         cross_mz, _ = self.attn(mz_seq, ftir_seq, ftir_seq)
         attn_fused = (cross_ftir + cross_mz).squeeze(1)
-        fused = self.alpha * gate_fused + (1 - self.alpha) * self.proj(attn_fused)
-        final_fused = torch.cat([fused, self.proj(attn_fused)], dim=-1)
+        # 最终融合
+        final_fused = torch.cat(
+            [gate_fused, self.proj(attn_fused)], dim=-1)  # [B, 256]
         return final_fused
 
 

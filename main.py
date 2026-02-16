@@ -1445,14 +1445,18 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 else:
                     clf = SVMClassifier(kernel='rbf')
                 clf.fit(train_features, y_train_fold.numpy())
-                _ = clf.predict(val_features)
-                _ = (clf.predict_proba(val_features)[:, 1]
-                     if hasattr(clf, "predict_proba") else None)
-                metrics = evaluate_model(clf, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
-                                         name=model_name, model_type=model_name, is_svm=True)
-                # 记录当前折的详细结果，保持与深度模型一致的输出结构
-                fold_detailed_results.append(metrics)
-                val_accs = [metrics.get('accuracy', 0.0)]
+                # 在验证集上评估（避免信息泄漏到测试集）
+                preds_val = clf.predict(val_features)
+                probs_val = (clf.predict_proba(val_features)[:, 1]
+                             if hasattr(clf, "predict_proba") else None)
+                metrics_val = evaluate_model(clf,
+                                             ftir_val_np, mz_val_np, y_val_fold,
+                                             ftir_axis, mz_axis,
+                                             preds=preds_val, probs=probs_val,
+                                             name=f\"{model_name}_fold{fold+1}\",
+                                             model_type=model_name, is_svm=True)
+                fold_detailed_results.append(metrics_val)
+                val_accs = [metrics_val.get('accuracy', 0.0)]
 
             elif "fusion" in model_name.lower():
                 # ConcatFusion、GateOnlyFusion、SelfAttnOnlyFusion 等
