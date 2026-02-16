@@ -1162,7 +1162,6 @@ RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
 THRESHOLD_METHOD = "target_sensitivity"  # "f1" 或 "target_sensitivity"
 TARGET_SENSITIVITY = 0.8
-USE_CONSERVATIVE_BASELINES = True
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1604,15 +1603,15 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    "MultiModal": MultiModalModel,
-    "MultiModalLite": MultiModalLite,
+    # "MultiModal": MultiModalModel,
+    # "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    # "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
-    # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
@@ -1927,8 +1926,7 @@ for model_name, params in best_params_per_model.items():
     elif model_name == "SVM":
         train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
         test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()])
-        model = SVMClassifier(
-            kernel='linear', C=0.1) if USE_CONSERVATIVE_BASELINES else SVMClassifier(kernel='rbf')
+        model = SVMClassifier(kernel='rbf', C=0.1)
         model.fit(train_features, y_train.numpy())
         preds = model.predict(test_features)
         probs = model.predict_proba(test_features)[:, 1]
@@ -1959,8 +1957,7 @@ for model_name, params in best_params_per_model.items():
         test_features_with_axis = np.hstack([
             ftir_test.numpy(), mz_test.numpy()
         ])
-        model = LogRegClassifier(
-            C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
+        model = LogRegClassifier(C=0.1)
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -1976,8 +1973,7 @@ for model_name, params in best_params_per_model.items():
         test_features_with_axis = np.hstack([
             ftir_test.numpy(), mz_test.numpy()
         ])
-        model = RFClassifier(
-            n_estimators=50, max_depth=2) if USE_CONSERVATIVE_BASELINES else RFClassifier()
+        model = RFClassifier(n_estimators=50, max_depth=2)
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -1987,17 +1983,19 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
     elif model_name == "KNN":
-        train_features_with_axis = np.hstack([
+        train_features = np.hstack([
             ftir_train.numpy(), mz_train.numpy()
         ])
-        test_features_with_axis = np.hstack([
+        test_features = np.hstack([
             ftir_test.numpy(), mz_test.numpy()
         ])
-        model = KNNClassifier(
-            n_neighbors=25, weights='uniform') if USE_CONSERVATIVE_BASELINES else KNNClassifier()
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[
+        n_samples = len(train_features)
+        default_neighbors = 5  # sklearn默认值
+        n_neighbors = min(default_neighbors, max(1, n_samples - 1))
+        model = KNNClassifier(n_neighbors=n_neighbors)
+        model.fit(train_features, y_train.numpy())
+        preds = model.predict(test_features)
+        probs = model.predict_proba(test_features)[
             :, 1] if hasattr(model, "predict_proba") else None
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds, probs=probs,
@@ -2011,7 +2009,7 @@ for model_name, params in best_params_per_model.items():
             ftir_test.numpy(), mz_test.numpy()
         ])
         model = GBDTClassifier(n_estimators=50, learning_rate=0.03, max_depth=2, min_samples_leaf=10, subsample=0.7,
-                               max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
+                               max_features='sqrt')
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -2414,21 +2412,20 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                     ])
                     if m_name == "SVM":
                         clf = SVMClassifier(
-                            kernel='linear', C=0.1) if USE_CONSERVATIVE_BASELINES else SVMClassifier(kernel='rbf')
+                            kernel='rbf', C=0.1)
                     elif m_name == "LogReg":
-                        clf = LogRegClassifier(
-                            C=0.1) if USE_CONSERVATIVE_BASELINES else LogRegClassifier()
+                        clf = LogRegClassifier(C=0.1)
                     elif m_name == "RandomForest":
                         clf = RFClassifier(
-                            n_estimators=50, max_depth=2) if USE_CONSERVATIVE_BASELINES else RFClassifier()
+                            n_estimators=50, max_depth=2)
                     elif m_name == "KNN":
                         clf = KNNClassifier(
-                            n_neighbors=25, weights='uniform') if USE_CONSERVATIVE_BASELINES else KNNClassifier()
+                            n_neighbors=25, weights='uniform')
                     elif m_name == "GaussianNB":
                         clf = NBClassifier()
                     else:
                         clf = GBDTClassifier(n_estimators=50, learning_rate=0.03, max_depth=2, min_samples_leaf=10, subsample=0.7,
-                                             max_features='sqrt') if USE_CONSERVATIVE_BASELINES else GBDTClassifier()
+                                             max_features='sqrt')
                     clf.fit(tr_feat, y_tr.numpy())
                     preds = clf.predict(te_feat)
                     probs = clf.predict_proba(te_feat)[:, 1] if hasattr(

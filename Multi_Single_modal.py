@@ -465,7 +465,7 @@ class GBDTClassifier:
 
 # KNN
 class KNNClassifier:
-    def __init__(self, n_neighbors=10, weights='distance'):
+    def __init__(self, n_neighbors=5, weights='distance'):
         self.clf = KNeighborsClassifier(
             n_neighbors=n_neighbors, weights=weights)
 
