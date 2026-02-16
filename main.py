@@ -1524,25 +1524,25 @@ models_to_evaluate = {
     "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    "SVM": SVMClassifier,
-    "LogReg": LogRegClassifier,
-    "RandomForest": RFClassifier,
-    "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,
-    "GBDT": GBDTClassifier,   # 这个还没跑过，不知道报不报错
+    # "SVM": SVMClassifier,
+    # "LogReg": LogRegClassifier,
+    # "RandomForest": RFClassifier,
+    # "KNN": KNNClassifier,
+    # "GaussianNB": NBClassifier,
+    # "GBDT": GBDTClassifier,   
     # 如需启用其他深度模型，取消注释以下条目
-    # "BiModalCMACF": BiModalCMACF,
-    # "CMSTF": CMSTF,
-    # "MFCNN": MFCNN,
-    # "CNN_LSTM": CNN_LSTM,
+    "BiModalCMACF": BiModalCMACF,
+    "CMSTF": CMSTF,
+    "MFCNN": MFCNN,
+    "CNN_LSTM": CNN_LSTM,
     # 如需启用其他变体消融实验，取消注释以下条目
-    # "FTIROnly": SingleFTIRModel,
-    # "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    # "SelfAttnFusion": SelfAttnFusion,
-    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    "FTIROnly": SingleFTIRModel,
+    "MZOnly": SingleMZModel,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "SelfAttnFusion": SelfAttnFusion,
+    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
 
 all_model_dfs = []
