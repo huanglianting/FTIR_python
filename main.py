@@ -1450,7 +1450,9 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                      if hasattr(clf, "predict_proba") else None)
                 metrics = evaluate_model(clf, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                                          name=model_name, model_type=model_name, is_svm=True)
-                val_accs = [metrics['accuracy']]
+                # 记录当前折的详细结果，保持与深度模型一致的输出结构
+                fold_detailed_results.append(metrics)
+                val_accs = [metrics.get('accuracy', 0.0)]
 
             elif "fusion" in model_name.lower():
                 # ConcatFusion、GateOnlyFusion、SelfAttnOnlyFusion 等
