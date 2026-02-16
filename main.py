@@ -1612,15 +1612,15 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    "MultiModal": MultiModalModel,
-    "MultiModalLite": MultiModalLite,
+    # "MultiModal": MultiModalModel,
+    # "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    # "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
-    # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
