@@ -1492,7 +1492,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 writer.close()
 
             elif (model_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]) or ("svm" in model_name.lower()):
-                # 经典模型：与评估阶段保持一致，拼接轴信息（重复到batch维）
+                # 修复：移除轴信息，避免数据泄漏
                 if isinstance(ftir_train_fold, torch.Tensor):
                     ftir_train_np = ftir_train_fold.numpy()
                     mz_train_np = mz_train_fold.numpy()
@@ -1501,16 +1501,11 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 else:
                     ftir_train_np, mz_train_np = ftir_train_fold, mz_train_fold
                     ftir_val_np, mz_val_np = ftir_val_fold, mz_val_fold
-                ftir_axis_train = ftir_axis.repeat(
-                    ftir_train_np.shape[0], 1).numpy()
-                mz_axis_train = mz_axis.repeat(mz_train_np.shape[0], 1).numpy()
-                ftir_axis_val = ftir_axis.repeat(
-                    ftir_val_np.shape[0], 1).numpy()
-                mz_axis_val = mz_axis.repeat(mz_val_np.shape[0], 1).numpy()
-                train_features = np.hstack(
-                    [ftir_train_np, mz_train_np, ftir_axis_train, mz_axis_train])
-                val_features = np.hstack(
-                    [ftir_val_np, mz_val_np, ftir_axis_val, mz_axis_val])
+                
+                # 关键修改：不包含轴信息
+                train_features = np.hstack([ftir_train_np, mz_train_np])
+                val_features = np.hstack([ftir_val_np, mz_val_np])
+
                 if model_name == "SVM" or ("svm" in model_name.lower()):
                     clf = SVMClassifier(kernel='rbf')
                 elif model_name == "LogReg":
@@ -1526,16 +1521,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 else:
                     clf = SVMClassifier(kernel='rbf')
                 clf.fit(train_features, y_train_fold.numpy())
-                # 在验证集上评估（避免信息泄漏到测试集）
                 preds_val = clf.predict(val_features)
-                probs_val = (clf.predict_proba(val_features)[:, 1]
-                             if hasattr(clf, "predict_proba") else None)
-                metrics_val = evaluate_model(clf,
-                                             ftir_val_np, mz_val_np, y_val_fold,
-                                             ftir_axis, mz_axis,
-                                             preds=preds_val, probs=probs_val,
-                                             name=f"{model_name}_fold{fold+1}",
-                                             model_type=model_name, is_svm=True)
+                probs_val = clf.predict_proba(val_features)[:, 1] if hasattr(
+                    clf, "predict_proba") else None
+
+                # 评估验证集性能
+                metrics_val = evaluate_model(
+                    clf,
+                    ftir_val_np, mz_val_np, y_val_fold,
+                    ftir_axis, mz_axis,
+                    preds=preds_val, probs=probs_val,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name, is_svm=True
+                )
                 fold_detailed_results.append(metrics_val)
                 val_accs = [metrics_val.get('accuracy', 0.0)]
 
@@ -1922,25 +1920,17 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
     elif model_name == "SVM":
-        # 将 ftir_axis 和 mz_axis 扩展为与当前数据相同的 batch 维度，并拼接至特征维度
-        train_features_with_axis = np.hstack([
-            ftir_train.numpy(), mz_train.numpy(),
-            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),  # [batch_size, 467]
-            mz_x.repeat(mz_train.shape[0], 1).numpy()  # [batch_size, 2838]
-        ])
-        test_features_with_axis = np.hstack([
-            ftir_test.numpy(), mz_test.numpy(),
-            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
-            mz_x.repeat(mz_test.shape[0], 1).numpy()
-        ])
+        train_features = np.hstack([ftir_train.numpy(), mz_train.numpy()])
+        test_features = np.hstack([ftir_test.numpy(), mz_test.numpy()])
         model = SVMClassifier(kernel='rbf')
-        model.fit(train_features_with_axis, y_train.numpy())
-        preds = model.predict(test_features_with_axis)
-        probs = model.predict_proba(test_features_with_axis)[:, 1]
+        model.fit(train_features, y_train.numpy())
+        preds = model.predict(test_features)
+        probs = model.predict_proba(test_features)[:, 1]
         metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
-                                 preds=preds, probs=probs,
-                                 name=model_name, model_type=model_name, is_svm=True)
+                                preds=preds, probs=probs,
+                                name=model_name, model_type=model_name, is_svm=True)
         continue
+
     elif model_name == "GaussianNB":
         # 与SVM相同，拼接轴向信息作为先验参考
         train_features_with_axis = np.hstack([

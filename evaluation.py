@@ -59,12 +59,10 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             ftir_test_np = ftir_test.numpy() if isinstance(
                 ftir_test, torch.Tensor) else ftir_test
             mz_test_np = mz_test.numpy() if isinstance(mz_test, torch.Tensor) else mz_test
-            ftir_axis_batch = np.tile(
-                ftir_axis.numpy(), (ftir_test_np.shape[0], 1))  # [batch, 467]
-            mz_axis_batch = np.tile(
-                mz_axis.numpy(), (mz_test_np.shape[0], 1))  # [batch, 2838]
-            test_features = np.hstack(
-                [ftir_test_np, mz_test_np, ftir_axis_batch, mz_axis_batch])
+            
+            # 修复：移除轴信息，避免数据泄漏
+            test_features = np.hstack([ftir_test_np, mz_test_np])
+            
             preds = model.predict(test_features)
             # 概率获取：优先使用 predict_proba，其次对 decision_function 做sigmoid
             probs = None

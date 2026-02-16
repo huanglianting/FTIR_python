@@ -29,7 +29,7 @@ class FTIREncoder(nn.Module):
             nn.Linear(64 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.3)
+            nn.Dropout(0.5)  # 增加dropout从0.3到0.5
         )
 
     def forward(self, feat, feat_axis):
@@ -53,7 +53,7 @@ class MZEncoder(nn.Module):
             nn.Linear(64 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.3)
+            nn.Dropout(0.5)  # 增加dropout从0.3到0.5
         )
 
     def forward(self, feat, feat_axis):
@@ -123,10 +123,11 @@ class MultiModalModel(nn.Module):
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
+            nn.Dropout(0.5),  # 增加dropout
             SimpleResidualBlock(256),
             nn.Linear(256, 2)
         )
-        
+
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)
@@ -157,11 +158,13 @@ class MultiModalLite(nn.Module):
         mz_feat = self.mz_extractor(mz, mz_axis)
         ftir_feat = self.proj_ftir(ftir_feat)
         mz_feat = self.proj_mz(mz_feat)
-        combined = self.fuser(ftir_feat, mz_feat)  
+        combined = self.fuser(ftir_feat, mz_feat)
         output = self.classifier(combined)  # [B, 2]
         return output
 
 # ==================单模态模型定义====================================
+
+
 class SingleFTIRModel(nn.Module):
     def __init__(self, input_dim):
         super(SingleFTIRModel, self).__init__()
@@ -463,7 +466,8 @@ class GBDTClassifier:
 # KNN
 class KNNClassifier:
     def __init__(self, n_neighbors=5, weights='distance'):
-        self.clf = KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights)
+        self.clf = KNeighborsClassifier(
+            n_neighbors=n_neighbors, weights=weights)
 
     def fit(self, X, y):
         self.clf.fit(X, y)
