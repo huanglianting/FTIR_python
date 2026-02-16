@@ -1141,7 +1141,7 @@ param_grid = {
     'batch_size': [16],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.3, 0.5],
-    'early_stop_patience': [10]
+    'early_stop_patience': [10, 15]
 }
 
 # 古早最优参数
