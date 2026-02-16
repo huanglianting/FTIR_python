@@ -77,7 +77,7 @@ class SimpleResidualBlock(nn.Module):
 
 
 class HybridFusion(nn.Module):
-    def __init__(self, dim=128, num_heads=4):
+    def __init__(self, dim=128, num_heads=2):
         super().__init__()
         # Gate Fusion
         self.gate = nn.Sequential(
