@@ -267,6 +267,7 @@ class CoAttnOnlyFusion(nn.Module):
             embed_dim=dim, num_heads=num_heads, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
+        self.pre_proj = nn.Linear(256, dim)
         self.classifier = nn.Sequential(
             nn.Linear(dim, dim//2),
             nn.BatchNorm1d(dim//2),
@@ -282,7 +283,9 @@ class CoAttnOnlyFusion(nn.Module):
         mz_seq = mz_feat.unsqueeze(1)
         cross_ftir, _ = self.attn(ftir_seq, mz_seq, mz_seq)
         cross_mz, _ = self.attn(mz_seq, ftir_seq, ftir_seq)
-        attn_fused = (cross_ftir + cross_mz).squeeze(1)  # [B, 128]
+        attn_fused = (cross_ftir + cross_mz).squeeze(1)
+        if attn_fused.shape[1] == 256:
+            attn_fused = self.pre_proj(attn_fused)
         output = self.classifier(attn_fused)  # [B, 2]
         return output
 
@@ -346,6 +349,7 @@ class SelfAttnOnlyFusion(nn.Module):
             embed_dim=dim, num_heads=num_heads, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
+        self.pre_proj = nn.Linear(256, dim)
         self.classifier = nn.Sequential(
             nn.Linear(dim, dim//2),
             nn.BatchNorm1d(dim//2),
@@ -361,7 +365,9 @@ class SelfAttnOnlyFusion(nn.Module):
         mz_seq = mz_feat.unsqueeze(1)
         ftir_attn, _ = self.attn(ftir_seq, ftir_seq, ftir_seq)
         mz_attn, _ = self.attn(mz_seq, mz_seq, mz_seq)
-        attn_fused = (ftir_attn + mz_attn).squeeze(1)  # [B, 256]
+        attn_fused = (ftir_attn + mz_attn).squeeze(1)
+        if attn_fused.shape[1] == 256:
+            attn_fused = self.pre_proj(attn_fused)
         output = self.classifier(attn_fused)  # [B, 2]
         return output
 

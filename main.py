@@ -1579,6 +1579,19 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                     early_stop_patience=params['early_stop_patience'],
                     model_type=model_name
                 )
+                # 验证集评估，记录折内指标
+                val_metrics = evaluate_model(
+                    trained_model,
+                    ftir_val_fold, mz_val_fold, y_val_fold,
+                    ftir_axis, mz_axis,
+                    name=f"{model_name}_fold{fold+1}",
+                    model_type=model_name,
+                    fold=fold+1,
+                    save_path=save_path,
+                    verbose=False,
+                    do_plots=PLOTS_IN_GRID_OR_CV
+                )
+                fold_detailed_results.append(val_metrics)
                 writer.close()
             best_acc = max(val_accs) if len(val_accs) > 0 else 0
             fold_accuracies.append(best_acc)
