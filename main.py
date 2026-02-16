@@ -1821,6 +1821,82 @@ for model_name, params in best_params_per_model.items():
                                  preds=preds, probs=probs,
                                  name=model_name, model_type=model_name, is_svm=True)
         continue
+    elif model_name == "LogReg":
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
+        model = LogRegClassifier()
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds, probs=probs,
+                                 name=model_name, model_type=model_name, is_svm=True)
+        continue
+    elif model_name == "RandomForest":
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
+        model = RFClassifier()
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds, probs=probs,
+                                 name=model_name, model_type=model_name, is_svm=True)
+        continue
+    elif model_name == "KNN":
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
+        model = KNNClassifier()
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds, probs=probs,
+                                 name=model_name, model_type=model_name, is_svm=True)
+        continue
+    elif model_name == "GBDT":
+        train_features_with_axis = np.hstack([
+            ftir_train.numpy(), mz_train.numpy(),
+            ftir_x.repeat(ftir_train.shape[0], 1).numpy(),
+            mz_x.repeat(mz_train.shape[0], 1).numpy()
+        ])
+        test_features_with_axis = np.hstack([
+            ftir_test.numpy(), mz_test.numpy(),
+            ftir_x.repeat(ftir_test.shape[0], 1).numpy(),
+            mz_x.repeat(mz_test.shape[0], 1).numpy()
+        ])
+        model = GBDTClassifier()
+        model.fit(train_features_with_axis, y_train.numpy())
+        preds = model.predict(test_features_with_axis)
+        probs = model.predict_proba(test_features_with_axis)[:, 1] if hasattr(model, "predict_proba") else None
+        metrics = evaluate_model(model, ftir_test, mz_test, y_test, ftir_x, mz_x,
+                                 preds=preds, probs=probs,
+                                 name=model_name, model_type=model_name, is_svm=True)
+        continue
 
     else:
         model_class = eval(model_name)
