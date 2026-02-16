@@ -51,8 +51,7 @@ plt.rcParams.update(UNIFIED_STYLE)
 
 def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                    preds=None, probs=None, name="Model", model_type="undefined",
-                   fold=1, save_path='./result', is_svm=False,
-                   verbose=False, do_plots=False):
+                   fold=1, save_path='./result', is_svm=False):
     y_true = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
     # 如果没有提供 preds 和 probs
     if preds is None or probs is None:
@@ -149,24 +148,22 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         hi = np.percentile(vals, 100*(1-alpha/2))
         return (float(lo), float(hi))
     auc_ci = bootstrap_auc_ci(y_true, probs)
-    if verbose:
-        print(
-            f"{name} - 准确率: {acc:.4f} [{acc_ci[0]:.3f},{acc_ci[1]:.3f}], "
-            f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f}, "
-            f"召回率(Sensitivity): {rec:.4f} [{sen_ci[0]:.3f},{sen_ci[1]:.3f}], "
-            f"特异性: {spec:.4f} [{spe_ci[0]:.3f},{spe_ci[1]:.3f}], "
-            f"F1: {f1:.4f}, AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
-            f"MCC: {mcc:.4f}"
-        )
+    print(
+        f"{name} - 准确率: {acc:.4f} [{acc_ci[0]:.3f},{acc_ci[1]:.3f}], "
+        f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f}, "
+        f"召回率(Sensitivity): {rec:.4f} [{sen_ci[0]:.3f},{sen_ci[1]:.3f}], "
+        f"特异性: {spec:.4f} [{spe_ci[0]:.3f},{spe_ci[1]:.3f}], "
+        f"F1: {f1:.4f}, AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
+        f"MCC: {mcc:.4f}"
+    )
     # 每个类别的准确率
     class_0_mask = (y_true == 0)
     class_1_mask = (y_true == 1)
     class_0_acc = (preds[class_0_mask] == y_true[class_0_mask]).mean()
     class_1_acc = (preds[class_1_mask] == y_true[class_1_mask]).mean()
-    if verbose:
-        print(
-            f"{name} - 类别0准确率: {class_0_acc:.4f}, 类别1准确率: {class_1_acc:.4f}"
-        )
+    print(
+        f"{name} - 类别0准确率: {class_0_acc:.4f}, 类别1准确率: {class_1_acc:.4f}"
+    )
 
     result_dict = {
         'model_type': model_type,
@@ -194,17 +191,15 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     # # 绘制并保存 ROC 曲线
     # save_roc_curve(y_true, probs, auc, name, save_path)
 
-    if do_plots:
-        plot_cm_roc(y_true, preds, probs, auc, auc_ci,
-                    save_path=save_path, method_name=name)
-        try:
-            save_pr_curve(y_true, probs, name, save_path)
-        except Exception as e:
-            if verbose:
-                print(f"保存PR曲线失败: {e}")
+    plot_cm_roc(y_true, preds, probs, auc, auc_ci,
+                save_path=save_path, method_name=name)
+    try:
+        save_pr_curve(y_true, probs, name, save_path)
+    except Exception as e:
+        print(f"保存PR曲线失败: {e}")
 
     # t-SNE 可视化
-    if do_plots and name == "MultiModal":
+    if name == "MultiModal":
         with torch.no_grad():
             ftir_feat = model.ftir_extractor(ftir_test, ftir_axis) if hasattr(
                 model, 'ftir_extractor') else None
@@ -355,7 +350,7 @@ def perform_nonparametric_tests(model_results_dict):
     model_names = []
 
     for model_name, fold_results in model_results_dict.items():
-        auc_values = [result['auc'] for result in fold_results]
+        auc_values = [result.get('auc', float('nan')) for result in fold_results]
         auc_data.append(auc_values)
         model_names.append(model_name)
 
@@ -364,7 +359,18 @@ def perform_nonparametric_tests(model_results_dict):
     n_models = len(model_names)
     # Friedman检验（非参数版ANOVA），至少需要3个模型
     if n_models >= 3:
-        friedman_stat, friedman_p = stats.friedmanchisquare(*auc_data.T)
+        clean_cols = []
+        for i in range(n_models):
+            col = auc_data[:, i]
+            col = col[np.isfinite(col)]
+            if col.size == 0:
+                clean_cols.append(np.array([0.5]))
+            else:
+                clean_cols.append(col)
+        try:
+            friedman_stat, friedman_p = stats.friedmanchisquare(*clean_cols)
+        except Exception:
+            friedman_stat, friedman_p = (float('nan'), float('nan'))
     else:
         friedman_stat, friedman_p = (float('nan'), float('nan'))
 
@@ -377,7 +383,7 @@ def perform_nonparametric_tests(model_results_dict):
     }
 
     # 如果Friedman检验显著，进行事后检验
-    if friedman_p < 0.05:
+    if np.isfinite(friedman_p) and friedman_p < 0.05:
         if _has_posthocs and posthoc_nemenyi_friedman is not None and n_models >= 3:
             posthoc_results = posthoc_nemenyi_friedman(auc_data)
             results['posthoc_nemenyi'] = posthoc_results
@@ -386,7 +392,22 @@ def perform_nonparametric_tests(model_results_dict):
         pairwise_comparisons = {}
         for i in range(n_models):
             for j in range(i+1, n_models):
-                stat, p = stats.wilcoxon(auc_data[:, i], auc_data[:, j])
+                x = auc_data[:, i]
+                y = auc_data[:, j]
+                mask = np.isfinite(x) & np.isfinite(y)
+                x = x[mask]
+                y = y[mask]
+                if x.size == 0 or y.size == 0:
+                    stat, p = (0.0, 1.0)
+                else:
+                    d = x - y
+                    if np.allclose(d, 0):
+                        stat, p = (0.0, 1.0)
+                    else:
+                        try:
+                            stat, p = stats.wilcoxon(x, y)
+                        except Exception:
+                            stat, p = (0.0, 1.0)
                 pairwise_comparisons[f"{model_names[i]}_vs_{model_names[j]}"] = {
                     'statistic': stat,
                     'p_value': p,
