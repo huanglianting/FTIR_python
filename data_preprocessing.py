@@ -7,6 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import seaborn as sns
 from ftir_process import load_and_preprocess
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import SelectKBest, f_classif
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from plot_spectrum_with_marked_peaks import plot_spectrum_with_marked_peaks
@@ -145,7 +146,7 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     plt.close()
 
 
-def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path, mz_pca_components=None):
+def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path, mz_pca_components=None, mz_feature_selection_method=None, mz_num_features=None):
     # ===============================处理FTIR=================================================
     # 生成文件列表的通用函数
     def generate_file_lists(prefixes, num_files, ftir_file_path):
@@ -401,8 +402,24 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     test_labels = np.hstack(test_labels)  # (288,)
     test_patient_ids = np.hstack(test_patient_ids)  # (288,)
 
+    # 对MZ数据进行特征选择
+    if mz_feature_selection_method == 'SelectKBest' and mz_num_features is not None:
+        print(f"Applying SelectKBest to MZ data with {mz_num_features} features.")
+        # 合并训练和测试MZ数据进行特征选择
+        all_mz_data = np.vstack((train_mz, test_mz))
+        all_labels = np.hstack((train_labels, test_labels)) # SelectKBest 需要标签
+
+        selector = SelectKBest(f_classif, k=mz_num_features)
+        all_mz_data_selected = selector.fit_transform(all_mz_data, all_labels)
+
+        # 分割回训练和测试集
+        train_mz = all_mz_data_selected[:train_mz.shape[0]]
+        test_mz = all_mz_data_selected[train_mz.shape[0]:]
+
+        print(f"MZ data after SelectKBest - train_mz shape: {train_mz.shape}, test_mz shape: {test_mz.shape}")
+
     # 对MZ数据进行PCA降维
-    if mz_pca_components is not None:
+    if mz_pca_components is not None and mz_pca_components > 0:
         print(f"Applying PCA to MZ data with {mz_pca_components} components.")
         # 合并训练和测试MZ数据进行标准化和PCA，以确保一致性
         all_mz_data = np.vstack((train_mz, test_mz))

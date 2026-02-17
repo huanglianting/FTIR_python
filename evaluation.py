@@ -225,17 +225,15 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         from sklearn.manifold import TSNE
         tsne = TSNE(n_components=2, perplexity=min(
             10, len(y_true)-1), random_state=42)
-        # 可视化各层次特征
-        plot_tsne_features(
-            tsne=tsne,
-            ftir_feat=ftir_feat.cpu().numpy() if ftir_feat is not None else None,
-            mz_feat=mz_feat.cpu().numpy() if mz_feat is not None else None,
-            fused_feat=fused_feat.cpu().numpy() if fused_feat is not None else None,
-            y_true=y_true,
-            save_path=save_path,
-            model_name=name
-        )
-
+        # # 可视化各层次特征
+        # # plot_tsne_features(
+        #     tsne=tsne,
+        #     ftir_feat=ftir_feat.cpu().numpy() if ftir_feat is not None else None,
+        #     mz_feat=mz_feat.cpu().numpy() if mz_feat is not None else None,
+        #     fused_feat=fused_feat.cpu().numpy() if fused_feat is not None else None,
+        #     y_true=y_true,
+        #     save_path=save_path,
+        #     model_name=name
     return result_dict
 
 

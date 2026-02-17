@@ -19,30 +19,30 @@ class FTIREncoder(nn.Module):
         super(FTIREncoder, self).__init__()
         self.features = nn.Sequential(
             # Block 1
-            nn.Conv1d(1, 64, kernel_size=7, stride=2, padding=3), # Output: [B, 64, ~axis_dim/2]
-            nn.BatchNorm1d(64),
+            nn.Conv1d(1, 24, kernel_size=7, stride=2, padding=3), # Output: [B, 24, ~axis_dim/2]
+            nn.BatchNorm1d(24),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 64, ~axis_dim/4]
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 24, ~axis_dim/4]
 
             # Block 2
-            nn.Conv1d(64, 128, kernel_size=5, stride=2, padding=2), # Output: [B, 128, ~axis_dim/8]
-            nn.BatchNorm1d(128),
+            nn.Conv1d(24, 48, kernel_size=5, stride=2, padding=2), # Output: [B, 48, ~axis_dim/8]
+            nn.BatchNorm1d(48),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 128, ~axis_dim/16]
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 48, ~axis_dim/16]
 
             # Block 3
-            nn.Conv1d(128, 256, kernel_size=3, stride=1, padding=1), # Output: [B, 256, ~axis_dim/16]
-            nn.BatchNorm1d(256),
+            nn.Conv1d(48, 96, kernel_size=3, stride=1, padding=1), # Output: [B, 96, ~axis_dim/16]
+            nn.BatchNorm1d(96),
             nn.ReLU(),
             nn.AdaptiveAvgPool1d(8) # Pool to a fixed size, e.g., 8
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(256 * 8, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(96 * 8, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(256, 64)
+            nn.Linear(128, 64)
         )
 
     def forward(self, feat, feat_axis):
@@ -123,46 +123,144 @@ class HybridFusion(nn.Module):
 
 # ==================多模态模型定义====================================
 class MultiModalModel(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim):
+    def __init__(self, ftir_input_dim, mz_input_dim, fusion_mechanism='hybrid'):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=64, num_heads=4)
-        self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2)
-        )
+
+        if fusion_mechanism == 'concat':
+            self.fuser = ConcatFusion(ftir_input_dim, mz_input_dim)
+            # Adjust classifier input for ConcatFusion's output
+            self.classifier = nn.Sequential(
+                nn.Linear(128, 64), # ConcatFusion's output is 64, then its internal classifier reduces to 2
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Linear(64, 2)
+            )
+        elif fusion_mechanism == 'gate_only':
+            self.fuser = GateOnlyFusion(ftir_input_dim, mz_input_dim)
+            # Adjust classifier input for GateOnlyFusion's output
+            self.classifier = nn.Sequential(
+                nn.Linear(32, 16), # GateOnlyFusion's internal classifier reduces to 2
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Linear(16, 2)
+            )
+        elif fusion_mechanism == 'co_attn_only':
+            self.fuser = CoAttnOnlyFusion(ftir_input_dim, mz_input_dim)
+            # Adjust classifier input for CoAttnOnlyFusion's output
+            self.classifier = nn.Sequential(
+                nn.Linear(32, 16), # CoAttnOnlyFusion's internal classifier reduces to 2
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Linear(16, 2)
+            )
+        elif fusion_mechanism == 'self_attn':
+            self.fuser = SelfAttnFusion(ftir_input_dim, mz_input_dim)
+            # Adjust classifier input for SelfAttnFusion's output
+            self.classifier = nn.Sequential(
+                nn.Linear(64, 32), # SelfAttnFusion's internal classifier reduces to 2
+                nn.BatchNorm1d(32),
+                nn.ReLU(),
+                nn.Linear(32, 2)
+            )
+        elif fusion_mechanism == 'self_attn_only':
+            self.fuser = SelfAttnOnlyFusion(ftir_input_dim, mz_input_dim)
+            # Adjust classifier input for SelfAttnOnlyFusion's output
+            self.classifier = nn.Sequential(
+                nn.Linear(32, 16), # SelfAttnOnlyFusion's internal classifier reduces to 2
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Linear(16, 2)
+            )
+        else: # Default to 'hybrid'
+            self.fuser = HybridFusion(dim=64, num_heads=4)
+            self.classifier = nn.Sequential(
+                nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Linear(64, 2)
+            )
         
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)
-        combined = self.fuser(ftir_feat, mz_feat)
-        output = self.classifier(combined)  # [B, 2]
+        # For fusion mechanisms that have their own internal classifier,
+        # the fuser's forward method will return the final output.
+        # Otherwise, the fuser returns combined features.
+        if isinstance(self.fuser, (ConcatFusion, GateOnlyFusion, CoAttnOnlyFusion, SelfAttnFusion, SelfAttnOnlyFusion)):
+            output = self.fuser(ftir, mz, ftir_axis, mz_axis)
+        else:
+            combined = self.fuser(ftir_feat, mz_feat)
+            output = self.classifier(combined)  # [B, 2]
         return output
 
 
 # 轻量版多模态：保留 HybridFusion 但降低维度与头数
 class MultiModalLite(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim):
+    def __init__(self, ftir_input_dim, mz_input_dim, fusion_mechanism='hybrid'):
         super(MultiModalLite, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=64, num_heads=4)
-        self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2)
-        )
+        
+        if fusion_mechanism == 'concat':
+            self.fuser = ConcatFusion(ftir_input_dim, mz_input_dim)
+            self.classifier = nn.Sequential(
+                nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Linear(64, 2)
+            )
+        elif fusion_mechanism == 'gate_only':
+            self.fuser = GateOnlyFusion(ftir_input_dim, mz_input_dim)
+            self.classifier = nn.Sequential(
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Linear(16, 2)
+            )
+        elif fusion_mechanism == 'co_attn_only':
+            self.fuser = CoAttnOnlyFusion(ftir_input_dim, mz_input_dim)
+            self.classifier = nn.Sequential(
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Linear(16, 2)
+            )
+        elif fusion_mechanism == 'self_attn':
+            self.fuser = SelfAttnFusion(ftir_input_dim, mz_input_dim)
+            self.classifier = nn.Sequential(
+                nn.Linear(64, 32),
+                nn.BatchNorm1d(32),
+                nn.ReLU(),
+                nn.Linear(32, 2)
+            )
+        elif fusion_mechanism == 'self_attn_only':
+            self.fuser = SelfAttnOnlyFusion(ftir_input_dim, mz_input_dim)
+            self.classifier = nn.Sequential(
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Linear(16, 2)
+            )
+        else: # Default to 'hybrid'
+            self.fuser = HybridFusion(dim=64, num_heads=4)
+            self.classifier = nn.Sequential(
+                nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Linear(64, 2)
+            )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)
-        combined = self.fuser(ftir_feat, mz_feat)
-        output = self.classifier(combined)  # [B, 2]
+        if isinstance(self.fuser, (ConcatFusion, GateOnlyFusion, CoAttnOnlyFusion, SelfAttnFusion, SelfAttnOnlyFusion)):
+            output = self.fuser(ftir, mz, ftir_axis, mz_axis)
+        else:
+            combined = self.fuser(ftir_feat, mz_feat)
+            output = self.classifier(combined)  # [B, 2]
         return output
 
 
