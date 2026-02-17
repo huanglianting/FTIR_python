@@ -1610,7 +1610,7 @@ models_to_evaluate = {
     # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
     # "GaussianNB": NBClassifier,
-    "GBDT": GBDTClassifier,
+    # "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
