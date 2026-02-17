@@ -64,6 +64,49 @@ class MZEncoder(nn.Module):
         return feat
 
 
+# 替换原有的复杂编码器
+class LightweightFTIREncoder(nn.Module):
+    def __init__(self, axis_dim):
+        super(LightweightFTIREncoder, self).__init__()
+        # 极简架构：减少参数量防过拟合
+        self.net = nn.Sequential(
+            nn.Conv1d(1, 16, 15, stride=3),  # 大步长减少参数
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(16),        # 直接降维
+            nn.Flatten(),
+            nn.Dropout(0.7),                 # 更强dropout
+            nn.Linear(16 * 16, 32),          # 极简全连接
+            nn.ReLU(),
+            nn.Linear(32, 16)                # 输出16维特征
+        )
+    
+    def forward(self, feat, feat_axis):
+        feat = feat.unsqueeze(1)
+        return self.net(feat)
+
+
+class LightweightMZEncoder(nn.Module):
+    def __init__(self, axis_dim):
+        super(LightweightMZEncoder, self).__init__()
+        self.net = nn.Sequential(
+            nn.Conv1d(1, 16, 21, stride=4),  # 更大步长处理高维MZ
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(16),
+            nn.Flatten(),
+            nn.Dropout(0.7),
+            nn.Linear(16 * 16, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16)                # 同样输出16维
+        )
+    
+    def forward(self, feat, feat_axis):
+        feat = feat.unsqueeze(1)
+        return self.net(feat)
+
+
+
 class SimpleResidualBlock(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -139,11 +182,33 @@ class MultiModalModel(nn.Module):
 
 
 # 轻量版多模态：保留 HybridFusion 但降低维度与头数
+# class MultiModalLite(nn.Module):
+#     def __init__(self, ftir_input_dim, mz_input_dim):
+#         super(MultiModalLite, self).__init__()
+#         self.ftir_extractor = FTIREncoder(ftir_input_dim)
+#         self.mz_extractor = MZEncoder(mz_input_dim)
+#         self.fuser = HybridFusion(dim=64, num_heads=2)
+#         self.classifier = nn.Sequential(
+#             nn.Linear(128, 64),
+#             nn.BatchNorm1d(64),
+#             nn.ReLU(),
+#             nn.Linear(64, 2)
+#         )
+
+#     def forward(self, ftir, mz, ftir_axis, mz_axis):
+#         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
+#         mz_feat = self.mz_extractor(mz, mz_axis)
+#         combined = self.fuser(ftir_feat, mz_feat)
+#         output = self.classifier(combined)  # [B, 2]
+#         return output
+
+
+# 尝试改成超轻量级模型
 class MultiModalLite(nn.Module):
     def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalLite, self).__init__()
-        self.ftir_extractor = FTIREncoder(ftir_input_dim)
-        self.mz_extractor = MZEncoder(mz_input_dim)
+        self.ftir_extractor = LightweightFTIREncoder(ftir_input_dim)
+        self.mz_extractor = LightweightMZEncoder(mz_input_dim)
         self.fuser = HybridFusion(dim=64, num_heads=2)
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
@@ -158,6 +223,7 @@ class MultiModalLite(nn.Module):
         combined = self.fuser(ftir_feat, mz_feat)
         output = self.classifier(combined)  # [B, 2]
         return output
+
 
 # ==================单模态模型定义====================================
 class SingleFTIRModel(nn.Module):
