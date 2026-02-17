@@ -79,7 +79,7 @@ class SimpleResidualBlock(nn.Module):
 
 
 class HybridFusion(nn.Module):
-    def __init__(self, dim=128, num_heads=2):
+    def __init__(self, dim=64, num_heads=2):
         super().__init__()
         # Gate Fusion
         self.gate = nn.Sequential(
@@ -120,14 +120,14 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=256, num_heads=2)
+        self.fuser = HybridFusion(dim=64, num_heads=2)
         self.classifier = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(0.5),  # 增加dropout
-            SimpleResidualBlock(256),
-            nn.Linear(256, 2)
+            SimpleResidualBlock(64),
+            nn.Linear(64, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
@@ -167,11 +167,11 @@ class SingleFTIRModel(nn.Module):
         super(SingleFTIRModel, self).__init__()
         self.ftir_extractor = FTIREncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 2)
+            SimpleResidualBlock(64),
+            nn.Linear(64, 2)
         )
 
     def forward(self, ftir, ftir_axis):
@@ -185,11 +185,11 @@ class SingleMZModel(nn.Module):
         super(SingleMZModel, self).__init__()
         self.mz_extractor = MZEncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            SimpleResidualBlock(128),
-            nn.Linear(128, 2)
+            SimpleResidualBlock(64),
+            nn.Linear(64, 2)
         )
 
     def forward(self, mz, mz_axis):
@@ -201,7 +201,7 @@ class SingleMZModel(nn.Module):
 # ==================其他消融试验模型定义====================================
 # 消融试验1：简单拼接融合
 class ConcatFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64):
         super(ConcatFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -223,7 +223,7 @@ class ConcatFusion(nn.Module):
 
 # 消融试验2：仅保留Gate Fusion
 class GateOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64):
         super(GateOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -256,7 +256,7 @@ class GateOnlyFusion(nn.Module):
 
 # 消融试验3：只用了MultiheadAttention
 class CoAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=2):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64, num_heads=2):
         super(CoAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -286,7 +286,7 @@ class CoAttnOnlyFusion(nn.Module):
 
 # 消融试验4：把 Multi-headAttention 改成 Self-Attention
 class SelfAttnFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=2):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64, num_heads=2):
         super(SelfAttnFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -335,7 +335,7 @@ class SelfAttnFusion(nn.Module):
 
 # 消融试验5：只用了MultiheadAttention，并且是Self-Attention
 class SelfAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=2):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64, num_heads=2):
         super(SelfAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -435,13 +435,14 @@ class RFClassifier:
 
 # GBDT（梯度提升树）
 class GBDTClassifier:
-    def __init__(self, n_estimators=50, learning_rate=0.05, max_depth=3, min_samples_leaf=10, subsample=0.7, random_state=42):
+    def __init__(self, n_estimators=50, learning_rate=0.05, max_depth=3, min_samples_leaf=10, subsample=0.7, max_features=None, random_state=42):
         self.clf = GradientBoostingClassifier(
             n_estimators=n_estimators,
             learning_rate=learning_rate,
             max_depth=max_depth,
             min_samples_leaf=min_samples_leaf,
             subsample=subsample,
+            max_features=max_features,
             random_state=random_state
         )
 
