@@ -14,79 +14,27 @@ import cv2
 
 # ==================模块定义====================================
 # 定义模态特征提取的分支
-# class FTIREncoder(nn.Module):
-#     def __init__(self, axis_dim):
-#         super(FTIREncoder, self).__init__()
-#         self.net = nn.Sequential(
-#             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
-#             nn.BatchNorm1d(32),
-#             nn.ReLU(),
-#             nn.Conv1d(32, 64, 5, stride=2),
-#             nn.BatchNorm1d(64),
-#             nn.ReLU(),
-#             nn.AdaptiveAvgPool1d(32),
-#             nn.Flatten(),
-#             nn.Linear(64 * 32, 256),
-#             nn.BatchNorm1d(256),
-#             nn.ReLU(),
-#             nn.Dropout(0.5),  # 增加dropout从0.3到0.5
-#             nn.Linear(256, 64)
-#         )
-
-#     def forward(self, feat, feat_axis):
-#         feat = feat.unsqueeze(1)    # (32,467) -> (32,1,467)
-#         feat = self.net(feat)
-#         return feat
-
-
-# class MZEncoder(nn.Module):
-#     def __init__(self, axis_dim):
-#         super(MZEncoder, self).__init__()
-#         self.net = nn.Sequential(
-#             nn.Conv1d(1, 32, 7, stride=2),
-#             nn.BatchNorm1d(32),
-#             nn.ReLU(),
-#             nn.Conv1d(32, 64, 5, stride=2),
-#             nn.BatchNorm1d(64),
-#             nn.ReLU(),
-#             nn.AdaptiveAvgPool1d(32),
-#             nn.Flatten(),
-#             nn.Linear(64 * 32, 256),
-#             nn.BatchNorm1d(256),
-#             nn.ReLU(),
-#             nn.Dropout(0.5),  # 增加dropout从0.3到0.5
-#             nn.Linear(256, 64)
-#         )
-
-#     def forward(self, feat, feat_axis):
-#         feat = feat.unsqueeze(1)    # (32,2838) -> (32,1,2838)
-#         feat = self.net(feat)
-#         return feat
-
-
-# 替换原有的复杂编码器
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()
-        # 在原有结构基础上微调
         self.net = nn.Sequential(
-            nn.Conv1d(1, 16, 7, stride=2),   # 减少通道数：32→16
-            nn.BatchNorm1d(16),              # 对应调整
+            nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv1d(16, 32, 5, stride=2),  # 减少通道数：64→32
-            nn.BatchNorm1d(32),              # 对应调整
+            nn.Conv1d(32, 64, 5, stride=2),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(16),        # 减少输出长度：32→16
+            nn.AdaptiveAvgPool1d(32),
             nn.Flatten(),
-            nn.Linear(32 * 16, 128),         # 减少全连接维度：256→128
-            nn.BatchNorm1d(128),             # 对应调整
+            nn.Linear(64 * 32, 256),
+            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.7),                 # 增强dropout：0.5→0.7
-            nn.Linear(128, 32)               # 减少输出维度：64→32
+            nn.Dropout(0.6),  # 增加dropout从0.3到0.5
+            nn.Linear(256, 64)
         )
-    
+
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)
+        feat = feat.unsqueeze(1)    # (32,467) -> (32,1,467)
         feat = self.net(feat)
         return feat
 
@@ -94,25 +42,24 @@ class FTIREncoder(nn.Module):
 class MZEncoder(nn.Module):
     def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
-        # 与FTIR编码器保持一致的简化策略
         self.net = nn.Sequential(
-            nn.Conv1d(1, 16, 7, stride=2),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-            nn.Conv1d(16, 32, 5, stride=2),
+            nn.Conv1d(1, 32, 7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(16),
-            nn.Flatten(),
-            nn.Linear(32 * 16, 128),
-            nn.BatchNorm1d(128),
+            nn.Conv1d(32, 64, 5, stride=2),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.7),
-            nn.Linear(128, 32)
+            nn.AdaptiveAvgPool1d(32),
+            nn.Flatten(),
+            nn.Linear(64 * 32, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(0.6),  # 增加dropout从0.3到0.5
+            nn.Linear(256, 64)
         )
-    
+
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)
+        feat = feat.unsqueeze(1)    # (32,2838) -> (32,1,2838)
         feat = self.net(feat)
         return feat
 
@@ -173,23 +120,14 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        # self.fuser = HybridFusion(dim=64, num_heads=4)
-        # self.classifier = nn.Sequential(
-        #     nn.Linear(128, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.ReLU(),
-        #     nn.Dropout(0.5),  # 增加dropout
-        #     SimpleResidualBlock(64),
-        #     nn.Linear(64, 2)
-        # )
-        self.fuser = HybridFusion(dim=32, num_heads=4)
+        self.fuser = HybridFusion(dim=64, num_heads=4)
         self.classifier = nn.Sequential(
-            nn.Linear(64, 32),     
-            nn.BatchNorm1d(32),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.5), 
-            SimpleResidualBlock(32),
-            nn.Linear(32, 2)
+            nn.Dropout(0.5),  # 增加dropout
+            SimpleResidualBlock(64),
+            nn.Linear(64, 2)
         )
         
 
@@ -207,20 +145,12 @@ class MultiModalLite(nn.Module):
         super(MultiModalLite, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        # self.fuser = HybridFusion(dim=64, num_heads=4)
-        # self.classifier = nn.Sequential(
-        #     nn.Linear(128, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.ReLU(),
-        #     nn.Linear(64, 2)
-        # )
-        self.fuser = HybridFusion(dim=32, num_heads=4)
+        self.fuser = HybridFusion(dim=64, num_heads=4)
         self.classifier = nn.Sequential(
-            nn.Linear(64, 32),               # 输入64维（32*2）
-            nn.BatchNorm1d(32),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            # nn.Dropout(0.7),                 # 增强正则化
-            nn.Linear(32, 2)
+            nn.Linear(64, 2)
         )
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):

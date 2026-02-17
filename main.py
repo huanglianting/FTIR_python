@@ -1605,9 +1605,9 @@ models_to_evaluate = {
     "MultiModal": MultiModalModel,
     "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
-    "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
+    # "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
     # "GaussianNB": NBClassifier,
     # "GBDT": GBDTClassifier,
@@ -1619,9 +1619,9 @@ models_to_evaluate = {
     # 如需启用其他变体消融实验，取消注释以下条目
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
     # "SelfAttnFusion": SelfAttnFusion,
     # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
