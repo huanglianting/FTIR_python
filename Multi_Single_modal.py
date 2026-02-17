@@ -120,7 +120,7 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=64, num_heads=2)
+        self.fuser = HybridFusion(dim=64, num_heads=4)
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
@@ -144,7 +144,7 @@ class MultiModalLite(nn.Module):
         super(MultiModalLite, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=64, num_heads=2)
+        self.fuser = HybridFusion(dim=64, num_heads=4)
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),

@@ -2105,53 +2105,6 @@ for model_name in models_to_evaluate.keys():
         print(
             f"  灵敏度: {model_stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}")
 
-# 如果有多于一个模型，进行非参数检验
-if len(all_model_fold_results) > 1:
-    print("\n" + "="*80)
-    print("进行模型间性能比较的非参数检验")
-    print("="*80)
-
-    # 检查每个模型的数据格式是否正确
-    for model_name, fold_results in all_model_fold_results.items():
-        print(f"\n检查 {model_name} 的数据格式:")
-        print(f"  折数: {len(fold_results)}")
-        for i, result in enumerate(fold_results):
-            if 'auc' in result:
-                print(f"  第{i+1}折 AUC: {result['auc']}")
-            else:
-                print(f"  第{i+1}折 缺少AUC数据")
-
-    # 修复：确保所有模型都有完整的AUC数据
-    cleaned_results = {}
-    for model_name, fold_results in all_model_fold_results.items():
-        valid_results = []
-        for result in fold_results:
-            # 检查是否包含必要的指标
-            if 'auc' in result and result['auc'] is not None:
-                valid_results.append(result)
-        if valid_results:
-            cleaned_results[model_name] = valid_results
-            print(f"{model_name}: 有效结果 {len(valid_results)} 个")
-        else:
-            print(f"{model_name}: 没有有效结果，跳过")
-
-    if len(cleaned_results) > 1:
-        test_results = perform_nonparametric_tests(cleaned_results)
-
-        print(f"\nFriedman检验结果:")
-        print(f"  统计量: {test_results['friedman_test']['statistic']:.4f}")
-        print(f"  P值: {test_results['friedman_test']['p_value']:.4f}")
-        print(f"  是否显著: {test_results['friedman_test']['significant']}")
-
-        if test_results['friedman_test']['significant'] and 'pairwise_wilcoxon' in test_results:
-            print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
-            for comparison, result in test_results['pairwise_wilcoxon'].items():
-                sig_symbol = "***" if result['significant'] else ""
-                print(
-                    f"  {comparison}: p={result['p_value']:.4f} {sig_symbol}")
-    else:
-        print("有效模型数量不足，跳过非参数检验")
-
 # 生成完整的统计报告
 print("\n" + "="*80)
 print("生成统计报告")
@@ -2527,6 +2480,72 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                 display_df[col] = display_df[col].apply(
                     lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
         print(display_df.to_string(index=False))
+
+    # 如果有多于一个模型，进行非参数检验
+    print("\n" + "="*80)
+    print("进行模型间性能比较的非参数检验")
+    print("="*80)
+    model_names = list(summary.keys())
+    if len(model_names) > 1:
+        # 准备AUC数据
+        auc_data = []
+        model_name_list = []
+        
+        for model_name in model_names:
+            if model_name in results and results[model_name]:
+                model_results = results[model_name]
+                auc_values = [res.get('auc', np.nan) for res in model_results]
+                auc_values = [val for val in auc_values if not np.isnan(val)]
+                if len(auc_values) > 0:
+                    auc_data.append(auc_values)
+                    model_name_list.append(model_name)
+        
+        if len(auc_data) > 1:
+            # 对齐数据长度
+            min_length = min(len(auc_list) for auc_list in auc_data)
+            auc_data_aligned = [auc_list[:min_length] for auc_list in auc_data]
+            auc_array = np.array(auc_data_aligned).T
+            
+            # Friedman检验
+            from scipy.stats import friedmanchisquare
+            try:
+                friedman_stat, friedman_p = friedmanchisquare(*auc_array.T)
+                print(f"\nFriedman检验结果:")
+                print(f"  统计量: {friedman_stat:.4f}")
+                print(f"  P值: {friedman_p:.4f}")
+                print(f"  是否显著: {'是' if friedman_p < 0.05 else '否'}")
+                
+                if friedman_p < 0.05:
+                    print(f"\n检测到显著差异，进行事后检验...")
+                    
+                    # 尝试Nemenyi检验
+                    try:
+                        import scikit_posthocs as sp
+                        nemenyi_results = sp.posthoc_nemenyi_friedman(auc_array)
+                        print(f"\nNemenyi事后检验结果:")
+                        print(nemenyi_results.round(4))
+                    except ImportError:
+                        print("警告: scikit-posthocs未安装，改用两两Wilcoxon比较")
+                        # Wilcoxon两两比较
+                        from scipy.stats import wilcoxon
+                        print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
+                        for i in range(len(model_name_list)):
+                            for j in range(i+1, len(model_name_list)):
+                                model1, model2 = model_name_list[i], model_name_list[j]
+                                data1, data2 = auc_array[:, i], auc_array[:, j]
+                                try:
+                                    stat, p_val = wilcoxon(data1, data2)
+                                    sig_symbol = "***" if p_val < 0.05 else ""
+                                    print(f"  {model1} vs {model2}: p={p_val:.4f} {sig_symbol}")
+                                except Exception as e:
+                                    print(f"  {model1} vs {model2}: 无法计算 - {str(e)}")
+                                    
+            except Exception as e:
+                print(f"Friedman检验失败: {str(e)}")
+        else:
+            print("模型数量不足或数据不完整，无法进行统计检验")
+    else:
+        print("只有一个模型，无需进行模型间比较")
     return results, summary
 
 
