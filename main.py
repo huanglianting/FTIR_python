@@ -117,7 +117,8 @@ test_folder = os.path.join(save_path, 'test')
 ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test, ftir_x, mz_x = preprocess_data(
     ftir_file_path, mz_file_path1,
     mz_file_path2, train_folder,
-    test_folder, save_path)
+    test_folder, save_path, mz_pca_components=10
+)
 
 print(ftir_train.shape)  # (768, 467)
 print(mz_train.shape)  # (768, 2838)

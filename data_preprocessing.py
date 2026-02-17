@@ -145,7 +145,7 @@ def plot_intensity_comparison(common_mz, cancer_abundance, normal_abundance, sav
     plt.close()
 
 
-def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path):
+def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, test_folder, save_path, mz_pca_components=None):
     # ===============================处理FTIR=================================================
     # 生成文件列表的通用函数
     def generate_file_lists(prefixes, num_files, ftir_file_path):
@@ -390,14 +390,7 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         f"all_patients_normal_array shape: {all_patients_normal_array.shape}")
 
     # 调用FTIR绘图函数 - 确保输入的是 (467, n) 形状的数组
-    plot_spectrum_with_marked_peaks(
-        x=x_ftir,
-        spectrum_1=all_patients_normal_array.T,  # (467, 11) - 良性样本
-        spectrum_2=all_patients_cancer_array.T,  # (467, 11) - 恶性样本
-        save_path=save_path,
-        peak_wavenumbers=[990, 1030, 1075, 1100, 1150,
-                          1200, 1230, 1313, 1360, 1415, 1455, 1585, 1640]
-    )
+
     # 堆叠所有患者的数据
     train_ftir = np.vstack(train_ftir)  # (8*96, 467) = (768, 467)
     train_mz = np.vstack(train_mz)  # (768, 2838)
@@ -407,6 +400,24 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     test_mz = np.vstack(test_mz)  # (288, 2838)
     test_labels = np.hstack(test_labels)  # (288,)
     test_patient_ids = np.hstack(test_patient_ids)  # (288,)
+
+    # 对MZ数据进行PCA降维
+    if mz_pca_components is not None:
+        print(f"Applying PCA to MZ data with {mz_pca_components} components.")
+        # 合并训练和测试MZ数据进行标准化和PCA，以确保一致性
+        all_mz_data = np.vstack((train_mz, test_mz))
+        
+        scaler = StandardScaler()
+        all_mz_data_scaled = scaler.fit_transform(all_mz_data)
+        
+        pca = PCA(n_components=mz_pca_components)
+        all_mz_data_pca = pca.fit_transform(all_mz_data_scaled)
+        
+        # 分割回训练和测试集
+        train_mz = all_mz_data_pca[:train_mz.shape[0]]
+        test_mz = all_mz_data_pca[train_mz.shape[0]:]
+        
+        print(f"MZ data after PCA - train_mz shape: {train_mz.shape}, test_mz shape: {test_mz.shape}")
 
     """
     # FTIR train raw 的 PCA 图

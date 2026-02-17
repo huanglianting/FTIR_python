@@ -17,21 +17,38 @@ import cv2
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()
-        self.net = nn.Sequential(
-            nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
-            nn.BatchNorm1d(32),
+        self.features = nn.Sequential(
+            # Block 1
+            nn.Conv1d(1, 64, kernel_size=7, stride=2, padding=3), # Output: [B, 64, ~axis_dim/2]
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(32), # Output [B, 32, 32]
-            nn.Flatten(), # Output [B, 32 * 32 = 1024]
-            nn.Linear(32 * 32, 64), # Directly to 64-dim output
-            nn.BatchNorm1d(64), # Add BatchNorm for the final linear layer
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 64, ~axis_dim/4]
+
+            # Block 2
+            nn.Conv1d(64, 128, kernel_size=5, stride=2, padding=2), # Output: [B, 128, ~axis_dim/8]
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 128, ~axis_dim/16]
+
+            # Block 3
+            nn.Conv1d(128, 256, kernel_size=3, stride=1, padding=1), # Output: [B, 256, ~axis_dim/16]
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(8) # Pool to a fixed size, e.g., 8
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(256 * 8, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(256, 64)
         )
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)    # (32,467) -> (32,1,467)
-        feat = self.net(feat)
+        feat = feat.unsqueeze(1)
+        feat = self.features(feat)
+        feat = self.classifier(feat)
         return feat
 
 
@@ -39,19 +56,15 @@ class MZEncoder(nn.Module):
     def __init__(self, axis_dim):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv1d(1, 32, 7, stride=2),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(32), # Output [B, 32, 32]
-            nn.Flatten(), # Output [B, 32 * 32 = 1024]
-            nn.Linear(32 * 32, 64), # Directly to 64-dim output
-            nn.BatchNorm1d(64), # Add BatchNorm for the final linear layer
+            nn.Flatten(),
+            nn.Linear(axis_dim, 64), # Map PCA-reduced features to 64-dim output
+            nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)    # (32,2838) -> (32,1,2838)
+        feat = feat.unsqueeze(1) # Add channel dimension for consistency, though it will be flattened
         feat = self.net(feat)
         return feat
 
