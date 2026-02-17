@@ -998,9 +998,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         val_accuracies.append(val_accuracy)
         scheduler.step(val_loss)  # 根据验证损失更新学习率
 
-        print(f'Epoch [{epoch + 1}/{epochs}], '
-              f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
-              f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
+        # print(f'Epoch [{epoch + 1}/{epochs}], '
+        #       f'Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.4f}, '
+        #       f'Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}')
 
         # 添加指标到TensorBoard
         writer.add_scalar('Training Loss', train_loss, epoch)
@@ -1160,7 +1160,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "f1"  # "f1" 或 "target_sensitivity" 或 "youden"
+THRESHOLD_METHOD = "youden"  # "f1" 或 "target_sensitivity" 或 "youden"
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
