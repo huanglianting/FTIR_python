@@ -118,7 +118,7 @@ class MultiModalModel(nn.Module):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=256, num_heads=4)
+        self.fuser = HybridFusion(dim=256, num_heads=2)
         self.classifier = nn.Sequential(
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
@@ -259,7 +259,7 @@ class GateOnlyFusion(nn.Module):
 
 # 消融试验3：只用了MultiheadAttention
 class CoAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=4):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=2):
         super(CoAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -289,7 +289,7 @@ class CoAttnOnlyFusion(nn.Module):
 
 # 消融试验4：把 Multi-headAttention 改成 Self-Attention
 class SelfAttnFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=4):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=2):
         super(SelfAttnFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -338,7 +338,7 @@ class SelfAttnFusion(nn.Module):
 
 # 消融试验5：只用了MultiheadAttention，并且是Self-Attention
 class SelfAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=4):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=256, num_heads=2):
         super(SelfAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
