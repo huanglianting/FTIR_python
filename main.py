@@ -1160,8 +1160,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "target_sensitivity"  # "f1" 或 "target_sensitivity"
-TARGET_SENSITIVITY = 0.8
+THRESHOLD_METHOD = "f1"  # "f1" 或 "target_sensitivity" 或 "youden"
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1692,7 +1691,7 @@ for model_name, params in best_params_per_model.items():
                 ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
         thr = select_optimal_threshold(y_val_final.cpu().numpy(
-        ), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+        ), probs_val, method=THRESHOLD_METHOD)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1753,7 +1752,7 @@ for model_name, params in best_params_per_model.items():
                 ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
         thr = select_optimal_threshold(y_val_final.cpu().numpy(
-        ), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+        ), probs_val, method=THRESHOLD_METHOD)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -1789,7 +1788,7 @@ for model_name, params in best_params_per_model.items():
                 ftir_val_final, mz_val_final, ftir_x, mz_x)
             probs_val = torch.softmax(outputs_val, dim=1)[:, 1].cpu().numpy()
         thr = select_optimal_threshold(y_val_final.cpu().numpy(
-        ), probs_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+        ), probs_val, method=THRESHOLD_METHOD)
         with torch.no_grad():
             outputs_test = trained_model(ftir_test, mz_test, ftir_x, mz_x)
             probs_test = torch.softmax(outputs_test, dim=1)[:, 1].cpu().numpy()
@@ -2478,7 +2477,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         pr_val = torch.softmax(o_val, dim=1)[
                             :, 1].cpu().numpy()
                     thr = select_optimal_threshold(y_val_sub.cpu().numpy(
-                    ), pr_val, method=THRESHOLD_METHOD, target_sensitivity=TARGET_SENSITIVITY)
+                    ), pr_val, method=THRESHOLD_METHOD)
                     with torch.no_grad():
                         o_te = trained_model(ftir_te, mz_te, ftir_x, mz_x)
                         pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
