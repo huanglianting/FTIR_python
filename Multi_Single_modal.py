@@ -182,33 +182,11 @@ class MultiModalModel(nn.Module):
 
 
 # 轻量版多模态：保留 HybridFusion 但降低维度与头数
-class MultiModalLite(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim):
-        super(MultiModalLite, self).__init__()
-        self.ftir_extractor = FTIREncoder(ftir_input_dim)
-        self.mz_extractor = MZEncoder(mz_input_dim)
-        self.fuser = HybridFusion(dim=64, num_heads=2)
-        self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 2)
-        )
-
-    def forward(self, ftir, mz, ftir_axis, mz_axis):
-        ftir_feat = self.ftir_extractor(ftir, ftir_axis)
-        mz_feat = self.mz_extractor(mz, mz_axis)
-        combined = self.fuser(ftir_feat, mz_feat)
-        output = self.classifier(combined)  # [B, 2]
-        return output
-
-
-# 尝试改成超轻量级模型
 # class MultiModalLite(nn.Module):
 #     def __init__(self, ftir_input_dim, mz_input_dim):
 #         super(MultiModalLite, self).__init__()
-#         self.ftir_extractor = LightweightFTIREncoder(ftir_input_dim)
-#         self.mz_extractor = LightweightMZEncoder(mz_input_dim)
+#         self.ftir_extractor = FTIREncoder(ftir_input_dim)
+#         self.mz_extractor = MZEncoder(mz_input_dim)
 #         self.fuser = HybridFusion(dim=64, num_heads=2)
 #         self.classifier = nn.Sequential(
 #             nn.Linear(128, 64),
@@ -223,6 +201,28 @@ class MultiModalLite(nn.Module):
 #         combined = self.fuser(ftir_feat, mz_feat)
 #         output = self.classifier(combined)  # [B, 2]
 #         return output
+
+
+# 尝试改成超轻量级模型
+class MultiModalLite(nn.Module):
+    def __init__(self, ftir_input_dim, mz_input_dim):
+        super(MultiModalLite, self).__init__()
+        self.ftir_extractor = LightweightFTIREncoder(ftir_input_dim)
+        self.mz_extractor = LightweightMZEncoder(mz_input_dim)
+        self.fuser = HybridFusion(dim=16, num_heads=2)
+        self.classifier = nn.Sequential(
+            nn.Linear(32, 16),              # 输入32维（16*2）
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.Linear(16, 2)
+        )
+
+    def forward(self, ftir, mz, ftir_axis, mz_axis):
+        ftir_feat = self.ftir_extractor(ftir, ftir_axis)
+        mz_feat = self.mz_extractor(mz, mz_axis)
+        combined = self.fuser(ftir_feat, mz_feat)
+        output = self.classifier(combined)  # [B, 2]
+        return output
 
 
 # ==================单模态模型定义====================================
