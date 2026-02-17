@@ -2160,90 +2160,6 @@ for model_name, stats in all_model_stats.items():
         print(f"  F1分数: {stats['f1']['format_str']}")
 
 
-# 保存最终的汇总表格
-final_summary = []
-for model_name, stats in all_model_stats.items():
-    row = {
-        'Model': model_name,
-        'AUC': stats['auc']['format_str'],
-        'AUC_95CI': stats['auc']['ci_format_str'],
-        'Accuracy': stats['accuracy']['format_str'],
-        'Sensitivity': stats['sensitivity']['format_str'],
-        'Sensitivity_95CI': stats['sensitivity']['ci_format_str'],
-        'Specificity': stats['specificity']['format_str'],
-        'Precision': stats['precision']['format_str'],
-        'F1_Score': stats['f1']['format_str']
-    }
-    final_summary.append(row)
-
-df_final_summary = pd.DataFrame(final_summary)
-final_summary_path = os.path.join(
-    save_path, 'final_model_performance_summary.csv')
-df_final_summary.to_csv(final_summary_path, index=False)
-
-print(f"\n最终性能汇总已保存至: {final_summary_path}")
-
-
-print("\n" + "="*80)
-print("论文中应使用的最终模型性能指标（Repeated Outer CV）")
-print("="*80)
-
-# 读取并格式化外部CV结果
-outer_cv_path = os.path.join(save_path, 'repeated_outer_cv_summary.csv')
-if os.path.exists(outer_cv_path):
-    df_outer = pd.read_csv(outer_cv_path)
-
-    # 只选择关键指标并格式化
-    key_metrics = ['Model', 'auc_mean', 'auc_ci_low', 'auc_ci_high',
-                   'sensitivity_mean', 'sensitivity_ci_low', 'sensitivity_ci_high',
-                   'specificity_mean', 'specificity_ci_low', 'specificity_ci_high',
-                   'accuracy_mean', 'accuracy_ci_low', 'accuracy_ci_high']
-
-    # 确保列存在
-    available_cols = [col for col in key_metrics if col in df_outer.columns]
-    df_display = df_outer[available_cols].copy()
-
-    # 重命名列以便阅读
-    rename_dict = {
-        'auc_mean': 'AUC',
-        'auc_ci_low': 'AUC_CI_low',
-        'auc_ci_high': 'AUC_CI_high',
-        'sensitivity_mean': 'Sensitivity',
-        'sensitivity_ci_low': 'Sens_CI_low',
-        'sensitivity_ci_high': 'Sens_CI_high',
-        'specificity_mean': 'Specificity',
-        'specificity_ci_low': 'Spec_CI_low',
-        'specificity_ci_high': 'Spec_CI_high',
-        'accuracy_mean': 'Accuracy',
-        'accuracy_ci_low': 'Acc_CI_low',
-        'accuracy_ci_high': 'Acc_CI_high'
-    }
-    df_display = df_display.rename(columns=rename_dict)
-
-    # 格式化百分比显示
-    for col in df_display.columns:
-        if col != 'Model':
-            df_display[col] = df_display[col].apply(
-                lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "N/A"
-            )
-
-    print("\n最终模型性能（5次重复外部交叉验证，均值±95%置信区间）：")
-    print(df_display.to_string(index=False))
-
-    # 保存为论文专用表格
-    paper_table_path = os.path.join(
-        save_path, 'paper_final_performance_table.csv')
-    df_display.to_csv(paper_table_path, index=False)
-    print(f"\n论文用表格已保存至: {paper_table_path}")
-
-    # 可选：生成LaTeX表格
-    latex_table = df_display.to_latex(index=False)
-    latex_path = os.path.join(save_path, 'paper_performance_table.tex')
-    with open(latex_path, 'w') as f:
-        f.write(latex_table)
-    print(f"LaTeX表格已保存至: {latex_path}")
-
-
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
 plot_dir = os.path.join(save_path, 'training_plots')
 os.makedirs(plot_dir, exist_ok=True)
@@ -2549,5 +2465,43 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
     return results, summary
 
 
-_ = run_repeated_outer_cv(
+def generate_final_paper_results(results, summary, save_path):
+    """生成最终论文结果"""
+    print("\n" + "="*80)
+    print("论文最终模型性能指标（Repeated Outer CV）")
+    print("="*80)
+    
+    # 准备论文表格数据
+    paper_data = []
+    for model_name, stats in summary.items():
+        row = {
+            'Model': model_name,
+            'AUC_mean': f"{stats['auc']['mean']*100:.2f}%",
+            'AUC_95CI': f"[{stats['auc']['ci_low']*100:.1f}%, {stats['auc']['ci_high']*100:.1f}%]",
+            'Accuracy_mean': f"{stats['accuracy']['mean']*100:.2f}%",
+            'Sensitivity_mean': f"{stats['sensitivity']['mean']*100:.2f}%",
+            'Sensitivity_95CI': f"[{stats['sensitivity']['ci_low']*100:.1f}%, {stats['sensitivity']['ci_high']*100:.1f}%]",
+            'Specificity_mean': f"{stats['specificity']['mean']*100:.2f}%",
+            'Precision_mean': f"{stats['precision']['mean']*100:.2f}%",
+            'F1_mean': f"{stats['f1']['mean']*100:.2f}%"
+        }
+        paper_data.append(row)
+    
+    df_paper = pd.DataFrame(paper_data)
+    paper_path = os.path.join(save_path, 'paper_final_results.csv')
+    df_paper.to_csv(paper_path, index=False)
+    
+    print("\n表1. 模型性能比较（5次重复4折外部交叉验证）")
+    print(df_paper.to_string(index=False))
+    print(f"\n论文结果已保存至: {paper_path}")
+    
+    return df_paper
+
+
+# 运行外部CV并获取结果
+results, summary = run_repeated_outer_cv(
     models_to_evaluate, best_params_per_model, repeats=5, n_splits=4)
+
+# 生成最终论文结果
+final_results = generate_final_paper_results(results, summary, save_path)
+
