@@ -2065,100 +2065,6 @@ df_final.to_csv(os.path.join(
     save_path, 'final_test_all_models_comparison.csv'), index=False)
 print("所有模型最终测试结果已保存至 final_test_all_models_comparison.csv")
 
-# ==================统计分析====================================
-print("\n" + "="*80)
-print("开始进行统计分析")
-print("="*80)
-
-# 收集所有模型的最佳四折结果
-all_model_fold_results = {}
-
-# 假设我们已经保存了每个模型的最佳四折结果
-for model_name in models_to_evaluate.keys():
-    results_path = os.path.join(
-        save_path, f'{model_name}_best_fold_results.pkl')
-
-    if os.path.exists(results_path):
-        import pickle
-        with open(results_path, 'rb') as f:
-            best_result = pickle.load(f)
-
-        # 提取四折测试结果
-        fold_results = best_result['fold_results']
-        all_model_fold_results[model_name] = fold_results
-
-        # 计算当前模型的折间变异指标
-        model_stats = calculate_fold_variability(fold_results)
-
-        print(f"\n{model_name} 折间变异指标:")
-        print(f"  AUC: {model_stats.get('auc', {}).get('format_str', 'N/A')}")
-        print(
-            f"  准确率: {model_stats.get('accuracy', {}).get('format_str', 'N/A')}")
-        print(
-            f"  灵敏度: {model_stats.get('sensitivity', {}).get('format_str', 'N/A')}")
-        print(
-            f"  特异性: {model_stats.get('specificity', {}).get('format_str', 'N/A')}")
-
-        print(f"\n{model_name} 95%置信区间:")
-        print(
-            f"  AUC: {model_stats.get('auc', {}).get('ci_format_str', 'N/A')}")
-        print(
-            f"  灵敏度: {model_stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}")
-
-# 生成完整的统计报告
-print("\n" + "="*80)
-print("生成统计报告")
-print("="*80)
-
-# 计算所有模型的统计指标
-all_model_stats = {}
-for model_name, fold_results in all_model_fold_results.items():
-    # 过滤掉无效的结果
-    valid_results = [
-        r for r in fold_results if 'auc' in r and r['auc'] is not None]
-    if valid_results:
-        all_model_stats[model_name] = calculate_fold_variability(valid_results)
-    else:
-        print(f"警告: {model_name} 没有有效的折结果，跳过统计计算")
-
-# 生成报告
-df_stats = generate_statistical_report(all_model_stats, save_path)
-
-# 绘制折间变异性的图（箱线图 + 点分布）
-try:
-    plot_fold_variability(all_model_fold_results, save_path)
-    print("折间变异性图已生成并保存至结果目录。")
-except Exception as e:
-    print(f"绘制折间变异性图失败: {e}")
-
-# 将统计结果合并到最终测试结果中
-print("\n" + "="*80)
-print("最终模型性能汇总")
-print("="*80)
-
-for model_name, stats in all_model_stats.items():
-    print(f"\n{model_name}:")
-    if 'auc' in stats:
-        print(
-            f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
-    else:
-        print(f"  AUC: N/A")
-
-    if 'sensitivity' in stats:
-        print(
-            f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
-    else:
-        print(f"  灵敏度: N/A")
-
-    if 'accuracy' in stats:
-        print(f"  准确率: {stats['accuracy']['format_str']}")
-    if 'specificity' in stats:
-        print(f"  特异性: {stats['specificity']['format_str']}")
-    if 'precision' in stats:
-        print(f"  精确率: {stats['precision']['format_str']}")
-    if 'f1' in stats:
-        print(f"  F1分数: {stats['f1']['format_str']}")
-
 
 # 绘制每个模型 使用最优参数 在训练和测试时 的 loss 和 accuracy 曲线
 plot_dir = os.path.join(save_path, 'training_plots')
@@ -2237,6 +2143,11 @@ for model_name, data in training_history.items():
 
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")
 
+
+# ==================统计分析====================================
+print("\n" + "="*80)
+print("开始进行统计分析")
+print("="*80)
 
 def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, seed=59):
     random.seed(seed)
@@ -2397,15 +2308,67 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
         print(display_df.to_string(index=False))
 
-    # 如果有多于一个模型，进行非参数检验
+    # 统计分析
     print("\n" + "="*80)
-    print("进行模型间性能比较的非参数检验")
+    print("外部交叉验证统计分析")
     print("="*80)
-    model_names = list(summary.keys())
+    
+    # 1. 计算折间变异性和95%置信区间
+    model_stats = {}
+    for model_name, model_results in results.items():
+        if model_results:
+            # 使用你已有的calculate_fold_variability函数
+            model_stats[model_name] = calculate_fold_variability(model_results)
+    
+    # 2. 生成统计报告
+    if model_stats:
+        df_stats = generate_statistical_report(model_stats, save_path)
+        print("统计报告已生成并保存")
+    
+    # 3. 绘制折间变异性图
+    try:
+        # 创建适合外部CV的变异性数据格式
+        outer_cv_fold_data = {}
+        for model_name, model_results in results.items():
+            if model_results:
+                outer_cv_fold_data[model_name] = model_results
+        
+        if outer_cv_fold_data:
+            plot_fold_variability(outer_cv_fold_data, save_path)
+            print("外部CV折间变异性图已生成并保存")
+    except Exception as e:
+        print(f"绘制外部CV变异性图失败: {e}")
+    
+    # 4. 打印详细的性能汇总（类似原来2135-2161行的功能）
+    print("\n" + "="*80)
+    print("外部交叉验证最终模型性能汇总")
+    print("="*80)
+    
+    for model_name, stats in model_stats.items():
+        print(f"\n{model_name}:")
+        if 'auc' in stats:
+            print(f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
+        if 'sensitivity' in stats:
+            print(f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
+        if 'accuracy' in stats:
+            print(f"  准确率: {stats['accuracy']['format_str']}")
+        if 'specificity' in stats:
+            print(f"  特异性: {stats['specificity']['format_str']}")
+        if 'precision' in stats:
+            print(f"  精确率: {stats['precision']['format_str']}")
+        if 'f1' in stats:
+            print(f"  F1分数: {stats['f1']['format_str']}")
+    
+    # 5. 添加模型间统计检验（原来2487-2548行的功能）
+    print("\n" + "="*80)
+    print("模型间性能比较的非参数检验")
+    print("="*80)
+    
+    model_names = list(model_stats.keys())
     if len(model_names) > 1:
-        # 准备AUC数据
+        # 准备AUC数据进行检验
         auc_data = []
-        model_name_list = []
+        valid_model_names = []
         
         for model_name in model_names:
             if model_name in results and results[model_name]:
@@ -2414,7 +2377,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                 auc_values = [val for val in auc_values if not np.isnan(val)]
                 if len(auc_values) > 0:
                     auc_data.append(auc_values)
-                    model_name_list.append(model_name)
+                    valid_model_names.append(model_name)
         
         if len(auc_data) > 1:
             # 对齐数据长度
@@ -2433,8 +2396,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                 
                 if friedman_p < 0.05:
                     print(f"\n检测到显著差异，进行事后检验...")
-                    
-                    # 尝试Nemenyi检验
+                    # Nemenyi或Wilcoxon检验
                     try:
                         import scikit_posthocs as sp
                         nemenyi_results = sp.posthoc_nemenyi_friedman(auc_array)
@@ -2442,12 +2404,11 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         print(nemenyi_results.round(4))
                     except ImportError:
                         print("警告: scikit-posthocs未安装，改用两两Wilcoxon比较")
-                        # Wilcoxon两两比较
                         from scipy.stats import wilcoxon
                         print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
-                        for i in range(len(model_name_list)):
-                            for j in range(i+1, len(model_name_list)):
-                                model1, model2 = model_name_list[i], model_name_list[j]
+                        for i in range(len(valid_model_names)):
+                            for j in range(i+1, len(valid_model_names)):
+                                model1, model2 = valid_model_names[i], valid_model_names[j]
                                 data1, data2 = auc_array[:, i], auc_array[:, j]
                                 try:
                                     stat, p_val = wilcoxon(data1, data2)
@@ -2462,6 +2423,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             print("模型数量不足或数据不完整，无法进行统计检验")
     else:
         print("只有一个模型，无需进行模型间比较")
+    
     return results, summary
 
 
