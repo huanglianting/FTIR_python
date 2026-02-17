@@ -1700,7 +1700,7 @@ for model_name, params in best_params_per_model.items():
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
                                  name=model_name, model_type=model_name)
-        """
+
         # SHAP分析函数
         ftir_shap_difference = perform_ftir_shap_analysis(
             model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
@@ -1725,7 +1725,6 @@ for model_name, params in best_params_per_model.items():
             mz_top_indices,
             save_path
         )
-        """
 
     elif model_name == "BiModalCMACF":
         model = BiModalCMACF(
@@ -2072,8 +2071,6 @@ print("\n" + "="*80)
 print("开始进行统计分析")
 print("="*80)
 
-# 导入新添加的统计函数
-
 # 收集所有模型的最佳四折结果
 all_model_fold_results = {}
 
@@ -2414,7 +2411,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         ftir_te.numpy(), mz_te.numpy()
                     ])
                     if m_name == "SVM":
-                        clf = SVMClassifier(kernel='rbf')
+                        clf = SVMClassifier()
                     elif m_name == "LogReg":
                         clf = LogRegClassifier(C=0.1)
                     elif m_name == "RandomForest":
