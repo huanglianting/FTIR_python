@@ -2006,8 +2006,8 @@ for model_name, params in best_params_per_model.items():
         test_features_with_axis = np.hstack([
             ftir_test.numpy(), mz_test.numpy()
         ])
-        model = GBDTClassifier(n_estimators=50, learning_rate=0.03, max_depth=2, min_samples_leaf=10, subsample=0.7,
-                               max_features='sqrt')
+        model = GBDTClassifier(n_estimators=50, learning_rate=0.03,
+                               max_depth=2, min_samples_leaf=10, subsample=0.7)
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
