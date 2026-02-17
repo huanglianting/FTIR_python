@@ -1160,7 +1160,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "youden" # "balanced"、"constrained_f1"、"distance_optimal" 
+THRESHOLD_METHOD = "balanced" # "youden"、"constrained_f1"、"distance_optimal" 
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
