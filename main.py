@@ -1611,7 +1611,7 @@ models_to_evaluate = {
     # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
     # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,
+    "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
@@ -2373,7 +2373,10 @@ for model_name, data in training_history.items():
 print(f"所有模型的 loss 和 accuracy 曲线已保存至 {plot_dir}")
 
 
-def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
+def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, seed=59):
+    random.seed(seed)
+    np.random.seed(seed)
+
     def standardize_pair(tr, te):
         m = tr.mean(dim=0, keepdim=True)
         s = tr.std(dim=0, keepdim=True)
@@ -2411,8 +2414,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                         ftir_te.numpy(), mz_te.numpy()
                     ])
                     if m_name == "SVM":
-                        clf = SVMClassifier(
-                            kernel='rbf', C=0.1)
+                        clf = SVMClassifier(kernel='rbf')
                     elif m_name == "LogReg":
                         clf = LogRegClassifier(C=0.1)
                     elif m_name == "RandomForest":
@@ -2428,8 +2430,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4):
                     elif m_name == "GaussianNB":
                         clf = NBClassifier()
                     else:
-                        clf = GBDTClassifier(n_estimators=50, learning_rate=0.03, max_depth=2, min_samples_leaf=10, subsample=0.7,
-                                             max_features='sqrt')
+                        clf = GBDTClassifier()
                     clf.fit(tr_feat, y_tr.numpy())
                     preds = clf.predict(te_feat)
                     probs = clf.predict_proba(te_feat)[:, 1] if hasattr(
