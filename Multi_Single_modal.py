@@ -21,16 +21,12 @@ class FTIREncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),  # 输入 [B,1,467] -> [B,32,230]
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv1d(32, 64, 5, stride=2),
-            nn.BatchNorm1d(64),
+            nn.AdaptiveAvgPool1d(32), # Output [B, 32, 32]
+            nn.Flatten(), # Output [B, 32 * 32 = 1024]
+            nn.Linear(32 * 32, 64), # Directly to 64-dim output
+            nn.BatchNorm1d(64), # Add BatchNorm for the final linear layer
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(32),
-            nn.Flatten(),
-            nn.Linear(64 * 32, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(0.6),  # 增加dropout从0.3到0.5
-            nn.Linear(256, 64)
+            nn.Dropout(0.5)
         )
 
     def forward(self, feat, feat_axis):
@@ -46,16 +42,12 @@ class MZEncoder(nn.Module):
             nn.Conv1d(1, 32, 7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv1d(32, 64, 5, stride=2),
-            nn.BatchNorm1d(64),
+            nn.AdaptiveAvgPool1d(32), # Output [B, 32, 32]
+            nn.Flatten(), # Output [B, 32 * 32 = 1024]
+            nn.Linear(32 * 32, 64), # Directly to 64-dim output
+            nn.BatchNorm1d(64), # Add BatchNorm for the final linear layer
             nn.ReLU(),
-            nn.AdaptiveAvgPool1d(32),
-            nn.Flatten(),
-            nn.Linear(64 * 32, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(0.6),  # 增加dropout从0.3到0.5
-            nn.Linear(256, 64)
+            nn.Dropout(0.5)
         )
 
     def forward(self, feat, feat_axis):
@@ -82,8 +74,9 @@ class HybridFusion(nn.Module):
     def __init__(self, dim=64, num_heads=2):
         super().__init__()
         # Gate Fusion
+        self.projection = nn.Linear(dim * 2, dim) # Add projection layer
         self.gate = nn.Sequential(
-            nn.Linear(dim * 2, dim),
+            nn.Linear(dim, dim),
             nn.ReLU(),
             nn.Linear(dim, 2),
             nn.Softmax(dim=1)
@@ -98,6 +91,7 @@ class HybridFusion(nn.Module):
     def forward(self, ftir_feat, mz_feat):
         # Gate Fusion Part
         combined_gate = torch.cat([ftir_feat, mz_feat], dim=1)
+        combined_gate = self.projection(combined_gate) # Apply projection
         weights = self.gate(combined_gate) * self.gate_bias
         weights = weights / weights.sum(dim=1, keepdim=True)
         gate_fused = weights[:, 0].unsqueeze(
@@ -125,8 +119,6 @@ class MultiModalModel(nn.Module):
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.5),  # 增加dropout
-            SimpleResidualBlock(64),
             nn.Linear(64, 2)
         )
         

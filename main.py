@@ -1128,24 +1128,14 @@ n_splits = 4
 # 确保同一患者所有样本在同一折
 sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
-# 超参数（通过网格搜索确定）初始调参尝试
-# param_grid = {
-#     'lr': [3e-4, 1e-4],
-#     'weight_decay': [1e-4, 1e-5],
-#     'batch_size': [32, 64],
-#     'label_smoothing': [0.1],
-#     'scheduler_factor': [0.5],
-#     'early_stop_patience': [10, 15]
-# }
-
-# 调参尝试3
+# 超参数（通过网格搜索确定）
 param_grid = {
     'lr': [2e-4, 3e-4],
     'weight_decay': [1e-4, 5e-4],
-    'batch_size': [16],
+    'batch_size': [16, 8, 4],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.3, 0.5],
-    'early_stop_patience': [10, 15]
+    'early_stop_patience': [5, 10, 15]
 }
 
 # 古早最优参数
@@ -1603,10 +1593,10 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
-    "MultiModalLite": MultiModalLite,
+    # "MultiModalLite": MultiModalLite,
     # 经典机器学习基线
     # "SVM": SVMClassifier,
-    "LogReg": LogRegClassifier,
+    # "LogReg": LogRegClassifier,
     "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
     # "GaussianNB": NBClassifier,
@@ -1619,9 +1609,9 @@ models_to_evaluate = {
     # 如需启用其他变体消融实验，取消注释以下条目
     # "FTIROnly": SingleFTIRModel,
     # "MZOnly": SingleMZModel,
-    "ConcatFusion": ConcatFusion,
-    "GateOnlyFusion": GateOnlyFusion,
-    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    # "ConcatFusion": ConcatFusion,
+    # "GateOnlyFusion": GateOnlyFusion,
+    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
     # "SelfAttnFusion": SelfAttnFusion,
     # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
@@ -2149,7 +2139,7 @@ print("\n" + "="*80)
 print("开始进行统计分析")
 print("="*80)
 
-def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, seed=59):
+def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, seed=21):
     random.seed(seed)
     np.random.seed(seed)
 
