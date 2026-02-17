@@ -274,6 +274,49 @@ def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=
         sel_thresholds = thresholds[mask]
         thr = np.max(sel_thresholds)
         return float(thr)
+        
+    elif method == "balanced":
+        # 平衡灵敏度和特异度
+        fpr, tpr, thresholds = roc_curve(y_true, probs)
+        sensitivities = tpr
+        specificities = 1 - fpr
+        # 找到两者差距最小的点
+        differences = np.abs(sensitivities - specificities)
+        optimal_idx = np.argmin(differences)
+        return float(thresholds[optimal_idx])
+    
+    elif method == "constrained_f1":
+        # 在保证特异度>=60%的前提下优化F1
+        precisions, recalls, thresholds = precision_recall_curve(y_true, probs)
+        f1_scores = 2 * (precisions * recalls) / (precisions + recalls)
+        
+        # 计算每个阈值对应的特异度
+        valid_thresholds = []
+        valid_f1_scores = []
+        
+        for i, threshold in enumerate(thresholds[:-1]):
+            predictions = (probs >= threshold).astype(int)
+            tn, fp, fn, tp = confusion_matrix(y_true, predictions).ravel()
+            specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+            
+            if specificity >= 0.6:  # 保证至少60%特异度
+                valid_thresholds.append(threshold)
+                valid_f1_scores.append(f1_scores[i])
+        
+        if valid_thresholds:
+            best_idx = np.argmax(valid_f1_scores)
+            return float(valid_thresholds[best_idx])
+        else:
+            # fallback到中位数
+            return float(np.median(probs))
+    
+    elif method == "distance_optimal":
+        # 选择距离ROC曲线左上角(0,1)最近的点
+        fpr, tpr, thresholds = roc_curve(y_true, probs)
+        # 计算到(0,1)点的距离
+        distances = np.sqrt((1-tpr)**2 + fpr**2)
+        optimal_idx = np.argmin(distances)
+        return float(thresholds[optimal_idx])
     else:
         return 0.5
 
