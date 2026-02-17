@@ -29,7 +29,8 @@ class FTIREncoder(nn.Module):
             nn.Linear(64 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.5)  # 增加dropout从0.3到0.5
+            nn.Dropout(0.5),  # 增加dropout从0.3到0.5
+            nn.Linear(256, 64)
         )
 
     def forward(self, feat, feat_axis):
@@ -53,7 +54,8 @@ class MZEncoder(nn.Module):
             nn.Linear(64 * 32, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(0.5)  # 增加dropout从0.3到0.5
+            nn.Dropout(0.5),  # 增加dropout从0.3到0.5
+            nn.Linear(256, 64)
         )
 
     def forward(self, feat, feat_axis):
@@ -142,9 +144,6 @@ class MultiModalLite(nn.Module):
         super(MultiModalLite, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        # 降维到64维再进行融合，减小容量但保留门控+注意力的结构归纳偏置
-        self.proj_ftir = nn.Linear(256, 64)
-        self.proj_mz = nn.Linear(256, 64)
         self.fuser = HybridFusion(dim=64, num_heads=2)
         self.classifier = nn.Sequential(
             nn.Linear(128, 64),
@@ -156,8 +155,6 @@ class MultiModalLite(nn.Module):
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)
-        ftir_feat = self.proj_ftir(ftir_feat)
-        mz_feat = self.proj_mz(mz_feat)
         combined = self.fuser(ftir_feat, mz_feat)
         output = self.classifier(combined)  # [B, 2]
         return output

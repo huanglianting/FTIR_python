@@ -1160,7 +1160,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "youden"  # "f1" 或 "target_sensitivity" 或 "youden"
+THRESHOLD_METHOD = "f1"  # "f1" 或 "target_sensitivity" 或 "youden"
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
