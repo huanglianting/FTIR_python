@@ -99,9 +99,6 @@ def set_seed(seed):
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
 parser.add_argument('--mz_pca_components', type=int, default=20, help='Number of PCA components for MZ data')
-parser.add_argument('--fusion_mechanism', type=str, default='hybrid',
-                    choices=['hybrid', 'concat', 'gate_only', 'co_attn_only', 'self_attn'],
-                    help='Fusion mechanism to use (hybrid, concat, gate_only, co_attn_only, self_attn)')
 parser.add_argument('--early_stop_patience', type=int, default=10, help='Early stopping patience')
 parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
@@ -832,9 +829,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
 
     # 打印前5个选择的FTIR和MZ特征的索引和标签，以便调试
     print(f"Top 5 selected FTIR indices: {ftir_indices[:5]}")
-    # print(f"Top 5 selected FTIR labels: {ftir_labels[:5]}") # Removed to avoid error before fix
     print(f"Top 5 selected MZ indices: {mz_indices[:5]}")
-    # print(f"Top 5 selected MZ labels: {mz_labels[:5]}")
 
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
@@ -870,7 +865,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
         print(f"找到 {len(significant_pairs)} 对强相关特征。")
 
     # 绘制热力图
-    plt.figure(figsize=(12, 10)) # 增大画布
+    plt.figure(figsize=(9, 8))
 
     # 按照标签数值对特征进行排序
     mz_labels_float = [float(l) for l in mz_labels]
@@ -1613,25 +1608,25 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
     # 经典机器学习基线
-    # "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
-    # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
     # "MFCNN": MFCNN,
     # "CNN_LSTM": CNN_LSTM,
     # 如需启用其他变体消融实验，取消注释以下条目
-    # "FTIROnly": SingleFTIRModel,
-    # "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    # "SelfAttnFusion": SelfAttnFusion,
-    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    "FTIROnly": SingleFTIRModel,
+    "MZOnly": SingleMZModel,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "SelfAttnFusion": SelfAttnFusion,
+    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
 
 all_model_dfs = []
@@ -1658,6 +1653,34 @@ for model_type in all_results_df['model_type'].unique():
     best_params = eval(best_row['params'])
     best_params_per_model[model_type] = best_params
     print(f"[{model_type}] 最佳参数: {best_params}")
+
+# Ensure parameters for models not in CSV
+if "MultiModal" in best_params_per_model:
+    base_params = best_params_per_model["MultiModal"]
+else:
+    # Default fallback if MultiModal is missing (should not happen)
+    base_params = {'lr': 3e-4, 'weight_decay': 1e-4, 'batch_size': 32, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 15}
+    best_params_per_model["MultiModal"] = base_params
+
+# Ablation models use same params as MultiModal
+for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
+    if m not in best_params_per_model:
+        best_params_per_model[m] = base_params.copy()
+
+# ML Models use reasonable defaults (aiming for >60% performance)
+# These override whatever might be in CSV if not present, but usually they are not in CSV.
+if "SVM" not in best_params_per_model:
+    best_params_per_model["SVM"] = {'C': 1.0, 'kernel': 'rbf', 'probability': True, 'random_state': 42}
+if "LogReg" not in best_params_per_model:
+    best_params_per_model["LogReg"] = {'C': 1.0, 'solver': 'lbfgs', 'max_iter': 1000, 'random_state': 42}
+if "RandomForest" not in best_params_per_model:
+    best_params_per_model["RandomForest"] = {'n_estimators': 100, 'max_depth': 10, 'min_samples_split': 2, 'random_state': 42}
+if "KNN" not in best_params_per_model:
+    best_params_per_model["KNN"] = {'n_neighbors': 5, 'weights': 'uniform', 'algorithm': 'auto'}
+if "GBDT" not in best_params_per_model:
+    best_params_per_model["GBDT"] = {'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3, 'min_samples_split': 2, 'subsample': 1.0, 'max_features': 'sqrt', 'random_state': 42}
+if "GaussianNB" not in best_params_per_model:
+    best_params_per_model["GaussianNB"] = {'var_smoothing': 1e-9}
 
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
@@ -1724,7 +1747,7 @@ for model_name, params in best_params_per_model.items():
         # 改进的非极大值抑制策略：基于实际波数/MZ值距离
         sorted_ftir_indices = np.argsort(ftir_shap_difference)[::-1]
         selected_ftir_indices = []
-        min_wavenumber_distance = 100.0 # 增大最小波数间隔 (cm-1)
+        min_wavenumber_distance = 1.0 # 增大最小波数间隔 (cm-1)
         ftir_x_np = ftir_x.cpu().numpy()
         
         for idx in sorted_ftir_indices:
@@ -2052,8 +2075,7 @@ for model_name, params in best_params_per_model.items():
         test_features_with_axis = np.hstack([
             ftir_test.numpy(), mz_test.numpy()
         ])
-        model = GBDTClassifier(n_estimators=50, learning_rate=0.03,
-                               max_depth=2, min_samples_leaf=10, subsample=0.7)
+        model = GBDTClassifier()
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -2279,6 +2301,82 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     elif m_name == "CMSTF":
                         model = CMSTF(
                             ir_dim=ftir_tr_sub.shape[1], met_dim=mz_tr_sub.shape[1])
+                    elif m_name == "ConcatFusion":
+                        model = ConcatFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "GateOnlyFusion":
+                        model = GateOnlyFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "CoAttnOnlyFusion":
+                        model = CoAttnOnlyFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "SelfAttnFusion":
+                        model = SelfAttnFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "SelfAttnOnlyFusion":
+                        model = SelfAttnOnlyFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                    elif m_name == "FTIROnly":
+                        model = SingleFTIRModel(input_dim=ftir_tr_sub.shape[1])
+                        writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
+                        trained_model, _, _, _, _ = train_single_modal_model(
+                            model,
+                            ftir_tr_sub, y_tr_sub,
+                            ftir_val_sub, y_val_sub,
+                            ftir_x,
+                            epochs=100,
+                            batch_size=p['batch_size'],
+                            writer=writer,
+                            lr=p['lr'],
+                            weight_decay=p['weight_decay'],
+                            label_smoothing=p['label_smoothing'],
+                            scheduler_factor=p['scheduler_factor'],
+                            early_stop_patience=p['early_stop_patience'],
+                            model_type=m_name
+                        )
+                        writer.close()
+                        with torch.no_grad():
+                            o_val = trained_model(ftir_val_sub, ftir_x)
+                            pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
+                        thr = select_optimal_threshold(y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
+                        with torch.no_grad():
+                            o_te = trained_model(ftir_te, ftir_x)
+                            pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
+                        pd_te = (pr_te >= thr).astype(int)
+                        met = evaluate_model(trained_model, ftir_te, None, y_te, ftir_x, mz_x,
+                                             preds=pd_te, probs=pr_te,
+                                             name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
+                                             plot_tsne=False)
+                        results[m_name].append(met)
+                        continue
+                    elif m_name == "MZOnly":
+                        model = SingleMZModel(input_dim=mz_tr_sub.shape[1])
+                        writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
+                        trained_model, _, _, _, _ = train_single_modal_model(
+                            model,
+                            mz_tr_sub, y_tr_sub,
+                            mz_val_sub, y_val_sub,
+                            mz_x,
+                            epochs=100,
+                            batch_size=p['batch_size'],
+                            writer=writer,
+                            lr=p['lr'],
+                            weight_decay=p['weight_decay'],
+                            label_smoothing=p['label_smoothing'],
+                            scheduler_factor=p['scheduler_factor'],
+                            early_stop_patience=p['early_stop_patience'],
+                            model_type=m_name
+                        )
+                        writer.close()
+                        with torch.no_grad():
+                            o_val = trained_model(mz_val_sub, mz_x)
+                            pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
+                        thr = select_optimal_threshold(y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
+                        with torch.no_grad():
+                            o_te = trained_model(mz_te, mz_x)
+                            pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
+                        pd_te = (pr_te >= thr).astype(int)
+                        met = evaluate_model(trained_model, None, mz_te, y_te, ftir_x, mz_x,
+                                             preds=pd_te, probs=pr_te,
+                                             name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
+                                             plot_tsne=False)
+                        results[m_name].append(met)
+                        continue
 
                     writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
 

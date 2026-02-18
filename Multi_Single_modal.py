@@ -110,77 +110,24 @@ class HybridFusion(nn.Module):
 
 # ==================多模态模型定义====================================
 class MultiModalModel(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, fusion_mechanism='hybrid'):
+    def __init__(self, ftir_input_dim, mz_input_dim):
         super(MultiModalModel, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-
-        if fusion_mechanism == 'concat':
-            self.fuser = ConcatFusion(ftir_input_dim, mz_input_dim)
-            # Adjust classifier input for ConcatFusion's output
-            self.classifier = nn.Sequential(
-                nn.Linear(128, 64), # ConcatFusion's output is 64, then its internal classifier reduces to 2
-                nn.BatchNorm1d(64),
-                nn.ReLU(),
-                nn.Linear(64, 2)
-            )
-        elif fusion_mechanism == 'gate_only':
-            self.fuser = GateOnlyFusion(ftir_input_dim, mz_input_dim)
-            # Adjust classifier input for GateOnlyFusion's output
-            self.classifier = nn.Sequential(
-                nn.Linear(32, 16), # GateOnlyFusion's internal classifier reduces to 2
-                nn.BatchNorm1d(16),
-                nn.ReLU(),
-                nn.Linear(16, 2)
-            )
-        elif fusion_mechanism == 'co_attn_only':
-            self.fuser = CoAttnOnlyFusion(ftir_input_dim, mz_input_dim)
-            # Adjust classifier input for CoAttnOnlyFusion's output
-            self.classifier = nn.Sequential(
-                nn.Linear(32, 16), # CoAttnOnlyFusion's internal classifier reduces to 2
-                nn.BatchNorm1d(16),
-                nn.ReLU(),
-                nn.Linear(16, 2)
-            )
-        elif fusion_mechanism == 'self_attn':
-            self.fuser = SelfAttnFusion(ftir_input_dim, mz_input_dim)
-            # Adjust classifier input for SelfAttnFusion's output
-            self.classifier = nn.Sequential(
-                nn.Linear(64, 32), # SelfAttnFusion's internal classifier reduces to 2
-                nn.BatchNorm1d(32),
-                nn.ReLU(),
-                nn.Linear(32, 2)
-            )
-        elif fusion_mechanism == 'self_attn_only':
-            self.fuser = SelfAttnOnlyFusion(ftir_input_dim, mz_input_dim)
-            # Adjust classifier input for SelfAttnOnlyFusion's output
-            self.classifier = nn.Sequential(
-                nn.Linear(32, 16), # SelfAttnOnlyFusion's internal classifier reduces to 2
-                nn.BatchNorm1d(16),
-                nn.ReLU(),
-                nn.Linear(16, 2)
-            )
-        else: # Default to 'hybrid'
-            self.fuser = HybridFusion(dim=64, num_heads=4)
-            self.classifier = nn.Sequential(
-                nn.Linear(128, 64),
-                nn.BatchNorm1d(64),
-                nn.ReLU(),
-                nn.Linear(64, 2)
-            )
+        self.fuser = HybridFusion(dim=64, num_heads=4)
+        self.classifier = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Linear(64, 2)
+        )
         
 
     def forward(self, ftir, mz, ftir_axis, mz_axis):
         ftir_feat = self.ftir_extractor(ftir, ftir_axis)
         mz_feat = self.mz_extractor(mz, mz_axis)
-        # For fusion mechanisms that have their own internal classifier,
-        # the fuser's forward method will return the final output.
-        # Otherwise, the fuser returns combined features.
-        if isinstance(self.fuser, (ConcatFusion, GateOnlyFusion, CoAttnOnlyFusion, SelfAttnFusion, SelfAttnOnlyFusion)):
-            output = self.fuser(ftir, mz, ftir_axis, mz_axis)
-        else:
-            combined = self.fuser(ftir_feat, mz_feat)
-            output = self.classifier(combined)  # [B, 2]
+        combined = self.fuser(ftir_feat, mz_feat)
+        output = self.classifier(combined)  # [B, 2]
         return output
 
 
@@ -190,7 +137,7 @@ class SingleFTIRModel(nn.Module):
         super(SingleFTIRModel, self).__init__()
         self.ftir_extractor = FTIREncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(64, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 2)
@@ -207,7 +154,7 @@ class SingleMZModel(nn.Module):
         super(SingleMZModel, self).__init__()
         self.mz_extractor = MZEncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(64, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 2)
@@ -382,15 +329,9 @@ class SelfAttnOnlyFusion(nn.Module):
 # --------------------------传统机器学习模型--------------------------
 # SVM
 class SVMClassifier:
-    def __init__(self, C=1.0, kernel='rbf', gamma='scale', probability=True, random_state=42):
-        self.clf = SVC(
-            C=C,
-            kernel=kernel,
-            gamma=gamma,
-            probability=probability,
-            class_weight='balanced',
-            random_state=random_state
-        )
+    def __init__(self, C=1.0, kernel='rbf', probability=True, random_state=42):
+        self.clf = SVC(C=C, kernel=kernel, probability=probability,
+                       random_state=random_state)
 
     def fit(self, X, y):
         self.clf.fit(X, y)
@@ -407,10 +348,9 @@ class SVMClassifier:
 
 # 逻辑回归
 class LogRegClassifier:
-    def __init__(self, C=0.01, penalty='l2', solver='liblinear', max_iter=1000):
-        self.clf = LogisticRegression(C=C, penalty=penalty, solver=solver,
-                                      max_iter=max_iter, random_state=42,
-                                      class_weight='balanced')
+    def __init__(self, C=1.0, solver='lbfgs', max_iter=1000, random_state=42):
+        self.clf = LogisticRegression(
+            C=C, solver=solver, max_iter=max_iter, random_state=random_state)
 
     def fit(self, X, y):
         self.clf.fit(X, y)
@@ -430,9 +370,13 @@ class LogRegClassifier:
 
 # 随机森林
 class RFClassifier:
-    def __init__(self, n_estimators=50, max_depth=3, min_samples_split=5, min_samples_leaf=5, max_features='sqrt', random_state=42):
+    def __init__(self, n_estimators=100, max_depth=None, min_samples_split=2, min_samples_leaf=1, random_state=42):
         self.clf = RandomForestClassifier(
-            n_estimators=n_estimators, max_depth=max_depth, min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf, max_features=max_features, random_state=random_state
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            random_state=random_state
         )
 
     def fit(self, X, y):
@@ -451,12 +395,12 @@ class RFClassifier:
 
 # GBDT（梯度提升树）
 class GBDTClassifier:
-    def __init__(self, n_estimators=50, learning_rate=0.05, max_depth=3, min_samples_leaf=10, subsample=0.7, max_features=None, random_state=42):
+    def __init__(self, n_estimators=100, learning_rate=0.1, max_depth=3, min_samples_split=2, subsample=1.0, max_features=None, random_state=42):
         self.clf = GradientBoostingClassifier(
             n_estimators=n_estimators,
             learning_rate=learning_rate,
             max_depth=max_depth,
-            min_samples_leaf=min_samples_leaf,
+            min_samples_split=min_samples_split,
             subsample=subsample,
             max_features=max_features,
             random_state=random_state
@@ -480,22 +424,23 @@ class GBDTClassifier:
 
 # KNN
 class KNNClassifier:
-    def __init__(self, n_neighbors=5, weights='distance'):
+    def __init__(self, n_neighbors=5, weights='uniform', algorithm='auto'):
         self.n_neighbors = n_neighbors
         self.weights = weights
-        self.clf = None  # 延迟初始化
+        self.algorithm = algorithm
+        self.clf = None
 
     def fit(self, X, y):
-        # 动态调整n_neighbors，确保不超过样本数
+        # Dynamically adjust n_neighbors if sample size is small
         n_samples = X.shape[0]
-        actual_n_neighbors = min(self.n_neighbors, n_samples)
-        if actual_n_neighbors < 1:
-            actual_n_neighbors = 1
-
-        # 创建分类器
+        actual_n_neighbors = min(self.n_neighbors, n_samples) if n_samples > 0 else 1
+        # Ensure at least 1 neighbor
+        actual_n_neighbors = max(1, actual_n_neighbors)
+        
         self.clf = KNeighborsClassifier(
             n_neighbors=actual_n_neighbors,
-            weights=self.weights
+            weights=self.weights,
+            algorithm=self.algorithm
         )
         self.clf.fit(X, y)
 
@@ -505,15 +450,11 @@ class KNNClassifier:
     def predict_proba(self, X):
         return self.clf.predict_proba(X)
 
-    def decision_function(self, X):
-        proba = self.clf.predict_proba(X)[:, 1]
-        return proba
 
-
-# 朴素贝叶斯
+# Gaussian Naive Bayes
 class NBClassifier:
-    def __init__(self):
-        self.clf = GaussianNB(var_smoothing=1e-9)
+    def __init__(self, var_smoothing=1e-9):
+        self.clf = GaussianNB(var_smoothing=var_smoothing)
 
     def fit(self, X, y):
         self.clf.fit(X, y)
@@ -522,11 +463,7 @@ class NBClassifier:
         return self.clf.predict(X)
 
     def predict_proba(self, X):
-        return self.clf.predict_proba(X)
-
-    def decision_function(self, X):
-        proba = self.clf.predict_proba(X)[:, 1]
-        return proba
+        return self.clf.predict_proba(X) 
 
 
 # --------------------------横向对比模型1:zhou2024cmacf--------------------------

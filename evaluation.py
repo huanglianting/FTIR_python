@@ -246,7 +246,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     #     print(f"保存PR曲线失败: {e}")
 
     # t-SNE 可视化
-    if name == "MultiModal" and plot_tsne:
+    if model_type == "MultiModal" and plot_tsne:
         with torch.no_grad():
             ftir_feat = model.ftir_extractor(ftir_test, ftir_axis) if hasattr(
                 model, 'ftir_extractor') else None
@@ -258,9 +258,9 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             # 执行 t-SNE 降维
             from sklearn.manifold import TSNE
             n_samples = len(y_true)
-            # 对于小样本，perplexity 必须非常小
+            # 对于小样本，perplexity 必须非常小，尝试更小的perplexity以聚集散点
             perplexity = min(5, n_samples - 1) if n_samples > 1 else 1
-            tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, init='pca', learning_rate='auto', n_iter=2000)
+            tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, init='pca', learning_rate=100, n_iter=2000, metric='euclidean')
             # 可视化各层次特征
             plot_tsne_features(
                 tsne=tsne,
