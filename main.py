@@ -1612,11 +1612,11 @@ models_to_evaluate = {
     # 如需启用其他变体消融实验，取消注释以下条目
     "FTIROnly": SingleFTIRModel,
     "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    # "SelfAttnFusion": SelfAttnFusion,
-    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "SelfAttnFusion": SelfAttnFusion,
+    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
 
 # all_model_dfs = []
@@ -1649,7 +1649,8 @@ print("Applying optimized parameters for paper submission...")
 
 # MultiModal: Tuned for High Specificity/Precision (96%+), Lower LR, Higher Weight Decay to encourage specificity
 base_params = {'lr': 0.001, 'weight_decay': 1e-6, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
-best_params_per_model["MultiModal"] = base_params
+best_params_per_model["MultiModal"] = {'lr': 0.001, 'weight_decay': 1e-5, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 50}
+# best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters
 for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
