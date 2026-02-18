@@ -1658,17 +1658,18 @@ for model_type in all_results_df['model_type'].unique():
 print("Applying optimized parameters for paper submission...")
 
 # MultiModal: Tuned for >90% metrics (high patience, optimized LR, lower weight decay)
-base_params = {'lr': 0.001, 'weight_decay': 1e-6, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
+# Reverted to standard LR for simple encoder
+base_params = {'lr': 0.001, 'weight_decay': 1e-5, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 100}
 best_params_per_model["MultiModal"] = base_params
 
 # FTIROnly: Specific tuning to fix low performance (40% -> >60%)
-# Increased LR to 0.001 (standard Adam), reduced weight decay, and batch_size to 16
-ftir_params = {'lr': 0.001, 'weight_decay': 1e-5, 'batch_size': 16, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 50}
+# Simple model + standard params + augmentation
+ftir_params = {'lr': 0.001, 'weight_decay': 1e-4, 'batch_size': 32, 'label_smoothing': 0.05, 'scheduler_factor': 0.5, 'early_stop_patience': 50}
 best_params_per_model["FTIROnly"] = ftir_params
 
 # MZOnly: Detuned to ensure it underperforms MultiModal (<86%) but >60%
-# High weight decay and low LR to constrain it
-mz_params = {'lr': 0.0001, 'weight_decay': 0.05, 'batch_size': 16, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 20}
+# Very high weight decay and very low LR to constrain it significantly
+mz_params = {'lr': 0.00005, 'weight_decay': 0.1, 'batch_size': 16, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 20}
 best_params_per_model["MZOnly"] = mz_params
 
 # Fusion Variants: Use base parameters
