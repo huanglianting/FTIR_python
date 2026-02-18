@@ -9,7 +9,6 @@ from sklearn.naive_bayes import GaussianNB
 import numpy as np
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.preprocessing import MinMaxScaler
-import cv2
 
 
 # ==================模块定义====================================
@@ -17,36 +16,31 @@ import cv2
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()
+        # Simplified FTIREncoder: 1 Conv layer + MLP
+        # CNN might be better for spectral data than MLP
         self.features = nn.Sequential(
-            # Block 1
-            nn.Conv1d(1, 24, kernel_size=7, stride=2, padding=3), # Output: [B, 24, ~axis_dim/2]
-            nn.BatchNorm1d(24),
+            nn.Conv1d(1, 16, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(16),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 24, ~axis_dim/4]
-
-            # Block 2
-            nn.Conv1d(24, 48, kernel_size=5, stride=2, padding=2), # Output: [B, 48, ~axis_dim/8]
-            nn.BatchNorm1d(48),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3, stride=2, padding=1), # Output: [B, 48, ~axis_dim/16]
-
-            # Block 3
-            nn.Conv1d(48, 96, kernel_size=3, stride=1, padding=1), # Output: [B, 96, ~axis_dim/16]
-            nn.BatchNorm1d(96),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(8) # Pool to a fixed size, e.g., 8
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1),
+            nn.Flatten()
         )
+        
+        # Calculate output dimension
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, 1, axis_dim)
+            dummy_output = self.features(dummy_input)
+            flattened_dim = dummy_output.shape[1]
+
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(96 * 8, 128),
-            nn.BatchNorm1d(128),
+            nn.Linear(flattened_dim, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, 64)
+            nn.Dropout(0.5)
         )
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1)
+        feat = feat.unsqueeze(1) # [B, 1, Dim]
         feat = self.features(feat)
         feat = self.classifier(feat)
         return feat
@@ -57,7 +51,7 @@ class MZEncoder(nn.Module):
         super(MZEncoder, self).__init__()
         self.net = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(axis_dim, 64), # Map PCA-reduced features to 64-dim output
+            nn.Linear(axis_dim, 64), 
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(0.5)
