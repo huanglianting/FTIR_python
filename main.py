@@ -817,7 +817,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
 def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, mz_indices, save_path):
     selected_ftir_data = ftir_data[:, ftir_indices]
     selected_mz_data = mz_data[:, mz_indices]
-    ftir_labels = [f"{int(ftir_x[i])}" for i in ftir_indices]
+    ftir_labels = [f"{ftir_x[i]:.1f}" for i in ftir_indices]
     mz_labels = [f"{mz_x[i]:.1f}" for i in mz_indices]
 
     # 计算Spearman相关性和p值
@@ -1648,9 +1648,8 @@ for model_type in all_results_df['model_type'].unique():
 print("Applying optimized parameters for paper submission...")
 
 # MultiModal: Tuned for High Specificity/Precision (96%+), Lower LR, Higher Weight Decay to encourage specificity
-base_params = {'lr': 0.001, 'weight_decay': 1e-6, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
-best_params_per_model["MultiModal"] = {'lr': 0.001, 'weight_decay': 1e-5, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 50}
-# best_params_per_model["MultiModal"] = base_params
+base_params = {'lr': 0.001, 'weight_decay': 1e-5, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 50}
+best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters
 for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
