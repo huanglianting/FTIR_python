@@ -9,7 +9,6 @@ from sklearn.naive_bayes import GaussianNB
 import numpy as np
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.preprocessing import MinMaxScaler
-import cv2
 
 
 # ==================模块定义====================================
@@ -17,20 +16,33 @@ import cv2
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()
-        # Simplified FTIREncoder: Single Layer MLP (Matching MZEncoder)
-        # User requested to match MZ complexity (467 -> 64 directly)
+        # Simplified FTIREncoder: 1 Conv layer + MLP
+        # CNN might be better for spectral data than MLP
         self.features = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(axis_dim, 64),
+            nn.Conv1d(1, 16, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1),
+            nn.Flatten()
+        )
+        
+        # Calculate output dimension
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, 1, axis_dim)
+            dummy_output = self.features(dummy_input)
+            flattened_dim = dummy_output.shape[1]
+
+        self.classifier = nn.Sequential(
+            nn.Linear(flattened_dim, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
-        self.classifier = nn.Identity()
 
     def forward(self, feat, feat_axis):
-        # feat shape: [Batch, Length]
+        feat = feat.unsqueeze(1) # [B, 1, Dim]
         feat = self.features(feat)
+        feat = self.classifier(feat)
         return feat
 
 
@@ -118,13 +130,11 @@ class SingleFTIRModel(nn.Module):
     def __init__(self, input_dim):
         super(SingleFTIRModel, self).__init__()
         self.ftir_extractor = FTIREncoder(input_dim)
-        # Standard classifier for single modal
         self.classifier = nn.Sequential(
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(32, 2)
+            nn.Linear(64, 2)
         )
 
     def forward(self, ftir, ftir_axis):
@@ -138,11 +148,10 @@ class SingleMZModel(nn.Module):
         super(SingleMZModel, self).__init__()
         self.mz_extractor = MZEncoder(input_dim)
         self.classifier = nn.Sequential(
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(32, 2)
+            nn.Linear(64, 2)
         )
 
     def forward(self, mz, mz_axis):
