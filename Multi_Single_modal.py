@@ -69,19 +69,6 @@ class MZEncoder(nn.Module):
         return feat
 
 
-class SimpleResidualBlock(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.BatchNorm1d(dim),
-            nn.ReLU(),
-            nn.Dropout(0.5)
-        )
-
-    def forward(self, x):
-        return x + self.net(x)
-
 
 class HybridFusion(nn.Module):
     def __init__(self, dim=64, num_heads=2):
@@ -206,7 +193,6 @@ class SingleFTIRModel(nn.Module):
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            SimpleResidualBlock(64),
             nn.Linear(64, 2)
         )
 
@@ -224,7 +210,6 @@ class SingleMZModel(nn.Module):
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            SimpleResidualBlock(64),
             nn.Linear(64, 2)
         )
 
@@ -245,7 +230,6 @@ class ConcatFusion(nn.Module):
             nn.Linear(dim * 2, dim),
             nn.BatchNorm1d(dim),
             nn.ReLU(),
-            SimpleResidualBlock(dim),
             nn.Linear(dim, 2)
         )
 
@@ -273,7 +257,6 @@ class GateOnlyFusion(nn.Module):
             nn.Linear(dim, dim//2),
             nn.BatchNorm1d(dim//2),
             nn.ReLU(),
-            SimpleResidualBlock(dim//2),
             nn.Linear(dim//2, 2),
             nn.Softmax(dim=1)
         )
@@ -304,7 +287,6 @@ class CoAttnOnlyFusion(nn.Module):
             nn.Linear(dim, dim//2),
             nn.BatchNorm1d(dim//2),
             nn.ReLU(),
-            SimpleResidualBlock(dim//2),
             nn.Linear(dim//2, 2)
         )
 
@@ -342,7 +324,6 @@ class SelfAttnFusion(nn.Module):
             nn.Linear(dim * 2, dim),
             nn.BatchNorm1d(dim),
             nn.ReLU(),
-            SimpleResidualBlock(dim),
             nn.Linear(dim, 2),
             nn.Softmax(dim=1)
         )
@@ -383,7 +364,6 @@ class SelfAttnOnlyFusion(nn.Module):
             nn.Linear(dim, dim//2),
             nn.BatchNorm1d(dim//2),
             nn.ReLU(),
-            SimpleResidualBlock(dim//2),
             nn.Linear(dim//2, 2)
         )
 

@@ -820,14 +820,21 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
 def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, mz_indices, save_path):
     selected_ftir_data = ftir_data[:, ftir_indices]
     selected_mz_data = mz_data[:, mz_indices]
-    ftir_labels = [f"{int(ftir_x[i])}" for i in ftir_indices]
-    mz_labels = [f"{mz_x[i]:.1f}" for i in mz_indices]
+    # 保留一位小数以区分相近的波数，同时确保是标量
+    ftir_labels = [f"{float(ftir_x[i]):.1f}" for i in ftir_indices]
+    mz_labels = [f"{float(mz_x[i]):.1f}" for i in mz_indices]
 
     # 计算Spearman相关性和p值
     num_ftir_features = len(ftir_indices)
     num_mz_features = len(mz_indices)
     corr_matrix = np.zeros((num_ftir_features, num_mz_features))
     pval_matrix = np.zeros((num_ftir_features, num_mz_features))
+
+    # 打印前5个选择的FTIR和MZ特征的索引和标签，以便调试
+    print(f"Top 5 selected FTIR indices: {ftir_indices[:5]}")
+    # print(f"Top 5 selected FTIR labels: {ftir_labels[:5]}") # Removed to avoid error before fix
+    print(f"Top 5 selected MZ indices: {mz_indices[:5]}")
+    # print(f"Top 5 selected MZ labels: {mz_labels[:5]}")
 
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
@@ -836,11 +843,18 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
             corr_matrix[i, j] = corr
             pval_matrix[i, j] = pval
 
-    print("\n强相关特征对 (|r| >= 0.5 且 p < 0.01):")
+    print("\n强相关特征对 (|r| >= 0.3 且 p < 0.05):")
     significant_pairs = []
+    
+    # 打印前5个选择的FTIR和MZ特征的索引和标签，以便调试
+    print(f"Top 5 selected FTIR indices: {ftir_indices[:5]}")
+    print(f"Top 5 selected FTIR labels: {ftir_labels[:5]}")
+    print(f"Top 5 selected MZ indices: {mz_indices[:5]}")
+    print(f"Top 5 selected MZ labels: {mz_labels[:5]}")
+
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
-            if abs(corr_matrix[i, j]) >= 0.5 and pval_matrix[i, j] < 0.01:
+            if abs(corr_matrix[i, j]) >= 0.3 and pval_matrix[i, j] < 0.05:
                 pair_info = (
                     f"FTIR: {ftir_labels[i]} cm-1, "
                     f"MZ: {mz_labels[j]}, "
@@ -848,19 +862,22 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
                     f"p={pval_matrix[i, j]:.4f}"
                 )
                 significant_pairs.append(pair_info)
-                print(pair_info)
+                # print(pair_info) # 减少打印量
 
     if not significant_pairs:
         print("在给定阈值下未找到强相关特征对。")
+    else:
+        print(f"找到 {len(significant_pairs)} 对强相关特征。")
 
     # 绘制热力图
-    plt.figure(figsize=(9, 8))
+    plt.figure(figsize=(12, 10)) # 增大画布
 
     # 按照标签数值对特征进行排序
     mz_labels_float = [float(l) for l in mz_labels]
     mz_sort_indices = np.argsort(mz_labels_float)
     sorted_mz_labels = np.array(mz_labels)[mz_sort_indices]
     sorted_corr_matrix = corr_matrix[:, mz_sort_indices]
+    
     ftir_labels_float = [float(l) for l in ftir_labels]
     ftir_sort_indices = np.argsort(ftir_labels_float)
     sorted_ftir_labels = np.array(ftir_labels)[ftir_sort_indices]
@@ -872,8 +889,8 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
         yticklabels=sorted_ftir_labels,
         cmap='coolwarm',
         annot=False,
-        vmin=-0.4, vmax=0.4,
-        linewidths=0.6,
+        vmin=-0.6, vmax=0.6, # 扩大显示范围
+        linewidths=0.5,
         linecolor='lightgray',
         cbar_kws={'aspect': 30, 'pad': 0.03}
     )
@@ -1166,9 +1183,9 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 # 超参数（通过网格搜索确定）
 param_grid = {
-    'lr': [2e-4, 3e-4],
+    'lr': [2e-4, 3e-4, 4e-4],
     'weight_decay': [1e-4],
-    'batch_size': [32, 16, 8],
+    'batch_size': [32],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
     'early_stop_patience': [5, 15]
@@ -1186,7 +1203,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "balanced" # "youden"、"constrained_f1"、"distance_optimal" 
+THRESHOLD_METHOD = "youden" # "youden"、"constrained_f1"、"distance_optimal" 
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1689,7 +1706,7 @@ for model_name, params in best_params_per_model.items():
         preds_test = (probs_test >= thr).astype(int)
         metrics = evaluate_model(trained_model, ftir_test, mz_test, y_test, ftir_x, mz_x,
                                  preds=preds_test, probs=probs_test,
-                                 name=model_name, model_type=model_name)
+                                 name=model_name, model_type=model_name, plot_tsne=True)
 
         # SHAP分析函数
         ftir_shap_difference = perform_ftir_shap_analysis(
@@ -1700,21 +1717,51 @@ for model_name, params in best_params_per_model.items():
             patient_indices_train, patient_indices_test
         )
         # Spearman 相关性分析和热图
-        # ftir_all = np.vstack(
-        #     (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
-        # mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
-        # 特征选择: 基于SHAP分析选择Top 20个特征
-        # ftir_top_indices = np.argsort(ftir_shap_difference)[-20:]
-        # mz_top_indices = np.argsort(mz_shap_difference)[-20:]
-        # create_correlation_heatmap(
-        #     ftir_all,
-        #     mz_all,
-        #     ftir_x.cpu().numpy(),
-        #     mz_x.cpu().numpy(),
-        #     ftir_top_indices,
-        #     mz_top_indices,
-        #     save_path
-        # )
+        ftir_all = np.vstack(
+            (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
+        mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
+        # 特征选择: 基于SHAP分析选择Top 20个特征，避免选择相邻的重复特征
+        # 简单的非极大值抑制策略：按重要性排序，选择每个波数至少间隔20个索引的Top特征
+        sorted_ftir_indices = np.argsort(ftir_shap_difference)[::-1]
+        selected_ftir_indices = []
+        min_index_distance = 20 # 最小索引间隔
+        for idx in sorted_ftir_indices:
+            if len(selected_ftir_indices) >= 20:
+                break
+            is_far = True
+            for selected_idx in selected_ftir_indices:
+                if abs(idx - selected_idx) < min_index_distance:
+                    is_far = False
+                    break
+            if is_far:
+                selected_ftir_indices.append(idx)
+        ftir_top_indices = np.array(selected_ftir_indices)
+        
+        # 对MZ也做类似处理
+        sorted_mz_indices = np.argsort(mz_shap_difference)[::-1]
+        selected_mz_indices = []
+        min_mz_index_distance = 5 # MZ通常较稀疏，间隔可以小一点
+        for idx in sorted_mz_indices:
+            if len(selected_mz_indices) >= 20:
+                break
+            is_far = True
+            for selected_idx in selected_mz_indices:
+                if abs(idx - selected_idx) < min_mz_index_distance:
+                    is_far = False
+                    break
+            if is_far:
+                selected_mz_indices.append(idx)
+        mz_top_indices = np.array(selected_mz_indices)
+
+        create_correlation_heatmap(
+            ftir_all,
+            mz_all,
+            ftir_x.cpu().numpy(),
+            mz_x.cpu().numpy(),
+            ftir_top_indices,
+            mz_top_indices,
+            save_path
+        )
 
     elif model_name == "BiModalCMACF":
         model = BiModalCMACF(
