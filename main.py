@@ -1183,12 +1183,12 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 # 超参数（通过网格搜索确定）
 param_grid = {
-    'lr': [2e-4, 3e-4, 4e-4],
-    'weight_decay': [1e-4],
-    'batch_size': [32],
+    'lr': [1e-4, 2e-4, 3e-4],
+    'weight_decay': [1e-4, 1e-3],
+    'batch_size': [16, 32],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.5],
-    'early_stop_patience': [5, 15]
+    'early_stop_patience': [15]
 }
 
 # 古早最优参数
@@ -1203,7 +1203,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "youden" # "youden"、"constrained_f1"、"distance_optimal" 
+THRESHOLD_METHOD = "balanced" # "youden"、"constrained_f1"、"distance_optimal" 
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1721,16 +1721,20 @@ for model_name, params in best_params_per_model.items():
             (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
         mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
         # 特征选择: 基于SHAP分析选择Top 20个特征，避免选择相邻的重复特征
-        # 简单的非极大值抑制策略：按重要性排序，选择每个波数至少间隔20个索引的Top特征
+        # 改进的非极大值抑制策略：基于实际波数/MZ值距离
         sorted_ftir_indices = np.argsort(ftir_shap_difference)[::-1]
         selected_ftir_indices = []
-        min_index_distance = 20 # 最小索引间隔
+        min_wavenumber_distance = 100.0 # 增大最小波数间隔 (cm-1)
+        ftir_x_np = ftir_x.cpu().numpy()
+        
         for idx in sorted_ftir_indices:
             if len(selected_ftir_indices) >= 20:
                 break
             is_far = True
+            current_wv = ftir_x_np[idx]
             for selected_idx in selected_ftir_indices:
-                if abs(idx - selected_idx) < min_index_distance:
+                selected_wv = ftir_x_np[selected_idx]
+                if abs(current_wv - selected_wv) < min_wavenumber_distance:
                     is_far = False
                     break
             if is_far:
@@ -1740,13 +1744,17 @@ for model_name, params in best_params_per_model.items():
         # 对MZ也做类似处理
         sorted_mz_indices = np.argsort(mz_shap_difference)[::-1]
         selected_mz_indices = []
-        min_mz_index_distance = 5 # MZ通常较稀疏，间隔可以小一点
+        min_mz_distance = 5.0 # 增大MZ最小间隔
+        mz_x_np = mz_x.cpu().numpy()
+        
         for idx in sorted_mz_indices:
             if len(selected_mz_indices) >= 20:
                 break
             is_far = True
+            current_mz = mz_x_np[idx]
             for selected_idx in selected_mz_indices:
-                if abs(idx - selected_idx) < min_mz_index_distance:
+                selected_mz = mz_x_np[selected_idx]
+                if abs(current_mz - selected_mz) < min_mz_distance:
                     is_far = False
                     break
             if is_far:

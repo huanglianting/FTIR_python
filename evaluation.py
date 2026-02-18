@@ -257,8 +257,10 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         if plot_tsne:
             # 执行 t-SNE 降维
             from sklearn.manifold import TSNE
-            tsne = TSNE(n_components=2, perplexity=min(
-                10, len(y_true)-1), random_state=42)
+            n_samples = len(y_true)
+            # 对于小样本，perplexity 必须非常小
+            perplexity = min(5, n_samples - 1) if n_samples > 1 else 1
+            tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, init='pca', learning_rate='auto', n_iter=2000)
             # 可视化各层次特征
             plot_tsne_features(
                 tsne=tsne,
@@ -332,7 +334,7 @@ def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=
             tn, fp, fn, tp = confusion_matrix(y_true, predictions).ravel()
             specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
             
-            if specificity >= 0.6:  # 保证至少60%特异度
+            if specificity >= 0.85:  # 保证至少85%特异度
                 valid_thresholds.append(threshold)
                 valid_f1_scores.append(f1_scores[i])
         
