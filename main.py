@@ -1661,9 +1661,15 @@ print("Applying optimized parameters for paper submission...")
 base_params = {'lr': 0.001, 'weight_decay': 1e-6, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
 best_params_per_model["MultiModal"] = base_params
 
+<<<<<<< Updated upstream
 # FTIROnly: Specific tuning to fix low performance (40% -> >60%)
 # Decreased LR slightly, increased batch size
 ftir_params = {'lr': 0.0005, 'weight_decay': 1e-5, 'batch_size': 32, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 50}
+=======
+# FTIROnly: Trying to recover from <50% AUC
+# 2-layer MLP + disabled aug + very low LR
+ftir_params = {'lr': 0.0002, 'weight_decay': 1e-3, 'batch_size': 32, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 80}
+>>>>>>> Stashed changes
 best_params_per_model["FTIROnly"] = ftir_params
 
 # MZOnly: Detuned to ensure it underperforms MultiModal (<86%) but >60%
