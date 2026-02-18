@@ -1,2 +1,2 @@
 Model,auc_mean,auc_std,auc_format,accuracy_mean,accuracy_std,accuracy_format,sensitivity_mean,sensitivity_std,sensitivity_format,specificity_mean,specificity_std,specificity_format,precision_mean,precision_std,precision_format,f1_mean,f1_std,f1_format
-MultiModal,91.67,13.43,91.67% ± 13.43%,79.17,15.17,79.17% ± 15.17%,65.00,31.48,65.00% ± 31.48%,93.33,17.44,93.33% ± 17.44%,95.08,12.25,95.08% ± 12.25%,71.87,22.26,71.87% ± 22.26%
+MultiModal,89.44,13.72,89.44% ± 13.72%,84.17,18.32,84.17% ± 18.32%,70.00,35.71,70.00% ± 35.71%,98.33,7.45,98.33% ± 7.45%,88.33,31.11,88.33% ± 31.11%,75.33,32.56,75.33% ± 32.56%
