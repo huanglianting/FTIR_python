@@ -1,3 +1,2 @@
 Model,auc_mean,auc_std,auc_format,accuracy_mean,accuracy_std,accuracy_format,sensitivity_mean,sensitivity_std,sensitivity_format,specificity_mean,specificity_std,specificity_format,precision_mean,precision_std,precision_format,f1_mean,f1_std,f1_format
-MultiModal,92.22,13.54,92.22% ± 13.54%,83.33,14.31,83.33% ± 14.31%,70.00,28.41,70.00% ± 28.41%,96.67,10.26,96.67% ± 10.26%,97.08,9.08,97.08% ± 9.08%,77.62,20.90,77.62% ± 20.90%
-RandomForest,100.00,0.00,100.00% ± 0.00%,83.33,12.09,83.33% ± 12.09%,83.33,17.10,83.33% ± 17.10%,83.33,29.62,83.33% ± 29.62%,90.00,17.77,90.00% ± 17.77%,83.75,9.85,83.75% ± 9.85%
+MultiModal,91.67,13.43,91.67% ± 13.43%,79.17,15.17,79.17% ± 15.17%,65.00,31.48,65.00% ± 31.48%,93.33,17.44,93.33% ± 17.44%,95.08,12.25,95.08% ± 12.25%,71.87,22.26,71.87% ± 22.26%

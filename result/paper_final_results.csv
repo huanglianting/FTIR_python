@@ -1,3 +1,2 @@
-Model,AUC_mean,AUC_95CI,Accuracy_mean,Sensitivity_mean,Sensitivity_95CI,Specificity_mean,Precision_mean,F1_mean
-MultiModal,92.22%,"[86.3%, 98.2%]",83.33%,70.00%,"[57.5%, 82.5%]",96.67%,97.08%,77.62%
-RandomForest,100.00%,"[100.0%, 100.0%]",83.33%,83.33%,"[75.8%, 90.8%]",83.33%,90.00%,83.75%
+Model,auc_mean,auc_95CI,auc_formatted,accuracy_mean,accuracy_95CI,accuracy_formatted,sensitivity_mean,sensitivity_95CI,sensitivity_formatted,specificity_mean,specificity_95CI,specificity_formatted,precision_mean,precision_95CI,precision_formatted,f1_mean,f1_95CI,f1_formatted,mcc_mean,mcc_95CI,mcc_formatted
+MultiModal,91.67%,"[85.8%, 97.6%]","91.67% [85.8%, 97.6%]",79.17%,"[72.5%, 85.8%]","79.17% [72.5%, 85.8%]",65.00%,"[51.2%, 78.8%]","65.00% [51.2%, 78.8%]",93.33%,"[85.7%, 100.0%]","93.33% [85.7%, 100.0%]",95.08%,"[89.7%, 100.0%]","95.08% [89.7%, 100.0%]",71.87%,"[62.1%, 81.6%]","71.87% [62.1%, 81.6%]",64.63%,"[53.4%, 75.9%]","64.63% [53.4%, 75.9%]"

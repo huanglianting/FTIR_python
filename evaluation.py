@@ -51,7 +51,7 @@ plt.rcParams.update(UNIFIED_STYLE)
 
 def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                    preds=None, probs=None, name="Model", model_type="undefined",
-                   fold=1, save_path='./result', is_svm=False):
+                   fold=1, save_path='./result', is_svm=False, plot_tsne=False):
     y_true = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
     # 如果没有提供 preds 和 probs
     if preds is None or probs is None:
@@ -136,11 +136,39 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         lower = 0.0 if s == 0 else beta.ppf(alpha/2, s, n - s + 1)
         upper = 1.0 if s == n else beta.ppf(1 - alpha/2, s + 1, n - s)
         return (float(lower), float(upper))
+    def bootstrap_ci(y_true, preds, metric_func, B=1000, alpha=0.05):
+        rng = np.random.RandomState(42)
+        vals = []
+        y_true = np.asarray(y_true)
+        preds = np.asarray(preds)
+        n = len(y_true)
+        for _ in range(B):
+            idx = rng.randint(0, n, n)
+            yb, pb = y_true[idx], preds[idx]
+            if len(np.unique(yb)) < 2:
+                 # 避免某些指标在单类别下报错或无意义，虽然accuracy没问题，但f1/prec可能warn
+                 # 这里简单跳过或补0取决于指标，简单起见如果全是一个类可能metric_func会warn
+                 pass
+            try:
+                vals.append(metric_func(yb, pb))
+            except Exception:
+                pass
+        if len(vals) == 0:
+            return (float('nan'), float('nan'))
+        vals = np.sort(np.array(vals))
+        lo = np.percentile(vals, 100*alpha/2)
+        hi = np.percentile(vals, 100*(1-alpha/2))
+        return (float(lo), float(hi))
+
     acc_ci = clopper_pearson_ci(int((preds == y_true).sum()), len(y_true))
     sen_ci = clopper_pearson_ci(int(tp), int(tp + fn))
     spe_ci = clopper_pearson_ci(int(tn), int(tn + fp))
+    
+    # Calculate CI for Precision and F1
+    prec_ci = bootstrap_ci(y_true, preds, lambda y, p: precision_score(y, p, zero_division=0))
+    f1_ci = bootstrap_ci(y_true, preds, lambda y, p: f1_score(y, p, zero_division=0))
 
-    def bootstrap_auc_ci(y, p, B=200, alpha=0.05):
+    def bootstrap_auc_ci(y, p, B=1000, alpha=0.05):
         rng = np.random.RandomState(42)
         vals = []
         y = np.asarray(y)
@@ -164,10 +192,10 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     auc_ci = bootstrap_auc_ci(y_true, probs)
     print(
         f"{name} - 准确率: {acc:.4f} [{acc_ci[0]:.3f},{acc_ci[1]:.3f}], "
-        f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f}, "
+        f"平衡准确率: {bacc:.4f}, 精确率: {prec:.4f} [{prec_ci[0]:.3f},{prec_ci[1]:.3f}], "
         f"召回率(Sensitivity): {rec:.4f} [{sen_ci[0]:.3f},{sen_ci[1]:.3f}], "
         f"特异性: {spec:.4f} [{spe_ci[0]:.3f},{spe_ci[1]:.3f}], "
-        f"F1: {f1:.4f}, AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
+        f"F1: {f1:.4f} [{f1_ci[0]:.3f},{f1_ci[1]:.3f}], AUC: {auc:.4f} [{auc_ci[0]:.3f},{auc_ci[1]:.3f}], "
         f"MCC: {mcc:.4f}"
     )
     # 每个类别的准确率
@@ -194,9 +222,14 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
         'accuracy_ci': acc_ci,
         'sensitivity_ci': sen_ci,
         'specificity_ci': spe_ci,
+        'precision_ci': prec_ci,
+        'f1_ci': f1_ci,
         'auc_ci': auc_ci,
         'class_0_accuracy': class_0_acc,
-        'class_1_accuracy': class_1_acc
+        'class_1_accuracy': class_1_acc,
+        'y_true': y_true,
+        'y_pred': preds,
+        'y_prob': probs
     }
 
     # 绘制并保存混淆矩阵热力图
@@ -205,15 +238,15 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     # # 绘制并保存 ROC 曲线
     # save_roc_curve(y_true, probs, auc, name, save_path)
 
-    plot_cm_roc(y_true, preds, probs, auc, auc_ci,
-                save_path=save_path, method_name=name)
-    try:
-        save_pr_curve(y_true, probs, name, save_path)
-    except Exception as e:
-        print(f"保存PR曲线失败: {e}")
+    # plot_cm_roc(y_true, preds, probs, auc, auc_ci,
+    #             save_path=save_path, method_name=name)
+    # try:
+    #     save_pr_curve(y_true, probs, name, save_path)
+    # except Exception as e:
+    #     print(f"保存PR曲线失败: {e}")
 
     # t-SNE 可视化
-    if name == "MultiModal":
+    if name == "MultiModal" and plot_tsne:
         with torch.no_grad():
             ftir_feat = model.ftir_extractor(ftir_test, ftir_axis) if hasattr(
                 model, 'ftir_extractor') else None
@@ -221,19 +254,21 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
                 model, 'mz_extractor') else None
             fused_feat = model.fuser(ftir_feat, mz_feat) if hasattr(
                 model, 'fuser') else None
-        # 执行 t-SNE 降维
-        from sklearn.manifold import TSNE
-        tsne = TSNE(n_components=2, perplexity=min(
-            10, len(y_true)-1), random_state=42)
-        # # 可视化各层次特征
-        # # plot_tsne_features(
-        #     tsne=tsne,
-        #     ftir_feat=ftir_feat.cpu().numpy() if ftir_feat is not None else None,
-        #     mz_feat=mz_feat.cpu().numpy() if mz_feat is not None else None,
-        #     fused_feat=fused_feat.cpu().numpy() if fused_feat is not None else None,
-        #     y_true=y_true,
-        #     save_path=save_path,
-        #     model_name=name
+        if plot_tsne:
+            # 执行 t-SNE 降维
+            from sklearn.manifold import TSNE
+            tsne = TSNE(n_components=2, perplexity=min(
+                10, len(y_true)-1), random_state=42)
+            # 可视化各层次特征
+            plot_tsne_features(
+                tsne=tsne,
+                ftir_feat=ftir_feat.cpu().numpy() if ftir_feat is not None else None,
+                mz_feat=mz_feat.cpu().numpy() if mz_feat is not None else None,
+                fused_feat=fused_feat.cpu().numpy() if fused_feat is not None else None,
+                y_true=y_true,
+                save_path=save_path,
+                model_name=name
+            )
     return result_dict
 
 
@@ -557,7 +592,15 @@ def generate_statistical_report(model_stats_dict, save_path='./result'):
             f.write(
                 f"  AUC 95% CI: {stats.get('auc', {}).get('ci_format_str', 'N/A')}\n")
             f.write(
+                f"  准确率 95% CI: {stats.get('accuracy', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(
                 f"  灵敏度 95% CI: {stats.get('sensitivity', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(
+                f"  特异性 95% CI: {stats.get('specificity', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(
+                f"  精确率 95% CI: {stats.get('precision', {}).get('ci_format_str', 'N/A')}\n")
+            f.write(
+                f"  F1分数 95% CI: {stats.get('f1', {}).get('ci_format_str', 'N/A')}\n")
 
         f.write("\n\n三、统计说明\n")
         f.write("-" * 60 + "\n")
@@ -865,9 +908,12 @@ def plot_fold_variability(all_model_fold_results, save_path='./result'):
         if metric not in df.columns:
             continue
         plt.figure(figsize=(8, 5))
-        sns.boxplot(data=df, x='Model', y=metric, color=soft_blue, width=0.6)
-        sns.stripplot(data=df, x='Model', y=metric,
-                      color=soft_red, size=5, alpha=0.6, jitter=True)
+        # sns.boxplot(data=df, x='Model', y=metric, color=soft_blue, width=0.6)
+        # sns.stripplot(data=df, x='Model', y=metric,
+        #               color=soft_red, size=5, alpha=0.6, jitter=True)
+        # Use simple pandas boxplot to avoid seaborn issues with newer pandas
+        df.boxplot(column=metric, by='Model', ax=plt.gca(), patch_artist=True, boxprops=dict(facecolor=soft_blue))
+        
         plt.ylabel(metric.upper() if metric !=
                    'mcc' else 'MCC', fontsize=AXIS_LABEL_SIZE)
         plt.xlabel('Model', fontsize=AXIS_LABEL_SIZE)
@@ -885,3 +931,61 @@ def plot_fold_variability(all_model_fold_results, save_path='./result'):
         plt.savefig(out, dpi=300, bbox_inches='tight')
         plt.close()
     return True
+
+def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result', method_name="Aggregated_MultiModal"):
+    """
+    绘制聚合的混淆矩阵和ROC曲线
+    """
+    # 确保输入是numpy数组
+    y_true = np.concatenate(all_y_true)
+    probs = np.concatenate(all_probs)
+    preds = np.concatenate(all_preds)
+    
+    # 计算AUC
+    try:
+        auc = roc_auc_score(y_true, probs)
+        # Bootstrap CI for AUC
+        rng = np.random.RandomState(42)
+        indices = np.arange(len(y_true))
+        auc_values = []
+        for _ in range(1000):
+            sample_idx = rng.choice(indices, size=len(indices), replace=True)
+            if len(np.unique(y_true[sample_idx])) < 2:
+                continue
+            try:
+                auc_values.append(roc_auc_score(y_true[sample_idx], probs[sample_idx]))
+            except:
+                pass
+        if auc_values:
+            auc_ci = (np.percentile(auc_values, 2.5), np.percentile(auc_values, 97.5))
+        else:
+            auc_ci = (auc, auc)
+    except:
+        auc = 0.5
+        auc_ci = (0.5, 0.5)
+
+    # 1. 混淆矩阵
+    cm = confusion_matrix(y_true, preds)
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False)
+    plt.title(f'{method_name} Confusion Matrix')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    plt.savefig(f'{save_path}/{method_name}_confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # 2. ROC曲线
+    fpr, tpr, _ = roc_curve(y_true, probs)
+    plt.figure(figsize=(6, 6))
+    plt.plot(fpr, tpr, label=f'{method_name} (AUC = {auc:.2f} [{auc_ci[0]:.2f}-{auc_ci[1]:.2f}])', linewidth=2)
+    plt.plot([0, 1], [0, 1], 'k--', linewidth=1)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'{method_name} ROC Curve')
+    plt.legend(loc="lower right")
+    plt.savefig(f'{save_path}/{method_name}_roc_curve.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"聚合ROC和混淆矩阵已保存至 {save_path}")

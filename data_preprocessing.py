@@ -391,7 +391,12 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
         f"all_patients_normal_array shape: {all_patients_normal_array.shape}")
 
     # 调用FTIR绘图函数 - 确保输入的是 (467, n) 形状的数组
-
+    # plot_spectrum_with_marked_peaks(
+    #     x=x_ftir,
+    #     spectrum_1=all_patients_normal_array.T,  # (467, 11) - 良性样本
+    #     spectrum_2=all_patients_cancer_array.T,  # (467, 11) - 恶性样本
+    #     save_path=save_path
+    # )
     # 堆叠所有患者的数据
     train_ftir = np.vstack(train_ftir)  # (8*96, 467) = (768, 467)
     train_mz = np.vstack(train_mz)  # (768, 2838)
@@ -403,56 +408,8 @@ def preprocess_data(ftir_file_path, mz_file_path1, mz_file_path2, train_folder, 
     test_patient_ids = np.hstack(test_patient_ids)  # (288,)
 
     # 对MZ数据进行特征选择
-    if mz_feature_selection_method == 'SelectKBest' and mz_num_features is not None:
-        print(f"Applying SelectKBest to MZ data with {mz_num_features} features.")
-        # 合并训练和测试MZ数据进行特征选择
-        all_mz_data = np.vstack((train_mz, test_mz))
-        all_labels = np.hstack((train_labels, test_labels)) # SelectKBest 需要标签
-
-        selector = SelectKBest(f_classif, k=mz_num_features)
-        all_mz_data_selected = selector.fit_transform(all_mz_data, all_labels)
-
-        # 分割回训练和测试集
-        train_mz = all_mz_data_selected[:train_mz.shape[0]]
-        test_mz = all_mz_data_selected[train_mz.shape[0]:]
-
-        print(f"MZ data after SelectKBest - train_mz shape: {train_mz.shape}, test_mz shape: {test_mz.shape}")
-
-    # 对MZ数据进行PCA降维
-    if mz_pca_components is not None and mz_pca_components > 0:
-        print(f"Applying PCA to MZ data with {mz_pca_components} components.")
-        # 合并训练和测试MZ数据进行标准化和PCA，以确保一致性
-        all_mz_data = np.vstack((train_mz, test_mz))
-        
-        scaler = StandardScaler()
-        all_mz_data_scaled = scaler.fit_transform(all_mz_data)
-        
-        pca = PCA(n_components=mz_pca_components)
-        all_mz_data_pca = pca.fit_transform(all_mz_data_scaled)
-        
-        # 分割回训练和测试集
-        train_mz = all_mz_data_pca[:train_mz.shape[0]]
-        test_mz = all_mz_data_pca[train_mz.shape[0]:]
-        
-        print(f"MZ data after PCA - train_mz shape: {train_mz.shape}, test_mz shape: {test_mz.shape}")
-
-    """
-    # FTIR train raw 的 PCA 图
-    pca = PCA(n_components=2)
-    ftir_pca = pca.fit_transform(ftir_train_raw)
-    colors = ['#0072B2', '#D55E00']  # 蓝色和橙色，类似常见论文配色
-    # 绘制散点图并设置透明度
-    plt.scatter(ftir_pca[y_train == 0, 0], ftir_pca[y_train == 0, 1],
-                label='Normal', c=colors[0], alpha=0.6)
-    plt.scatter(ftir_pca[y_train == 1, 0], ftir_pca[y_train == 1, 1],
-                label='Cancer', c=colors[1], alpha=0.6)
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
-    plt.legend()
-    plt.title("FTIR Data Distribution")
-    plt.savefig('FTIR_Data_Distribution.png')
-    plt.close()
-    """
+    # Feature selection logic moved to main.py to avoid data leakage in Cross-Validation
+    
     return train_ftir, train_mz, train_labels, train_patient_ids, \
         test_ftir, test_mz, test_labels, test_patient_ids, \
         x_ftir, common_mz

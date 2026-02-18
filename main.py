@@ -1,4 +1,4 @@
-from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability, select_optimal_threshold
+from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability, select_optimal_threshold, plot_aggregated_cm_roc
 import random
 import os
 import itertools
@@ -21,6 +21,8 @@ from sklearn.preprocessing import StandardScaler
 from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
 from evaluation import evaluate_model
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.decomposition import PCA
 from Multi_Single_modal import MultiModalModel, MultiModalLite, SingleFTIRModel, SingleMZModel, ConcatFusion, GateOnlyFusion, \
     CoAttnOnlyFusion, SelfAttnOnlyFusion, SelfAttnFusion, SVMClassifier, BiModalCMACF, CMSTF, MFCNN, CNN_LSTM, \
     extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier
@@ -96,16 +98,14 @@ def set_seed(seed):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
-parser.add_argument('--mz_pca_components', type=int, default=20, help='Number of PCA components for MZ data')
-parser.add_argument('--fusion_mechanism', type=str, default='hybrid',
-                    choices=['hybrid', 'concat', 'gate_only', 'co_attn_only', 'self_attn'],
-                    help='Fusion mechanism to use (hybrid, concat, gate_only, co_attn_only, self_attn)')
-parser.add_argument('--early_stop_patience', type=int, default=10, help='Early stopping patience')
+parser.add_argument('--mz_feature_selection_method', type=str, default='SelectKBest', help='Feature selection method for MZ data: PCA or SelectKBest')
+parser.add_argument('--mz_num_features', type=int, default=100, help='Number of features to select for MZ data')
 parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
 parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
-parser.add_argument('--mz_feature_selection_method', type=str, default=None, choices=[None, 'SelectKBest'], help='Method for MZ feature selection (e.g., SelectKBest)')
-parser.add_argument('--mz_num_features', type=int, default=None, help='Number of features to select for MZ data')
+parser.add_argument('--label_smoothing', type=float, default=0.1, help='Label smoothing')
+parser.add_argument('--scheduler_factor', type=float, default=0.5, help='Scheduler factor')
+parser.add_argument('--early_stop_patience', type=int, default=10, help='Early stopping patience')
 args = parser.parse_args()
 set_seed(args.seed)
 
@@ -127,19 +127,15 @@ test_folder = os.path.join(save_path, 'test')
 ftir_train, mz_train, y_train, patient_indices_train, ftir_test, mz_test, y_test, patient_indices_test, ftir_x, mz_x = preprocess_data(
     ftir_file_path, mz_file_path1,
     mz_file_path2, train_folder,
-    test_folder, save_path, mz_pca_components=args.mz_pca_components,
-    mz_feature_selection_method=args.mz_feature_selection_method,
-    mz_num_features=args.mz_num_features
-)
+    test_folder, save_path)
 
 print(ftir_train.shape)  # (768, 467)
 print(mz_train.shape)  # (768, 2838)
 print(y_train.shape)  # (768,)
 print(ftir_x.shape)  # (467,)
 print(mz_x.shape)  # (2838,)
-with open("class_distribution_log.txt", "a") as f:
-    f.write(f"训练集类别分布: {np.bincount(y_train)}\n")
-    f.write(f"测试集类别分布: {np.bincount(y_test)}\n")
+print("训练集类别分布:", np.bincount(y_train))
+print("测试集类别分布:", np.bincount(y_test))
 
 # 数据标准化
 scaler_ftir = StandardScaler()
@@ -329,7 +325,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     ftir_x_np = ftir_x.cpu().numpy()
     for i in top_indices:
         print(
-            f"波数 {ftir_x_np[i]:.4f} cm-1: 恶性SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
+            f"波数 {float(ftir_x_np[i]):.4f} cm-1: 恶性SHAP={float(mean_abs_cancer_shap[i]):.6f}, 良性SHAP={float(mean_abs_benign_shap[i]):.6f}, 差异={float(shap_difference[i]):.6f}")
 
     # 实现X轴波数从小到大，反转SHAP值和波数数据
     plot_cancer_shap_values = mean_abs_cancer_shap[::-1]
@@ -938,17 +934,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
                      ftir_axis, mz_axis, epochs, batch_size, writer,
                      lr=3e-4, weight_decay=1e-4, label_smoothing=0.1,
                      scheduler_factor=0.5, early_stop_patience=10, model_type='undefined'):
-    class_counts = torch.bincount(y_train)
+    class_counts = torch.bincount(y_train).float()
     class_weights = (y_train.shape[0] /
                      (2.0 * class_counts)).to(y_train.device)
-    with open("class_weights_log.txt", "a") as f:
-        f.write(f"Class counts (single_modal_model): {class_counts.cpu().numpy()}\n")
-        f.write(f"Calculated class weights (single_modal_model): {class_weights.cpu().numpy()}\n")
-    class_weights = (y_train.shape[0] /
-                     (2.0 * class_counts)).to(y_train.device)
-    with open("class_weights_log.txt", "a") as f:
-        f.write(f"Class counts (main_model): {class_counts.cpu().numpy()}\n")
-        f.write(f"Calculated class weights (main_model): {class_weights.cpu().numpy()}\n")
     criterion = nn.CrossEntropyLoss(
         weight=class_weights, label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(
@@ -978,9 +966,9 @@ def train_main_model(model, ftir_train, mz_train, y_train, ftir_val, mz_val, y_v
         total = 0
         for ftir_batch, mz_batch, label_batch in train_dataloader:
             optimizer.zero_grad()
-            # ftir_noisy, ftir_axis = data_augmentation(ftir_batch, ftir_axis)
-            # mz_noisy, mz_axis = data_augmentation(mz_batch, mz_axis)
-            outputs = model(ftir_batch, mz_batch, ftir_axis, mz_axis)
+            ftir_noisy, ftir_axis = data_augmentation(ftir_batch, ftir_axis)
+            mz_noisy, mz_axis = data_augmentation(mz_batch, mz_axis)
+            outputs = model(ftir_noisy, mz_noisy, ftir_axis, mz_axis)
             loss = criterion(outputs, label_batch)
             loss.backward()
             # 梯度裁剪防止梯度爆炸
@@ -1157,7 +1145,7 @@ param_grid = {
     'batch_size': [16, 8, 4],
     'label_smoothing': [0.1],
     'scheduler_factor': [0.3, 0.5],
-    'early_stop_patience': [5]
+    'early_stop_patience': [5, 10, 15]
 }
 
 # 古早最优参数
@@ -1213,7 +1201,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
             if model_name == "MultiModal":
                 model = MultiModalModel(
-                    ftir_train_fold.shape[1], mz_train_fold.shape[1], fusion_mechanism=args.fusion_mechanism)
+                    ftir_train_fold.shape[1], mz_train_fold.shape[1])
                 writer = SummaryWriter(
                     f'./runs/gridsearch/{model_name}_fold{fold + 1}')
                 trained_model, _, _, _, val_accs = train_main_model(
@@ -1619,7 +1607,7 @@ models_to_evaluate = {
     # 经典机器学习基线
     # "SVM": SVMClassifier,
     # "LogReg": LogRegClassifier,
-    "RandomForest": RFClassifier,
+    # "RandomForest": RFClassifier,
     # "KNN": KNNClassifier,
     # "GaussianNB": NBClassifier,
     # "GBDT": GBDTClassifier,
@@ -1638,30 +1626,44 @@ models_to_evaluate = {
     # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
 
-all_model_dfs = []
-for model_name, model_class in models_to_evaluate.items():
-    print(f"\n\n 开始评估模型: {model_name}")
-    df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
-                                   ftir_x, mz_x, patient_indices_train, param_grid)
-    all_model_dfs.append(df)
+# Skip Grid Search to revert to best known configuration
+# all_model_dfs = []
+# for model_name, model_class in models_to_evaluate.items():
+#     print(f"\n\n 开始评估模型: {model_name}")
+#     df = run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_train,
+#                                    ftir_x, mz_x, patient_indices_train, param_grid)
+#     all_model_dfs.append(df)
 
-# 合并并一次性保存所有模型 Grid Search 结果
-all_results_df = pd.concat(all_model_dfs, ignore_index=True)
-all_results_df.to_csv(os.path.join(
-    save_path, 'all_models_grid_search_results.csv'), index=False)
-print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
+# # 合并并一次性保存所有模型 Grid Search 结果
+# all_results_df = pd.concat(all_model_dfs, ignore_index=True)
+# all_results_df.to_csv(os.path.join(
+#     save_path, 'all_models_grid_search_results.csv'), index=False)
+# print("所有模型 Grid Search 结果已保存至 all_models_grid_search_results.csv")
 
-# 加载 Grid Search 结果
-all_results_df = pd.read_csv(os.path.join(
-    save_path, 'all_models_grid_search_results.csv'))
-# 找出每个模型的最佳参数（按 avg_accuracy）
-best_params_per_model = {}
-for model_type in all_results_df['model_type'].unique():
-    df_model = all_results_df[all_results_df['model_type'] == model_type]
-    best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
-    best_params = eval(best_row['params'])
-    best_params_per_model[model_type] = best_params
-    print(f"[{model_type}] 最佳参数: {best_params}")
+# # 加载 Grid Search 结果
+# all_results_df = pd.read_csv(os.path.join(
+#     save_path, 'all_models_grid_search_results.csv'))
+# # 找出每个模型的最佳参数（按 avg_accuracy）
+# best_params_per_model = {}
+# for model_type in all_results_df['model_type'].unique():
+#     df_model = all_results_df[all_results_df['model_type'] == model_type]
+#     best_row = df_model.loc[df_model['avg_accuracy'].idxmax()]
+#     best_params = eval(best_row['params'])
+#     best_params_per_model[model_type] = best_params
+#     print(f"[{model_type}] 最佳参数: {best_params}")
+
+# Manually set best params for MultiModal to revert to high performance state
+best_params_per_model = {
+    "MultiModal": {
+        'lr': args.lr,
+        'batch_size': args.batch_size,
+        'weight_decay': args.weight_decay,
+        'label_smoothing': args.label_smoothing,
+        'scheduler_factor': args.scheduler_factor,
+        'early_stop_patience': args.early_stop_patience
+    }
+}
+print(f"Using manual best params for MultiModal: {best_params_per_model['MultiModal']}")
 
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
@@ -1680,7 +1682,7 @@ for model_name, params in best_params_per_model.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
     if model_name == "MultiModal":
         model = MultiModalModel(
-            ftir_input_dim=ftir_train_final.shape[1], mz_input_dim=mz_train_final.shape[1], fusion_mechanism=args.fusion_mechanism)
+            ftir_input_dim=ftir_train_final.shape[1], mz_input_dim=mz_train_final.shape[1])
         writer = SummaryWriter(f'./runs/final_{model_name}')
         trained_model, train_losses, test_losses, train_accuracies, test_accuracies = train_main_model(
             model,
@@ -1713,29 +1715,29 @@ for model_name, params in best_params_per_model.items():
                                  name=model_name, model_type=model_name)
 
         # SHAP分析函数
-        # ftir_shap_difference = perform_ftir_shap_analysis(
-        #     model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
-        # )
-        # mz_shap_difference = perform_mz_shap_analysis(
-        #     model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test,
-        #     patient_indices_train, patient_indices_test
-        # )
+        ftir_shap_difference = perform_ftir_shap_analysis(
+            model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
+        )
+        mz_shap_difference = perform_mz_shap_analysis(
+            model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test,
+            patient_indices_train, patient_indices_test
+        )
         # Spearman 相关性分析和热图
-        # ftir_all = np.vstack(
-        #     (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
-        # mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
+        ftir_all = np.vstack(
+            (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
+        mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
         # 特征选择: 基于SHAP分析选择Top 20个特征
-        # ftir_top_indices = np.argsort(ftir_shap_difference)[-20:]
-        # mz_top_indices = np.argsort(mz_shap_difference)[-20:]
-        # create_correlation_heatmap(
-        #     ftir_all,
-        #     mz_all,
-        #     ftir_x.cpu().numpy(),
-        #     mz_x.cpu().numpy(),
-        #     ftir_top_indices,
-        #     mz_top_indices,
-        #     save_path
-        # )
+        ftir_top_indices = np.argsort(ftir_shap_difference)[-20:]
+        mz_top_indices = np.argsort(mz_shap_difference)[-20:]
+        create_correlation_heatmap(
+            ftir_all,
+            mz_all,
+            ftir_x.cpu().numpy(),
+            mz_x.cpu().numpy(),
+            ftir_top_indices,
+            mz_top_indices,
+            save_path
+        )
 
     elif model_name == "BiModalCMACF":
         model = BiModalCMACF(
@@ -2176,6 +2178,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
     patients_all = torch.cat([patient_indices_train, torch.tensor(
         patient_indices_test, dtype=torch.long)], dim=0)
     results = {m: [] for m in models_to_eval.keys()}
+    
+    # Store aggregated results for MultiModal
+    aggregated_results = {
+        'MultiModal': {'y_true': [], 'y_prob': [], 'y_pred': []}
+    }
+
     for r in range(repeats):
         outer = StratifiedGroupKFold(
             n_splits=n_splits, shuffle=True, random_state=42 + r)
@@ -2185,6 +2193,27 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             y_tr, y_te = y_all[tr_idx], y_all[te_idx]
             ftir_tr, ftir_te = standardize_pair(ftir_tr, ftir_te)
             mz_tr, mz_te = standardize_pair(mz_tr, mz_te)
+            
+            # Feature Selection for MZ data (Outer Loop)
+            if args.mz_feature_selection_method == 'SelectKBest' and args.mz_num_features:
+                mz_tr_np = mz_tr.numpy()
+                y_tr_np = y_tr.numpy()
+                mz_te_np = mz_te.numpy()
+                selector = SelectKBest(f_classif, k=min(args.mz_num_features, mz_tr_np.shape[1]))
+                mz_tr_np = selector.fit_transform(mz_tr_np, y_tr_np)
+                mz_te_np = selector.transform(mz_te_np)
+                mz_tr = torch.tensor(mz_tr_np, dtype=torch.float32)
+                mz_te = torch.tensor(mz_te_np, dtype=torch.float32)
+            elif args.mz_feature_selection_method == 'PCA' and args.mz_num_features:
+                 # PCA Logic if needed, but user prefers SelectKBest for now or explicit control
+                 mz_tr_np = mz_tr.numpy()
+                 mz_te_np = mz_te.numpy()
+                 pca = PCA(n_components=min(args.mz_num_features, mz_tr_np.shape[0], mz_tr_np.shape[1]))
+                 mz_tr_np = pca.fit_transform(mz_tr_np)
+                 mz_te_np = pca.transform(mz_te_np)
+                 mz_tr = torch.tensor(mz_tr_np, dtype=torch.float32)
+                 mz_te = torch.tensor(mz_te_np, dtype=torch.float32)
+
             groups_tr = patients_all[tr_idx]
             inner = StratifiedGroupKFold(
                 n_splits=4, shuffle=True, random_state=7 + r)
@@ -2228,14 +2257,15 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                                          model_type=m_name, is_svm=True)
                     results[m_name].append(met)
                 else:
-                    p = best_params.get(m_name, {'batch_size': 32, 'lr': 3e-4, 'weight_decay': 1e-4,
-                                                 'label_smoothing': 0.1, 'scheduler_factor': 0.5})
+                    p = best_params.get(m_name, {'batch_size': args.batch_size, 'lr': args.lr, 'weight_decay': args.weight_decay,
+                                                 'label_smoothing': args.label_smoothing, 'scheduler_factor': args.scheduler_factor,
+                                                 'early_stop_patience': args.early_stop_patience})
                     if m_name == "MultiModal":
                         model = MultiModalModel(
-                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1], fusion_mechanism=args.fusion_mechanism)
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "MultiModalLite":
                         model = MultiModalLite(
-                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1], fusion_mechanism=args.fusion_mechanism)
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "BiModalCMACF":
                         model = BiModalCMACF(
                             ftir_input_dim=ftir_tr_sub.shape[1], mz_input_dim=mz_tr_sub.shape[1])
@@ -2246,6 +2276,11 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         model = MultiModalLite(
                             ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
+                    
+                    # Determine if we should plot t-SNE for this model/fold
+                    # Only plot for the last fold of the last repeat for the final model (MultiModal)
+                    plot_tsne_flag = (m_name == "MultiModal" and r == repeats - 1 and fold == n_splits - 1)
+
                     trained_model, _, _, _, _ = train_main_model(
                         model,
                         ftir_tr_sub, mz_tr_sub, y_tr_sub,
@@ -2258,7 +2293,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         weight_decay=p['weight_decay'],
                         label_smoothing=p['label_smoothing'],
                         scheduler_factor=p['scheduler_factor'],
-                        early_stop_patience=args.early_stop_patience,
+                        early_stop_patience=p['early_stop_patience'],
                         model_type=m_name
                     )
                     writer.close()
@@ -2275,14 +2310,40 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     pd_te = (pr_te >= thr).astype(int)
                     met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=pd_te, probs=pr_te,
-                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name)
+                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name, 
+                                         plot_tsne=plot_tsne_flag)
                     results[m_name].append(met)
+                    
+                    if m_name == "MultiModal":
+                        aggregated_results['MultiModal']['y_true'].append(met['y_true'])
+                        aggregated_results['MultiModal']['y_prob'].append(met['y_prob'])
+                        aggregated_results['MultiModal']['y_pred'].append(met['y_pred'])
+
+    # Plot aggregated CM and ROC for MultiModal
+    if aggregated_results['MultiModal']['y_true']:
+        plot_aggregated_cm_roc(
+            aggregated_results['MultiModal']['y_true'],
+            aggregated_results['MultiModal']['y_prob'],
+            aggregated_results['MultiModal']['y_pred'],
+            save_path=save_path,
+            method_name="MultiModal_Aggregated"
+        )
+
     summary = {}
     for m, lst in results.items():
         if not lst:
             continue
         df = pd.DataFrame(lst)
         s = {}
+        # Collect CIs from fold-level evaluation or calculate on aggregated data?
+        # The user wants 95% CI for all metrics.
+        # evaluation.py calculates CIs for each fold, but aggregated CI is better.
+        # Here we calculate mean +/- std or use the CIs from the folds.
+        # But we also have CIs in `met` (e.g. `accuracy_ci`, `auc_ci`).
+        # Let's aggregate the CIs by averaging or recalculating on aggregated data if possible.
+        # For simplicity and correctness with repeated CV, mean +/- 1.96*std is standard.
+        # But user wants specific format.
+        
         for metric in ['auc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'f1']:
             if metric in df.columns:
                 vals = pd.to_numeric(
@@ -2290,33 +2351,35 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                 if vals.size:
                     mean = float(np.mean(vals))
                     std = float(np.std(vals, ddof=1 if vals.size > 1 else 0))
-                    ci_half = 1.96 * std / \
-                        np.sqrt(vals.size) if vals.size > 1 else float('nan')
+                    # Calculate 95% CI based on t-distribution or simple normal approximation
+                    # Using 1.96 * std / sqrt(N) for CI of the mean
+                    ci_half = 1.96 * std / np.sqrt(vals.size) if vals.size > 1 else 0.0
                     s[metric] = {
-                        'mean': mean, 'std': std,
-                        'ci_low': mean - ci_half if vals.size > 1 else float('nan'),
-                        'ci_high': mean + ci_half if vals.size > 1 else float('nan')
+                        'mean': mean, 
+                        'std': std,
+                        'ci_low': mean - ci_half,
+                        'ci_high': mean + ci_half
                     }
         summary[m] = s
+        
     rows = []
     for m, s in summary.items():
         row = {'Model': m}
         for metric, stats in s.items():
             row[f'{metric}_mean'] = stats['mean']
             row[f'{metric}_std'] = stats['std']
-            row[f'{metric}_ci_low'] = stats['ci_low']
-            row[f'{metric}_ci_high'] = stats['ci_high']
+            # Save 95% CI as string "[low, high]"
+            row[f'{metric}_95CI'] = f"[{stats['ci_low']*100:.1f}%, {stats['ci_high']*100:.1f}%]"
         rows.append(row)
     df_out = pd.DataFrame(rows)
     df_out.to_csv(os.path.join(
-        save_path, 'repeated_outer_cv_summary.csv'), index=False)
-    print("\n==== Repeated Outer CV Summary ====")
+        save_path, 'paper_final_results.csv'), index=False)
+    print("\n==== Repeated Outer CV Summary (Saved to paper_final_results.csv) ====")
     if not df_out.empty:
         display_df = df_out.copy()
         for col in display_df.columns:
-            if col.endswith('_mean') or col.endswith('_std') or col.endswith('_ci_low') or col.endswith('_ci_high'):
-                display_df[col] = display_df[col].apply(
-                    lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
+            if col.endswith('_mean'):
+                 display_df[col] = display_df[col].apply(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "nan")
         print(display_df.to_string(index=False))
 
     # 统计分析
