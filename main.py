@@ -1585,7 +1585,7 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    "MultiModal": MultiModalModel,
+    # "MultiModal": MultiModalModel,
     # 经典机器学习基线
     "SVM": SVMClassifier,
     "LogReg": LogRegClassifier,
@@ -1645,12 +1645,12 @@ for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFus
     best_params_per_model[m] = base_params.copy()
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
-best_params_per_model["SVM"] = {'C': 0.1, 'kernel': 'rbf', 'probability': True, 'random_state': 42}
-best_params_per_model["LogReg"] = {'C': 0.01, 'solver': 'lbfgs', 'max_iter': 1000, 'random_state': 42}
-best_params_per_model["RandomForest"] = {'n_estimators': 20, 'max_depth': 4, 'min_samples_split': 2, 'random_state': 42}
-best_params_per_model["KNN"] = {'n_neighbors': 20, 'weights': 'uniform', 'algorithm': 'auto'}
-best_params_per_model["GBDT"] = {'n_estimators': 20, 'learning_rate': 0.05, 'max_depth': 2, 'min_samples_split': 2, 'subsample': 1.0, 'max_features': 'sqrt', 'random_state': 42}
-best_params_per_model["GaussianNB"] = {'var_smoothing': 1e-9}
+best_params_per_model["SVM"] = {'C': 10.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': True, 'random_state': 42}
+best_params_per_model["LogReg"] = {'C': 1000.0, 'solver': 'lbfgs', 'max_iter': 1000, 'random_state': 42}
+best_params_per_model["RandomForest"] = {'n_estimators': 10, 'max_depth': 2, 'min_samples_split': 5, 'random_state': 42}
+best_params_per_model["KNN"] = {'n_neighbors': 13, 'weights': 'uniform', 'algorithm': 'auto'}
+best_params_per_model["GBDT"] = {'n_estimators': 3, 'learning_rate': 0.01, 'max_depth': 1, 'min_samples_split': 2, 'subsample': 0.5, 'max_features': 'sqrt', 'random_state': 42}
+best_params_per_model["GaussianNB"] = {'var_smoothing': 1e-1}
 
 # 最后，使用最佳参数重新训练并在测试集上评估
 final_test_results = []
@@ -2242,17 +2242,33 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     if m_name == "SVM":
                         clf = SVMClassifier(kernel=p.get('kernel', 'rbf'), C=p.get('C', 0.1))
                     elif m_name == "LogReg":
-                        clf = LogRegClassifier(C=p.get('C', 0.1), max_iter=p.get('max_iter', 100))
+                        clf = LogRegClassifier(C=p.get('C', 0.1), max_iter=p.get('max_iter', 100), solver=p.get('solver', 'lbfgs'))
                     elif m_name == "RandomForest":
-                        clf = RFClassifier(n_estimators=p.get('n_estimators', 50), max_depth=p.get('max_depth', 2))
+                        clf = RFClassifier(
+                            n_estimators=p.get('n_estimators', 50), 
+                            max_depth=p.get('max_depth', 2),
+                            min_samples_split=p.get('min_samples_split', 2),
+                            min_samples_leaf=p.get('min_samples_leaf', 1)
+                        )
                     elif m_name == "KNN":
                         n_samples = len(tr_feat)
                         n_neighbors = min(p.get('n_neighbors', 5), max(1, n_samples - 1))
-                        clf = KNNClassifier(n_neighbors=n_neighbors)
+                        clf = KNNClassifier(
+                            n_neighbors=n_neighbors,
+                            weights=p.get('weights', 'uniform'),
+                            algorithm=p.get('algorithm', 'auto')
+                        )
                     elif m_name == "GaussianNB":
                         clf = NBClassifier(var_smoothing=p.get('var_smoothing', 1e-9))
                     else:
-                        clf = GBDTClassifier(n_estimators=p.get('n_estimators', 100), learning_rate=p.get('learning_rate', 0.1), max_depth=p.get('max_depth', 3))
+                        clf = GBDTClassifier(
+                            n_estimators=p.get('n_estimators', 100), 
+                            learning_rate=p.get('learning_rate', 0.1), 
+                            max_depth=p.get('max_depth', 3),
+                            min_samples_split=p.get('min_samples_split', 2),
+                            subsample=p.get('subsample', 1.0),
+                            max_features=p.get('max_features', None)
+                        )
                     clf.fit(tr_feat, y_tr.numpy())
                     preds = clf.predict(te_feat)
                     probs = clf.predict_proba(te_feat)[:, 1] if hasattr(
