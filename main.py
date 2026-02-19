@@ -1587,25 +1587,25 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 models_to_evaluate = {
     "MultiModal": MultiModalModel,
     # 经典机器学习基线
-    # "SVM": SVMClassifier,
-    # "LogReg": LogRegClassifier,
-    # "RandomForest": RFClassifier,
-    # "KNN": KNNClassifier,
-    # "GaussianNB": NBClassifier,
-    # "GBDT": GBDTClassifier,
+    "SVM": SVMClassifier,
+    "LogReg": LogRegClassifier,
+    "RandomForest": RFClassifier,
+    "KNN": KNNClassifier,
+    "GaussianNB": NBClassifier,
+    "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
     # "MFCNN": MFCNN,
     # "CNN_LSTM": CNN_LSTM,
     # 如需启用其他变体消融实验，取消注释以下条目
-    "FTIROnly": SingleFTIRModel,
-    "MZOnly": SingleMZModel,
-    "ConcatFusion": ConcatFusion,
-    "GateOnlyFusion": GateOnlyFusion,
-    "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    "SelfAttnFusion": SelfAttnFusion,
-    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    # "FTIROnly": SingleFTIRModel,
+    # "MZOnly": SingleMZModel,
+    # "ConcatFusion": ConcatFusion,
+    # "GateOnlyFusion": GateOnlyFusion,
+    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    # "SelfAttnFusion": SelfAttnFusion,
+    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
 
 # all_model_dfs = []
@@ -1637,7 +1637,7 @@ for model_type in all_results_df['model_type'].unique():
 print("Applying optimized parameters for paper submission...")
 
 # MultiModal: Tuned for High Specificity/Precision (96%+), Lower LR, Higher Weight Decay to encourage specificity
-base_params = {'lr': 0.00054, 'weight_decay': 1.1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 50}
+base_params = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
 best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters
