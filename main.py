@@ -1645,8 +1645,8 @@ for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFus
     best_params_per_model[m] = base_params.copy()
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
-best_params_per_model["SVM"] = {'C': 0.00017, 'kernel': 'linear', 'gamma': 'scale', 'probability': True, 'random_state': 42, 'class_weight': {0: 1, 1: 2.0}}
-best_params_per_model["LogReg"] = {'C': 0.008, 'solver': 'sag', 'max_iter': 1, 'random_state': 42, 'class_weight': {0: 1, 1: 2.5}}
+best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale', 'probability': True, 'random_state': 42, 'class_weight': {0: 1, 1: 2.0}}
+best_params_per_model["LogReg"] = {'C': 0.002, 'solver': 'sag', 'max_iter': 1, 'random_state': 42, 'class_weight': {0: 4, 1: 1}}
 best_params_per_model["RandomForest"] = {'n_estimators': 10, 'max_depth': 2, 'min_samples_split': 5, 'random_state': 42}
 best_params_per_model["KNN"] = {'n_neighbors': 13, 'weights': 'uniform', 'algorithm': 'auto'}
 best_params_per_model["GBDT"] = {'n_estimators': 3, 'learning_rate': 0.01, 'max_depth': 1, 'min_samples_split': 2, 'subsample': 0.5, 'max_features': 'sqrt', 'random_state': 42}
