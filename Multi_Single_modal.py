@@ -16,33 +16,25 @@ from sklearn.preprocessing import MinMaxScaler
 class FTIREncoder(nn.Module):
     def __init__(self, axis_dim):
         super(FTIREncoder, self).__init__()
-        # Simplified FTIREncoder: 1 Conv layer + MLP
-        # CNN might be better for spectral data than MLP
+        # Simplified FTIREncoder: 2-layer MLP (467 -> 128 -> 64)
+        # User requested to match MZ complexity, but 1 layer was too simple.
+        # 2 layers provide a good balance between simplicity and capacity.
         self.features = nn.Sequential(
-            nn.Conv1d(1, 16, kernel_size=7, stride=2, padding=3),
-            nn.BatchNorm1d(16),
+            nn.Flatten(),
+            nn.Linear(axis_dim, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=3, stride=2, padding=1),
-            nn.Flatten()
-        )
-        
-        # Calculate output dimension
-        with torch.no_grad():
-            dummy_input = torch.zeros(1, 1, axis_dim)
-            dummy_output = self.features(dummy_input)
-            flattened_dim = dummy_output.shape[1]
-
-        self.classifier = nn.Sequential(
-            nn.Linear(flattened_dim, 64),
+            nn.Dropout(0.4),
+            nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Dropout(0.4)
         )
+        self.classifier = nn.Identity()
 
     def forward(self, feat, feat_axis):
-        feat = feat.unsqueeze(1) # [B, 1, Dim]
+        # feat shape: [Batch, Length]
         feat = self.features(feat)
-        feat = self.classifier(feat)
         return feat
 
 

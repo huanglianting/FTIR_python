@@ -316,13 +316,6 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     # cancer_shap_values 的形状 (n_cancer_samples, n_features)
     cancer_shap_values = explainer.shap_values(test_samples_cancer_ftir)
     benign_shap_values = explainer.shap_values(test_samples_benign_ftir)
-
-    if isinstance(cancer_shap_values, list):
-        print(f"FTIR SHAP values is list of length {len(cancer_shap_values)}")
-        # 因为模型输出是(N, 1)，SHAP返回列表长度为1，对应这个唯一的输出
-        cancer_shap_values = cancer_shap_values[0]
-        benign_shap_values = benign_shap_values[0]
-
     # 取 SHAP 值的平均绝对值
     mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
     mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
@@ -333,9 +326,14 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
     ftir_x_np = ftir_x.cpu().numpy()
     for i in top_indices:
+        # 使用 .item() 将单元素 ndarray 转换为 Python 标量
+        wavenumber = ftir_x_np[i].item()
+        malignant_shap = mean_abs_cancer_shap[i].item()
+        benign_shap = mean_abs_benign_shap[i].item()
+        diff_shap = shap_difference[i].item()
         print(
-            f"波数 {float(ftir_x_np[i]):.4f} cm-1: 恶性SHAP={float(mean_abs_cancer_shap[i]):.6f}, 良性SHAP={float(mean_abs_benign_shap[i]):.6f}, 差异={float(shap_difference[i]):.6f}")
-
+            f"波数 {wavenumber:.4f} cm-1: 恶性SHAP={malignant_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_shap:.6f}")
+    
     # 实现X轴波数从小到大，反转SHAP值和波数数据
     plot_cancer_shap_values = mean_abs_cancer_shap[::-1]
     plot_benign_shap_values = mean_abs_benign_shap[::-1]
@@ -596,23 +594,9 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     cancer_shap_values = explainer.shap_values(test_samples_cancer_mz)
     benign_shap_values = explainer.shap_values(test_samples_benign_mz)
 
-    if isinstance(cancer_shap_values, list):
-        print(f"MZ SHAP values is list of length {len(cancer_shap_values)}")
-        cancer_shap_values = cancer_shap_values[0]
-        benign_shap_values = benign_shap_values[0]
-
-    print(f"cancer_shap_values shape before mean: {cancer_shap_values.shape}")
-    
     # 取 SHAP 值的平均绝对值
     mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
     mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
-    
-    if mean_abs_cancer_shap.ndim > 1:
-        mean_abs_cancer_shap = mean_abs_cancer_shap.squeeze()
-    if mean_abs_benign_shap.ndim > 1:
-        mean_abs_benign_shap = mean_abs_benign_shap.squeeze()
-        
-    print(f"mean_abs_cancer_shap shape after squeeze: {mean_abs_cancer_shap.shape}")
 
     shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
 
@@ -621,9 +605,14 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
     mz_x_np = mz_x.cpu().numpy()
     for i in top_indices:
+       # 使用 .item() 将单元素 ndarray 转换为 Python 标量
+        mz_value = mz_x_np[i].item()
+        cancer_shap = mean_abs_cancer_shap[i].item()
+        benign_shap = mean_abs_benign_shap[i].item()
+        diff_shap = shap_difference[i].item()
         print(
-            f"MZ值 {mz_x_np[i]:.4f}: 癌症SHAP={mean_abs_cancer_shap[i]:.6f}, 良性SHAP={mean_abs_benign_shap[i]:.6f}, 差异={shap_difference[i]:.6f}")
-
+            f"MZ值 {mz_value:.4f}: 癌症SHAP={cancer_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_shap:.6f}")
+    
     # 绘制热力图
     mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
 
@@ -815,10 +804,20 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
 
 # 计算选定的FTIR和MZ特征之间的Spearman相关性并绘制热力图
 def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, mz_indices, save_path):
+    if isinstance(ftir_x, torch.Tensor):
+        ftir_x_np = ftir_x.cpu().numpy()
+    else:
+        ftir_x_np = ftir_x
+        
+    if isinstance(mz_x, torch.Tensor):
+        mz_x_np = mz_x.cpu().numpy()
+    else:
+        mz_x_np = mz_x
+
     selected_ftir_data = ftir_data[:, ftir_indices]
     selected_mz_data = mz_data[:, mz_indices]
-    ftir_labels = [f"{ftir_x[i]:.1f}" for i in ftir_indices]
-    mz_labels = [f"{mz_x[i]:.1f}" for i in mz_indices]
+    ftir_labels = [f"{ftir_x_np[i.item()]:.1f}" for i in ftir_indices]
+    mz_labels = [f"{mz_x_np[i.item()]:.1f}" for i in mz_indices]
 
     # 计算Spearman相关性和p值
     num_ftir_features = len(ftir_indices)
@@ -833,11 +832,11 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
             corr_matrix[i, j] = corr
             pval_matrix[i, j] = pval
 
-    print("\n强相关特征对 (|r| >= 0.5 且 p < 0.01):")
+    print("\n强相关特征对 (|r| >= 0.2 且 p < 0.1):")
     significant_pairs = []
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
-            if abs(corr_matrix[i, j]) >= 0.5 and pval_matrix[i, j] < 0.01:
+            if abs(corr_matrix[i, j]) >= 0.2 and pval_matrix[i, j] < 0.1:
                 pair_info = (
                     f"FTIR: {ftir_labels[i]} cm-1, "
                     f"MZ: {mz_labels[j]}, "
@@ -1168,23 +1167,13 @@ sgkf = StratifiedGroupKFold(n_splits, shuffle=True, random_state=42)
 
 # 超参数（通过网格搜索确定）
 param_grid = {
-    'lr': [1e-4, 2e-4, 3e-4],
-    'weight_decay': [1e-4, 1e-3],
-    'batch_size': [16, 32],
-    'label_smoothing': [0.1],
-    'scheduler_factor': [0.5],
-    'early_stop_patience': [15]
+    'lr': [1e-3],
+    'weight_decay': [1e-5],
+    'batch_size': [8],
+    'label_smoothing': [0.0],
+    'scheduler_factor': [0.8],
+    'early_stop_patience': [50]
 }
-
-# 古早最优参数
-# param_grid = {
-#     'lr': [2e-4, 3e-4],
-#     'weight_decay': [1e-4, 5e-4],
-#     'batch_size': [16, 8, 4],
-#     'label_smoothing': [0.1],
-#     'scheduler_factor': [0.3, 0.5],
-#     'early_stop_patience': [5]
-# }
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
