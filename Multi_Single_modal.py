@@ -331,9 +331,9 @@ class SVMClassifier:
 
 # 逻辑回归
 class LogRegClassifier:
-    def __init__(self, C=1.0, solver='lbfgs', max_iter=1000, random_state=42):
+    def __init__(self, C=1.0, solver='lbfgs', max_iter=1000, random_state=42, class_weight=None):
         self.clf = LogisticRegression(
-            C=C, solver=solver, max_iter=max_iter, random_state=random_state)
+            C=C, solver=solver, max_iter=max_iter, random_state=random_state, class_weight=class_weight)
 
     def fit(self, X, y):
         self.clf.fit(X, y)
