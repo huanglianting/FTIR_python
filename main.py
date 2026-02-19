@@ -832,11 +832,11 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
             corr_matrix[i, j] = corr
             pval_matrix[i, j] = pval
 
-    print("\n强相关特征对 (|r| >= 0.2 且 p < 0.1):")
+    print("\n强相关特征对 (|r| >= 0.1 且 p < 0.1):")
     significant_pairs = []
     for i in range(num_ftir_features):
         for j in range(num_mz_features):
-            if abs(corr_matrix[i, j]) >= 0.2 and pval_matrix[i, j] < 0.1:
+            if abs(corr_matrix[i, j]) >= 0.1 and pval_matrix[i, j] < 0.1:
                 pair_info = (
                     f"FTIR: {ftir_labels[i]} cm-1, "
                     f"MZ: {mz_labels[j]}, "
@@ -1637,7 +1637,7 @@ for model_type in all_results_df['model_type'].unique():
 print("Applying optimized parameters for paper submission...")
 
 # MultiModal: Tuned for High Specificity/Precision (96%+), Lower LR, Higher Weight Decay to encourage specificity
-base_params = {'lr': 0.001, 'weight_decay': 1e-5, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 50}
+base_params = {'lr': 0.0007, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 50}
 best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters

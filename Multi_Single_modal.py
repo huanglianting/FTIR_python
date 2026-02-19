@@ -57,7 +57,7 @@ class MZEncoder(nn.Module):
 
 
 class HybridFusion(nn.Module):
-    def __init__(self, dim=64, num_heads=2):
+    def __init__(self, dim=64, num_heads=4):
         super().__init__()
         # Gate Fusion
         self.projection = nn.Linear(dim * 2, dim) # Add projection layer
@@ -208,12 +208,11 @@ class GateOnlyFusion(nn.Module):
 
 # 消融试验3：只用了MultiheadAttention
 class CoAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=64, num_heads=2):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64):
         super(CoAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.attn = nn.MultiheadAttention(
-            embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=4, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
@@ -237,7 +236,7 @@ class CoAttnOnlyFusion(nn.Module):
 
 # 消融试验4：把 Multi-headAttention 改成 Self-Attention
 class SelfAttnFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=64, num_heads=2):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64):
         super(SelfAttnFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
@@ -249,8 +248,7 @@ class SelfAttnFusion(nn.Module):
         )
         self.gate_bias = nn.Parameter(torch.tensor([0.5, 0.5]))
         # Attention Fusion
-        self.attn = nn.MultiheadAttention(
-            embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=4, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
@@ -285,12 +283,11 @@ class SelfAttnFusion(nn.Module):
 
 # 消融试验5：只用了MultiheadAttention，并且是Self-Attention
 class SelfAttnOnlyFusion(nn.Module):
-    def __init__(self, ftir_input_dim, mz_input_dim, dim=64, num_heads=2):
+    def __init__(self, ftir_input_dim, mz_input_dim, dim=64):
         super(SelfAttnOnlyFusion, self).__init__()
         self.ftir_extractor = FTIREncoder(ftir_input_dim)
         self.mz_extractor = MZEncoder(mz_input_dim)
-        self.attn = nn.MultiheadAttention(
-            embed_dim=dim, num_heads=num_heads, batch_first=True)
+        self.attn = nn.MultiheadAttention(embed_dim=dim, num_heads=4, batch_first=True)
         self.proj = nn.Linear(dim, dim)
         self.norm = nn.LayerNorm(dim)
         self.classifier = nn.Sequential(
