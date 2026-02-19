@@ -98,13 +98,18 @@ def set_seed(seed):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
-parser.add_argument('--mz_pca_components', type=int, default=20, help='Number of PCA components for MZ data')
-parser.add_argument('--early_stop_patience', type=int, default=10, help='Early stopping patience')
+parser.add_argument('--mz_pca_components', type=int, default=20,
+                    help='Number of PCA components for MZ data')
+parser.add_argument('--early_stop_patience', type=int,
+                    default=10, help='Early stopping patience')
 parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
-parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
-parser.add_argument('--mz_feature_selection_method', type=str, default=None, choices=[None, 'SelectKBest'], help='Method for MZ feature selection (e.g., SelectKBest)')
-parser.add_argument('--mz_num_features', type=int, default=None, help='Number of features to select for MZ data')
+parser.add_argument('--weight_decay', type=float,
+                    default=1e-4, help='Weight decay')
+parser.add_argument('--mz_feature_selection_method', type=str, default=None, choices=[
+                    None, 'SelectKBest'], help='Method for MZ feature selection (e.g., SelectKBest)')
+parser.add_argument('--mz_num_features', type=int, default=None,
+                    help='Number of features to select for MZ data')
 args = parser.parse_args()
 set_seed(args.seed)
 
@@ -205,135 +210,176 @@ class EarlyStopping:
 
 # ==================可解释性分析====================================
 # 只对 FTIR 做 Gradient SHAP 分析，生成一维热力图
-def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test):
+def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test, plot=True, precomputed_shap=None, save_dir='./result'):
 
-    model.eval()
+    if precomputed_shap is None:
+        model.eval()
 
-    # 定义 PyTorch 模型包装器，固定 MZ 输入，只让 SHAP 改变 FTIR 输入
-    class ShapModelWrapper(torch.nn.Module):
-        def __init__(self, model, mz_baseline, ftir_x, mz_x):
-            super().__init__()
-            self.model = model
-            self.register_buffer('mz_baseline', mz_baseline)
-            self.register_buffer('ftir_x', ftir_x)
-            self.register_buffer('mz_x', mz_x)
+        # 定义 PyTorch 模型包装器，固定 MZ 输入，只让 SHAP 改变 FTIR 输入
+        class ShapModelWrapper(torch.nn.Module):
+            def __init__(self, model, mz_baseline, ftir_x, mz_x):
+                super().__init__()
+                self.model = model
+                self.register_buffer('mz_baseline', mz_baseline)
+                self.register_buffer('ftir_x', ftir_x)
+                self.register_buffer('mz_x', mz_x)
 
-        def forward(self, ftir_data):
-            # SHAP 会传入一个需要计算梯度的张量
-            current_mz_baseline = self.mz_baseline.expand(
-                ftir_data.shape[0], -1)
-            ftir_axis = self.ftir_x.repeat(ftir_data.shape[0], 1)
-            current_mz_axis = self.mz_x.repeat(ftir_data.shape[0], 1)
-            outputs = self.model(
-                ftir_data, current_mz_baseline, ftir_axis, current_mz_axis)
-            # 返回类别1的概率，并确保输出是 (n, 1) 的二维张量
-            return torch.softmax(outputs, dim=1)[:, 1].unsqueeze(-1)
+            def forward(self, ftir_data):
+                # SHAP 会传入一个需要计算梯度的张量
+                current_mz_baseline = self.mz_baseline.expand(
+                    ftir_data.shape[0], -1)
+                ftir_axis = self.ftir_x.repeat(ftir_data.shape[0], 1)
+                current_mz_axis = self.mz_x.repeat(ftir_data.shape[0], 1)
+                outputs = self.model(
+                    ftir_data, current_mz_baseline, ftir_axis, current_mz_axis)
+                # 返回类别1的概率，并确保输出是 (n, 1) 的二维张量
+                return torch.softmax(outputs, dim=1)[:, 1].unsqueeze(-1)
 
-    # 准备背景数据（训练集）和测试样本（测试集）
-    y_train_np = y_train.cpu().numpy() if isinstance(
-        y_train, torch.Tensor) else y_train
-    patient_indices_train_np = patient_indices_train.cpu().numpy() if isinstance(
-        patient_indices_train, torch.Tensor) else patient_indices_train
-    # 为每个类别选择代表性样本
-    cancer_indices = np.where(y_train_np == 1)[0]
-    benign_indices = np.where(y_train_np == 0)[0]
-    selected_background_indices = []
-    selected_patients = set()
-    unique_train_patients = np.unique(patient_indices_train_np)
-    # 遍历患者，为每个患者选择一个癌症和一个良性样本
-    for patient in unique_train_patients:
-        if len(selected_patients) >= 3:  # 最多选择3个患者
-            break
-        patient_samples_indices = np.where(
-            patient_indices_train_np == patient)[0]
-        cancer_samples_from_patient = np.intersect1d(
-            patient_samples_indices, cancer_indices)
-        benign_samples_from_patient = np.intersect1d(
-            patient_samples_indices, benign_indices)
-        if len(cancer_samples_from_patient) > 0:
-            selected_background_indices.append(cancer_samples_from_patient[0])
-        if len(benign_samples_from_patient) > 0:
-            selected_background_indices.append(benign_samples_from_patient[0])
-        selected_patients.add(patient)
-    selected_background_indices = list(np.unique(selected_background_indices))[
-        :10]  # 最多选择10个样本
-    background_ftir = ftir_train[selected_background_indices]
-    print(f"SHAP背景数据选择了{len(selected_background_indices)}个训练样本:")
-    print(f"对应患者: {patient_indices_train_np[selected_background_indices]}")
+        # 准备背景数据（训练集）和测试样本（测试集）
+        y_train_np = y_train.cpu().numpy() if isinstance(
+            y_train, torch.Tensor) else y_train
+        patient_indices_train_np = patient_indices_train.cpu().numpy() if isinstance(
+            patient_indices_train, torch.Tensor) else patient_indices_train
+        # 为每个类别选择代表性样本
+        cancer_indices = np.where(y_train_np == 1)[0]
+        benign_indices = np.where(y_train_np == 0)[0]
+        selected_background_indices = []
+        selected_patients = set()
+        unique_train_patients = np.unique(patient_indices_train_np)
+        # 遍历患者，为每个患者选择一个癌症和一个良性样本
+        for patient in unique_train_patients:
+            if len(selected_patients) >= 3:  # 最多选择3个患者
+                break
+            patient_samples_indices = np.where(
+                patient_indices_train_np == patient)[0]
+            cancer_samples_from_patient = np.intersect1d(
+                patient_samples_indices, cancer_indices)
+            benign_samples_from_patient = np.intersect1d(
+                patient_samples_indices, benign_indices)
+            if len(cancer_samples_from_patient) > 0:
+                selected_background_indices.append(cancer_samples_from_patient[0])
+            if len(benign_samples_from_patient) > 0:
+                selected_background_indices.append(benign_samples_from_patient[0])
+            selected_patients.add(patient)
+        selected_background_indices = list(np.unique(selected_background_indices))[
+            :10]  # 最多选择10个样本
+        background_ftir = ftir_train[selected_background_indices]
 
-    # 测试样本
-    y_test_np = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
-    patient_indices_test_np = patient_indices_test.cpu().numpy() if isinstance(
-        patient_indices_test, torch.Tensor) else patient_indices_test
-    cancer_indices_test = np.where(y_test_np == 1)[0]
-    benign_indices_test = np.where(y_test_np == 0)[0]
-    # 癌症样本选择代表性样本
-    selected_cancer_indices = []
-    selected_cancer_patients = set()
-    unique_cancer_patients = np.unique(
-        patient_indices_test_np[cancer_indices_test])
-    # 遍历癌症患者
-    for patient in unique_cancer_patients:
-        if len(selected_cancer_patients) >= 2:  # 最多2个患者
-            break
-        patient_samples_indices = np.where(
-            patient_indices_test_np == patient)[0]
-        cancer_samples_from_patient = np.intersect1d(
-            patient_samples_indices, cancer_indices_test)
-        if len(cancer_samples_from_patient) > 0:
-            selected_cancer_indices.append(cancer_samples_from_patient[0])
-            selected_cancer_patients.add(patient)
-    # 良性样本选择代表性样本
-    selected_benign_indices = []
-    selected_benign_patients = set()
-    unique_benign_patients = np.unique(
-        patient_indices_test_np[benign_indices_test])
-    # 遍历良性患者
-    for patient in unique_benign_patients:
-        if len(selected_benign_patients) >= 2:  # 最多2个患者
-            break
-        patient_samples_indices = np.where(
-            patient_indices_test_np == patient)[0]
-        benign_samples_from_patient = np.intersect1d(
-            patient_samples_indices, benign_indices_test)
-        if len(benign_samples_from_patient) > 0:
-            selected_benign_indices.append(benign_samples_from_patient[0])
-            selected_benign_patients.add(patient)
-    selected_cancer_indices = list(np.unique(selected_cancer_indices))[:3]
-    selected_benign_indices = list(np.unique(selected_benign_indices))[:3]
-    test_samples_cancer_ftir = ftir_test[selected_cancer_indices]
-    test_samples_benign_ftir = ftir_test[selected_benign_indices]
-    print(f"SHAP测试数据选择了{len(selected_cancer_indices)}个测试样本:")
-    print(f"对应患者: {patient_indices_test_np[selected_cancer_indices]}")
+        if plot:
+            print(f"SHAP背景数据选择了{len(selected_background_indices)}个训练样本:")
+            print(f"对应患者: {patient_indices_train_np[selected_background_indices]}")
 
-    # MZ 的基线使用训练集的平均值
-    mz_baseline = mz_train.mean(0, keepdim=True)
+        # 测试样本
+        y_test_np = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
+        patient_indices_test_np = patient_indices_test.cpu().numpy() if isinstance(
+            patient_indices_test, torch.Tensor) else patient_indices_test
+        cancer_indices_test = np.where(y_test_np == 1)[0]
+        benign_indices_test = np.where(y_test_np == 0)[0]
 
-    wrapped_model = ShapModelWrapper(model, mz_baseline, ftir_x, mz_x)
-    explainer = shap.GradientExplainer(wrapped_model, background_ftir)
+        if not plot:
+            # 如果不绘图（即用于聚合分析），则使用所有测试样本
+            test_samples_cancer_ftir = ftir_test[cancer_indices_test]
+            test_samples_benign_ftir = ftir_test[benign_indices_test]
+        else:
+            # 癌症样本选择代表性样本
+            selected_cancer_indices = []
+            selected_cancer_patients = set()
+            unique_cancer_patients = np.unique(
+                patient_indices_test_np[cancer_indices_test])
+            # 遍历癌症患者
+            for patient in unique_cancer_patients:
+                if len(selected_cancer_patients) >= 2:  # 最多2个患者
+                    break
+                patient_samples_indices = np.where(
+                    patient_indices_test_np == patient)[0]
+                cancer_samples_from_patient = np.intersect1d(
+                    patient_samples_indices, cancer_indices_test)
+                if len(cancer_samples_from_patient) > 0:
+                    selected_cancer_indices.append(cancer_samples_from_patient[0])
+                    selected_cancer_patients.add(patient)
+            # 良性样本选择代表性样本
+            selected_benign_indices = []
+            selected_benign_patients = set()
+            unique_benign_patients = np.unique(
+                patient_indices_test_np[benign_indices_test])
+            # 遍历良性患者
+            for patient in unique_benign_patients:
+                if len(selected_benign_patients) >= 2:  # 最多2个患者
+                    break
+                patient_samples_indices = np.where(
+                    patient_indices_test_np == patient)[0]
+                benign_samples_from_patient = np.intersect1d(
+                    patient_samples_indices, benign_indices_test)
+                if len(benign_samples_from_patient) > 0:
+                    selected_benign_indices.append(benign_samples_from_patient[0])
+                    selected_benign_patients.add(patient)
+            selected_cancer_indices = list(np.unique(selected_cancer_indices))[:3]
+            selected_benign_indices = list(np.unique(selected_benign_indices))[:3]
+            test_samples_cancer_ftir = ftir_test[selected_cancer_indices]
+            test_samples_benign_ftir = ftir_test[selected_benign_indices]
+            print(f"SHAP测试数据选择了{len(selected_cancer_indices)}个测试样本:")
+            print(f"对应患者: {patient_indices_test_np[selected_cancer_indices]}")
 
-    # 分别计算癌症和良性样本的 SHAP 值
-    # cancer_shap_values 的形状 (n_cancer_samples, n_features)
-    cancer_shap_values = explainer.shap_values(test_samples_cancer_ftir)
-    benign_shap_values = explainer.shap_values(test_samples_benign_ftir)
-    # 取 SHAP 值的平均绝对值
-    mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
-    mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
-    shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
+        # MZ 的基线使用训练集的平均值
+        mz_baseline = mz_train.mean(0, keepdim=True)
 
+        wrapped_model = ShapModelWrapper(model, mz_baseline, ftir_x, mz_x)
+        explainer = shap.GradientExplainer(wrapped_model, background_ftir)
+
+        # 分别计算癌症和良性样本的 SHAP 值
+        # cancer_shap_values 的形状 (n_cancer_samples, n_features)
+        cancer_shap_values = explainer.shap_values(test_samples_cancer_ftir)
+        benign_shap_values = explainer.shap_values(test_samples_benign_ftir)
+
+        # 取 SHAP 值的平均绝对值
+        mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
+        mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
+        shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
+        
+        if not plot:
+            return shap_difference, cancer_shap_values, benign_shap_values, test_samples_cancer_ftir, test_samples_benign_ftir
+
+    else:
+        # 使用预计算的 SHAP 数据
+        mean_abs_cancer_shap = precomputed_shap['mean_abs_cancer_shap']
+        mean_abs_benign_shap = precomputed_shap['mean_abs_benign_shap']
+        shap_difference = precomputed_shap['shap_difference']
+        # 为了兼容后续绘图代码，使用 mean 值代替
+        cancer_shap_values = mean_abs_cancer_shap.reshape(1, -1)
+        benign_shap_values = mean_abs_benign_shap.reshape(1, -1)
+        
+        selected_background_indices = []
+        selected_cancer_indices = []
+        selected_benign_indices = []
+
+
+    # === 新增：基于物理坐标去重并选择Top N ===
     print("\n关键波数分析 (Top 10 individual features):")
     top_n_features = 10
-    top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
-    ftir_x_np = ftir_x.cpu().numpy()
-    for i in top_indices:
-        # 使用 .item() 将单元素 ndarray 转换为 Python 标量
-        wavenumber = ftir_x_np[i].item()
-        malignant_shap = mean_abs_cancer_shap[i].item()
-        benign_shap = mean_abs_benign_shap[i].item()
-        diff_shap = shap_difference[i].item()
-        print(
-            f"波数 {wavenumber:.4f} cm-1: 恶性SHAP={malignant_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_shap:.6f}")
-    
+    # 获取波数坐标
+    ftir_x_np = ftir_x.cpu().numpy() if isinstance(ftir_x, torch.Tensor) else ftir_x
+    # 创建一个包含 (SHAP差异, 波数值, 原始索引) 的列表
+    feature_list = [(shap_difference[i], ftir_x_np[i], i) for i in range(len(shap_difference))]
+    # 首先按SHAP差异降序排序
+    feature_list.sort(key=lambda x: x[0], reverse=True)
+    # 然后进行去重：只保留具有唯一波数值的特征
+    unique_features = []
+    seen_wavenumbers = set()
+    for diff, wavenumber, orig_idx in feature_list:
+        # 四舍五入到小数点后1位（波数通常精确到0.1 cm^-1）
+        rounded_wn = round(wavenumber, 1)
+        if rounded_wn not in seen_wavenumbers:
+            unique_features.append((diff, wavenumber, orig_idx))
+            seen_wavenumbers.add(rounded_wn)
+            if len(unique_features) >= top_n_features:
+                break
+    # 打印结果
+    for diff, wavenumber, orig_idx in unique_features:
+        malignant_shap = mean_abs_cancer_shap[orig_idx].item()
+        benign_shap = mean_abs_benign_shap[orig_idx].item()
+        diff_scalar = diff.item() if hasattr(diff, 'item') else diff
+        print(f"波数 {wavenumber:.1f} cm-1: 恶性SHAP={malignant_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_scalar:.6f}")
+
     # 实现X轴波数从小到大，反转SHAP值和波数数据
     plot_cancer_shap_values = mean_abs_cancer_shap[::-1]
     plot_benign_shap_values = mean_abs_benign_shap[::-1]
@@ -455,6 +501,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
     }
     np.save('./result/ftir_shap_input_params.npy', input_params)
 
+    new_top_indices = [orig_idx for _, _, orig_idx in unique_features]
     # 保存SHAP分析中间结果
     shap_results = {
         'cancer_shap_values': cancer_shap_values,
@@ -462,7 +509,7 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
         'mean_abs_cancer_shap': mean_abs_cancer_shap,
         'mean_abs_benign_shap': mean_abs_benign_shap,
         'shap_difference': shap_difference,
-        'top_indices': top_indices
+        'top_indices': new_top_indices
     }
     np.save('./result/ftir_shap_results.npy', shap_results)
 
@@ -492,127 +539,183 @@ def perform_ftir_shap_analysis(model, ftir_train, ftir_test, ftir_x, mz_train, m
 
 
 # 只对 MZ 做 Gradient SHAP 分析，生成一维热力图
-def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test, patient_indices_train, patient_indices_test):
+def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test, patient_indices_train, patient_indices_test, plot=True, precomputed_shap=None, save_dir='./result'):
 
-    model.eval()
+    if precomputed_shap is None:
+        model.eval()
 
-    class ShapModelWrapper(torch.nn.Module):
-        def __init__(self, model, ftir_baseline, ftir_x, mz_x):
-            super().__init__()
-            self.model = model
-            self.register_buffer('ftir_baseline', ftir_baseline)
-            self.register_buffer('ftir_x', ftir_x)
-            self.register_buffer('mz_x', mz_x)
+        class ShapModelWrapper(torch.nn.Module):
+            def __init__(self, model, ftir_baseline, ftir_x, mz_x):
+                super().__init__()
+                self.model = model
+                self.register_buffer('ftir_baseline', ftir_baseline)
+                self.register_buffer('ftir_x', ftir_x)
+                self.register_buffer('mz_x', mz_x)
 
-        def forward(self, mz_data):
-            current_ftir_baseline = self.ftir_baseline.expand(
-                mz_data.shape[0], -1)
-            current_ftir_axis = self.ftir_x.repeat(mz_data.shape[0], 1)
-            mz_axis = self.mz_x.repeat(mz_data.shape[0], 1)
-            outputs = self.model(current_ftir_baseline,
-                                 mz_data, current_ftir_axis, mz_axis)
-            return torch.softmax(outputs, dim=1)[:, 1].unsqueeze(-1)
+            def forward(self, mz_data):
+                current_ftir_baseline = self.ftir_baseline.expand(
+                    mz_data.shape[0], -1)
+                current_ftir_axis = self.ftir_x.repeat(mz_data.shape[0], 1)
+                mz_axis = self.mz_x.repeat(mz_data.shape[0], 1)
+                outputs = self.model(current_ftir_baseline,
+                                     mz_data, current_ftir_axis, mz_axis)
+                return torch.softmax(outputs, dim=1)[:, 1].unsqueeze(-1)
 
-    # 准备背景数据和测试样本
-    y_train_np = y_train.cpu().numpy() if isinstance(
-        y_train, torch.Tensor) else y_train
-    patient_indices_train_np = patient_indices_train.cpu().numpy() if isinstance(
-        patient_indices_train, torch.Tensor) else patient_indices_train
-    cancer_indices = np.where(y_train_np == 1)[0]
-    benign_indices = np.where(y_train_np == 0)[0]
-    selected_background_indices = []
-    selected_patients = set()
-    unique_train_patients = np.unique(patient_indices_train_np)
-    for patient in unique_train_patients:
-        if len(selected_patients) >= 3:
-            break
-        patient_samples_indices = np.where(
-            patient_indices_train_np == patient)[0]
-        cancer_samples_from_patient = np.intersect1d(
-            patient_samples_indices, cancer_indices)
-        benign_samples_from_patient = np.intersect1d(
-            patient_samples_indices, benign_indices)
-        if len(cancer_samples_from_patient) > 0:
-            selected_background_indices.append(cancer_samples_from_patient[0])
-        if len(benign_samples_from_patient) > 0:
-            selected_background_indices.append(benign_samples_from_patient[0])
-        selected_patients.add(patient)
-    selected_background_indices = list(
-        np.unique(selected_background_indices))[:10]
-    background_mz = mz_train[selected_background_indices]
-    print(f"SHAP背景数据选择了{len(selected_background_indices)}个训练样本:")
-    print(f"对应患者: {patient_indices_train_np[selected_background_indices]}")
+        # 准备背景数据和测试样本
+        y_train_np = y_train.cpu().numpy() if isinstance(
+            y_train, torch.Tensor) else y_train
+        patient_indices_train_np = patient_indices_train.cpu().numpy() if isinstance(
+            patient_indices_train, torch.Tensor) else patient_indices_train
+        cancer_indices = np.where(y_train_np == 1)[0]
+        benign_indices = np.where(y_train_np == 0)[0]
+        selected_background_indices = []
+        selected_patients = set()
+        unique_train_patients = np.unique(patient_indices_train_np)
+        for patient in unique_train_patients:
+            if len(selected_patients) >= 3:
+                break
+            patient_samples_indices = np.where(
+                patient_indices_train_np == patient)[0]
+            cancer_samples_from_patient = np.intersect1d(
+                patient_samples_indices, cancer_indices)
+            benign_samples_from_patient = np.intersect1d(
+                patient_samples_indices, benign_indices)
+            if len(cancer_samples_from_patient) > 0:
+                selected_background_indices.append(cancer_samples_from_patient[0])
+            if len(benign_samples_from_patient) > 0:
+                selected_background_indices.append(benign_samples_from_patient[0])
+            selected_patients.add(patient)
+        selected_background_indices = list(
+            np.unique(selected_background_indices))[:10]
+        background_mz = mz_train[selected_background_indices]
 
-    y_test_np = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
-    patient_indices_test_np = patient_indices_test.cpu().numpy() if isinstance(
-        patient_indices_test, torch.Tensor) else patient_indices_test
-    cancer_indices_test = np.where(y_test_np == 1)[0]
-    benign_indices_test = np.where(y_test_np == 0)[0]
-    # 恶性
-    selected_cancer_indices = []
-    selected_cancer_patients = set()
-    unique_cancer_patients = np.unique(
-        patient_indices_test_np[cancer_indices_test])
-    for patient in unique_cancer_patients:
-        if len(selected_cancer_patients) >= 2:
-            break
-        patient_samples_indices = np.where(
-            patient_indices_test_np == patient)[0]
-        cancer_samples_from_patient = np.intersect1d(
-            patient_samples_indices, cancer_indices_test)
-        if len(cancer_samples_from_patient) > 0:
-            selected_cancer_indices.append(cancer_samples_from_patient[0])
-            selected_cancer_patients.add(patient)
-    # 良性
-    selected_benign_indices = []
-    selected_benign_patients = set()
-    unique_benign_patients = np.unique(
-        patient_indices_test_np[benign_indices_test])
-    for patient in unique_benign_patients:
-        if len(selected_benign_patients) >= 2:
-            break
-        patient_samples_indices = np.where(
-            patient_indices_test_np == patient)[0]
-        benign_samples_from_patient = np.intersect1d(
-            patient_samples_indices, benign_indices_test)
-        if len(benign_samples_from_patient) > 0:
-            selected_benign_indices.append(benign_samples_from_patient[0])
-            selected_benign_patients.add(patient)
-    selected_cancer_indices = list(np.unique(selected_cancer_indices))[:3]
-    selected_benign_indices = list(np.unique(selected_benign_indices))[:3]
-    test_samples_cancer_mz = mz_test[selected_cancer_indices]
-    test_samples_benign_mz = mz_test[selected_benign_indices]
-    print(f"SHAP测试数据选择了{len(selected_cancer_indices)}个测试样本:")
-    print(f"对应患者: {patient_indices_test_np[selected_cancer_indices]}")
+        if plot:
+            print(f"SHAP背景数据选择了{len(selected_background_indices)}个训练样本:")
+            print(f"对应患者: {patient_indices_train_np[selected_background_indices]}")
 
-    # FTIR 的基线使用训练集的平均值
-    ftir_baseline = ftir_train.mean(0, keepdim=True)
+        y_test_np = y_test.cpu().numpy() if isinstance(y_test, torch.Tensor) else y_test
+        patient_indices_test_np = patient_indices_test.cpu().numpy() if isinstance(
+            patient_indices_test, torch.Tensor) else patient_indices_test
+        cancer_indices_test = np.where(y_test_np == 1)[0]
+        benign_indices_test = np.where(y_test_np == 0)[0]
 
-    wrapped_model = ShapModelWrapper(model, ftir_baseline, ftir_x, mz_x)
-    explainer = shap.GradientExplainer(wrapped_model, background_mz)
+        if not plot:
+            # 如果不绘图（即用于聚合分析），则使用所有测试样本
+            test_samples_cancer_mz = mz_test[cancer_indices_test]
+            test_samples_benign_mz = mz_test[benign_indices_test]
+        else:
+            # 恶性
+            selected_cancer_indices = []
+            selected_cancer_patients = set()
+            unique_cancer_patients = np.unique(
+                patient_indices_test_np[cancer_indices_test])
+            for patient in unique_cancer_patients:
+                if len(selected_cancer_patients) >= 2:
+                    break
+                patient_samples_indices = np.where(
+                    patient_indices_test_np == patient)[0]
+                cancer_samples_from_patient = np.intersect1d(
+                    patient_samples_indices, cancer_indices_test)
+                if len(cancer_samples_from_patient) > 0:
+                    selected_cancer_indices.append(cancer_samples_from_patient[0])
+                    selected_cancer_patients.add(patient)
+            # 良性
+            selected_benign_indices = []
+            selected_benign_patients = set()
+            unique_benign_patients = np.unique(
+                patient_indices_test_np[benign_indices_test])
+            for patient in unique_benign_patients:
+                if len(selected_benign_patients) >= 2:
+                    break
+                patient_samples_indices = np.where(
+                    patient_indices_test_np == patient)[0]
+                benign_samples_from_patient = np.intersect1d(
+                    patient_samples_indices, benign_indices_test)
+                if len(benign_samples_from_patient) > 0:
+                    selected_benign_indices.append(benign_samples_from_patient[0])
+                    selected_benign_patients.add(patient)
+            selected_cancer_indices = list(np.unique(selected_cancer_indices))[:3]
+            selected_benign_indices = list(np.unique(selected_benign_indices))[:3]
+            test_samples_cancer_mz = mz_test[selected_cancer_indices]
+            test_samples_benign_mz = mz_test[selected_benign_indices]
+            print(f"SHAP测试数据选择了{len(selected_cancer_indices)}个测试样本:")
+            print(f"对应患者: {patient_indices_test_np[selected_cancer_indices]}")
 
-    cancer_shap_values = explainer.shap_values(test_samples_cancer_mz)
-    benign_shap_values = explainer.shap_values(test_samples_benign_mz)
+        # FTIR 的基线使用训练集的平均值
+        ftir_baseline = ftir_train.mean(0, keepdim=True)
 
-    # 取 SHAP 值的平均绝对值
-    mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
-    mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
+        wrapped_model = ShapModelWrapper(model, ftir_baseline, ftir_x, mz_x)
+        explainer = shap.GradientExplainer(wrapped_model, background_mz)
 
-    shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
+        cancer_shap_values = explainer.shap_values(test_samples_cancer_mz)
+        benign_shap_values = explainer.shap_values(test_samples_benign_mz)
 
+        # 取 SHAP 值的平均绝对值
+        mean_abs_cancer_shap = np.mean(np.abs(cancer_shap_values), axis=0)
+        mean_abs_benign_shap = np.mean(np.abs(benign_shap_values), axis=0)
+
+        shap_difference = np.abs(mean_abs_cancer_shap - mean_abs_benign_shap)
+
+        if not plot:
+            return shap_difference, cancer_shap_values, benign_shap_values, test_samples_cancer_mz, test_samples_benign_mz
+
+    else:
+        # 使用预计算的 SHAP 数据
+        mean_abs_cancer_shap = precomputed_shap['mean_abs_cancer_shap']
+        mean_abs_benign_shap = precomputed_shap['mean_abs_benign_shap']
+        shap_difference = precomputed_shap['shap_difference']
+        # 为了兼容后续绘图代码，使用 mean 值代替
+        cancer_shap_values = mean_abs_cancer_shap.reshape(1, -1)
+        benign_shap_values = mean_abs_benign_shap.reshape(1, -1)
+        
+        selected_background_indices = []
+        selected_cancer_indices = []
+        selected_benign_indices = []
+        ftir_baseline = None
+
+
+    # === 新增：基于物理坐标去重并选择Top N ===
     print("\n关键MZ值分析 (Top 10 individual features):")
     top_n_features = 10
-    top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
-    mz_x_np = mz_x.cpu().numpy()
-    for i in top_indices:
-       # 使用 .item() 将单元素 ndarray 转换为 Python 标量
-        mz_value = mz_x_np[i].item()
-        cancer_shap = mean_abs_cancer_shap[i].item()
-        benign_shap = mean_abs_benign_shap[i].item()
-        diff_shap = shap_difference[i].item()
-        print(
-            f"MZ值 {mz_value:.4f}: 癌症SHAP={cancer_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_shap:.6f}")
-    
+    # 获取MZ坐标
+    mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
+    # 创建一个包含 (SHAP差异, MZ值, 原始索引) 的列表
+    feature_list = [(shap_difference[i], mz_x_np[i], i) for i in range(len(shap_difference))]
+    # 首先按SHAP差异降序排序
+    feature_list.sort(key=lambda x: x[0], reverse=True)
+    # 然后进行去重：只保留具有唯一MZ值的特征
+    unique_features = []
+    seen_mz_values = set()
+    for diff, mz_val, orig_idx in feature_list:
+        # 由于浮点数精度问题，我们可以四舍五入到小数点后4位来判断是否“相同”
+        rounded_mz = round(mz_val, 4)
+        if rounded_mz not in seen_mz_values:
+            unique_features.append((diff, mz_val, orig_idx))
+            seen_mz_values.add(rounded_mz)
+            if len(unique_features) >= top_n_features:
+                break
+
+    # 打印结果
+    for diff, mz_val, orig_idx in unique_features:
+        cancer_shap = mean_abs_cancer_shap[orig_idx].item()
+        benign_shap = mean_abs_benign_shap[orig_idx].item()
+        diff_scalar = diff.item() if hasattr(diff, 'item') else diff
+        print(f"MZ值 {mz_val:.4f}: 癌症SHAP={cancer_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_scalar:.6f}")
+
+    # print("\n关键MZ值分析 (Top 10 individual features):")
+    # top_n_features = 10
+    # top_indices = np.argsort(shap_difference)[-top_n_features:][::-1]
+    # print(f"Max SHAP difference: {shap_difference.max():.6f}")
+    # mz_x_np = mz_x.cpu().numpy()
+    # for i in top_indices:
+    #    # 使用 .item() 将单元素 ndarray 转换为 Python 标量
+    #     mz_value = mz_x_np[i].item()
+    #     cancer_shap = mean_abs_cancer_shap[i].item()
+    #     benign_shap = mean_abs_benign_shap[i].item()
+    #     diff_shap = shap_difference[i].item()
+    #     print(
+    #         f"MZ值 {mz_value:.4f}: 癌症SHAP={cancer_shap:.6f}, 良性SHAP={benign_shap:.6f}, 差异={diff_shap:.6f}")
+
     # 绘制热力图
     mz_x_np = mz_x.cpu().numpy() if isinstance(mz_x, torch.Tensor) else mz_x
 
@@ -763,6 +866,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
     }
     np.save('./result/mz_shap_input_params.npy', input_params)
 
+    new_top_indices = [orig_idx for _, _, orig_idx in unique_features]
     # 保存SHAP分析中间结果
     shap_results = {
         'cancer_shap_values': cancer_shap_values,
@@ -770,7 +874,7 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
         'mean_abs_cancer_shap': mean_abs_cancer_shap,
         'mean_abs_benign_shap': mean_abs_benign_shap,
         'shap_difference': shap_difference,
-        'top_indices': top_indices
+        'top_indices': new_top_indices
     }
     np.save('./result/mz_shap_results.npy', shap_results)
 
@@ -804,11 +908,15 @@ def perform_mz_shap_analysis(model, mz_train, mz_test, mz_x, ftir_train, ftir_x,
 
 # 计算选定的FTIR和MZ特征之间的Spearman相关性并绘制热力图
 def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, mz_indices, save_path):
+    # Ensure save directory exists
+    if not os.path.exists(save_path):
+        os.makedirs(save_path, exist_ok=True)
+
     if isinstance(ftir_x, torch.Tensor):
         ftir_x_np = ftir_x.cpu().numpy()
     else:
         ftir_x_np = ftir_x
-        
+
     if isinstance(mz_x, torch.Tensor):
         mz_x_np = mz_x.cpu().numpy()
     else:
@@ -925,6 +1033,7 @@ def create_correlation_heatmap(ftir_data, mz_data, ftir_x, mz_x, ftir_indices, m
     np.save(os.path.join(save_path, 'correlation_plot_data.npy'), plot_data)
 
     print(f"\n相关性热力图已保存至 {heatmap_path}")
+
 
 # ==================数据增强====================================
 def data_augmentation(x, axis, noise_std=0.1, scaling_factor=0.05, shift_range=0.02):
@@ -1094,14 +1203,14 @@ def train_single_modal_model(model, x_train, y_train, x_val, y_val, axis,
                 # inputs形状 (B, seq_len, feature_dim)，先reshape为 (B, feature_dim)
                 B, seq_len, feat_dim = inputs.shape
                 inputs_2d = inputs.view(B, -1)
-                if model_type != "FTIROnly": # Disable aug for FTIROnly to preserve weak signal
+                if model_type != "FTIROnly":  # Disable aug for FTIROnly to preserve weak signal
                     inputs_noisy, axis = data_augmentation(inputs_2d, axis)
                 else:
                     inputs_noisy = inputs_2d
                 # 恢复三维形状
                 inputs_noisy = inputs_noisy.view(B, seq_len, feat_dim)
             else:
-                if model_type != "FTIROnly": # Disable aug for FTIROnly to preserve weak signal
+                if model_type != "FTIROnly":  # Disable aug for FTIROnly to preserve weak signal
                     inputs_noisy, axis = data_augmentation(inputs, axis)
                 else:
                     inputs_noisy = inputs
@@ -1177,7 +1286,7 @@ param_grid = {
 
 RUN_FIXED_TEST_EVAL = True
 RUN_REPEATED_OUTER_CV = True
-THRESHOLD_METHOD = "balanced" # "youden"、"constrained_f1"、"distance_optimal" 
+THRESHOLD_METHOD = "balanced"  # "youden"、"constrained_f1"、"distance_optimal"
 all_params = [dict(zip(param_grid.keys(), values))
               for values in itertools.product(*param_grid.values())]
 best_params = None
@@ -1250,7 +1359,6 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 best_acc = max(val_accs) if len(val_accs) > 0 else 0
                 fold_accuracies.append(best_acc)
                 writer.close()
-
 
             elif model_name == "BiModalCMACF":
                 model = BiModalCMACF(
@@ -1490,17 +1598,23 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
                 val_features = np.hstack([ftir_val_np, mz_val_np])
 
                 if model_name == "SVM" or ("svm" in model_name.lower()):
-                    clf = SVMClassifier(kernel=params.get('kernel', 'rbf'), C=params.get('C', 0.1))
+                    clf = SVMClassifier(kernel=params.get(
+                        'kernel', 'rbf'), C=params.get('C', 0.1))
                 elif model_name == "LogReg":
-                    clf = LogRegClassifier(C=params.get('C', 0.001), max_iter=params.get('max_iter', 100))
+                    clf = LogRegClassifier(C=params.get(
+                        'C', 0.001), max_iter=params.get('max_iter', 100))
                 elif model_name == "RandomForest":
-                    clf = RFClassifier(n_estimators=params.get('n_estimators', 10), max_depth=params.get('max_depth', 2))
+                    clf = RFClassifier(n_estimators=params.get(
+                        'n_estimators', 10), max_depth=params.get('max_depth', 2))
                 elif model_name == "KNN":
-                    clf = KNNClassifier(n_neighbors=params.get('n_neighbors', 20))
+                    clf = KNNClassifier(
+                        n_neighbors=params.get('n_neighbors', 20))
                 elif model_name == "GaussianNB":
-                    clf = NBClassifier(var_smoothing=params.get('var_smoothing', 1e-9))
+                    clf = NBClassifier(
+                        var_smoothing=params.get('var_smoothing', 1e-9))
                 elif model_name == "GBDT":
-                    clf = GBDTClassifier(n_estimators=params.get('n_estimators', 10), max_depth=params.get('max_depth', 2), learning_rate=params.get('learning_rate', 0.01))
+                    clf = GBDTClassifier(n_estimators=params.get('n_estimators', 10), max_depth=params.get(
+                        'max_depth', 2), learning_rate=params.get('learning_rate', 0.01))
                 else:
                     clf = SVMClassifier(kernel='rbf')
                 clf.fit(train_features, y_train_fold.numpy())
@@ -1585,27 +1699,27 @@ def run_grid_search_for_model(model_name, model_class, ftir_train, mz_train, y_t
 
 # 对所有模型，利用 k-fold 交叉验证调参，确定最优参数
 models_to_evaluate = {
-    # "MultiModal": MultiModalModel,
+    "MultiModal": MultiModalModel,
     # 经典机器学习基线
     "SVM": SVMClassifier,
     "LogReg": LogRegClassifier,
     "RandomForest": RFClassifier,
-    "KNN": KNNClassifier,
-    "GaussianNB": NBClassifier,
-    "GBDT": GBDTClassifier,
+    # "KNN": KNNClassifier,
+    # "GaussianNB": NBClassifier,
+    # "GBDT": GBDTClassifier,
     # 如需启用其他深度模型，取消注释以下条目
     # "BiModalCMACF": BiModalCMACF,
     # "CMSTF": CMSTF,
     # "MFCNN": MFCNN,
     # "CNN_LSTM": CNN_LSTM,
     # 如需启用其他变体消融实验，取消注释以下条目
-    # "FTIROnly": SingleFTIRModel,
-    # "MZOnly": SingleMZModel,
-    # "ConcatFusion": ConcatFusion,
-    # "GateOnlyFusion": GateOnlyFusion,
-    # "CoAttnOnlyFusion": CoAttnOnlyFusion,
-    # "SelfAttnFusion": SelfAttnFusion,
-    # "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
+    "FTIROnly": SingleFTIRModel,
+    "MZOnly": SingleMZModel,
+    "ConcatFusion": ConcatFusion,
+    "GateOnlyFusion": GateOnlyFusion,
+    "CoAttnOnlyFusion": CoAttnOnlyFusion,
+    "SelfAttnFusion": SelfAttnFusion,
+    "SelfAttnOnlyFusion": SelfAttnOnlyFusion,
 }
 
 # all_model_dfs = []
@@ -1637,7 +1751,8 @@ for model_type in all_results_df['model_type'].unique():
 print("Applying optimized parameters for paper submission...")
 
 # MultiModal: Tuned for High Specificity/Precision (96%+), Lower LR, Higher Weight Decay to encourage specificity
-base_params = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
+base_params = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8,
+               'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
 best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters
@@ -1645,11 +1760,16 @@ for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFus
     best_params_per_model[m] = base_params.copy()
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
-best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale', 'probability': True, 'random_state': 42, 'class_weight': {0: 1, 1: 2.0}}
-best_params_per_model["LogReg"] = {'C': 0.002, 'solver': 'sag', 'max_iter': 1, 'random_state': 42, 'class_weight': {0: 4, 1: 1}}
-best_params_per_model["RandomForest"] = {'n_estimators': 10, 'max_depth': 2, 'min_samples_split': 5, 'random_state': 42}
-best_params_per_model["KNN"] = {'n_neighbors': 13, 'weights': 'uniform', 'algorithm': 'auto'}
-best_params_per_model["GBDT"] = {'n_estimators': 3, 'learning_rate': 0.01, 'max_depth': 1, 'min_samples_split': 2, 'subsample': 0.5, 'max_features': 'sqrt', 'random_state': 42}
+best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
+                                'probability': True, 'random_state': 42, 'class_weight': {0: 1, 1: 2.0}}
+best_params_per_model["LogReg"] = {'C': 0.002, 'solver': 'sag',
+                                   'max_iter': 1, 'random_state': 42, 'class_weight': {0: 4, 1: 1}}
+best_params_per_model["RandomForest"] = {
+    'n_estimators': 10, 'max_depth': 2, 'min_samples_split': 5, 'random_state': 42}
+best_params_per_model["KNN"] = {
+    'n_neighbors': 13, 'weights': 'uniform', 'algorithm': 'auto'}
+best_params_per_model["GBDT"] = {'n_estimators': 3, 'learning_rate': 0.01, 'max_depth': 1,
+                                 'min_samples_split': 2, 'subsample': 0.5, 'max_features': 'sqrt', 'random_state': 42}
 best_params_per_model["GaussianNB"] = {'var_smoothing': 1e-1}
 
 # 最后，使用最佳参数重新训练并在测试集上评估
@@ -1701,68 +1821,68 @@ for model_name, params in best_params_per_model.items():
                                  preds=preds_test, probs=probs_test,
                                  name=model_name, model_type=model_name, plot_tsne=True)
 
-        # SHAP分析函数
-        ftir_shap_difference = perform_ftir_shap_analysis(
-            model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
-        )
-        mz_shap_difference = perform_mz_shap_analysis(
-            model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test,
-            patient_indices_train, patient_indices_test
-        )
-        # Spearman 相关性分析和热图
-        ftir_all = np.vstack(
-            (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
-        mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
-        # 特征选择: 基于SHAP分析选择Top 20个特征，避免选择相邻的重复特征
-        # 改进的非极大值抑制策略：基于实际波数/MZ值距离
-        sorted_ftir_indices = np.argsort(ftir_shap_difference)[::-1]
-        selected_ftir_indices = []
-        min_wavenumber_distance = 1.0 # 增大最小波数间隔 (cm-1)
-        ftir_x_np = ftir_x.cpu().numpy()
-        
-        for idx in sorted_ftir_indices:
-            if len(selected_ftir_indices) >= 20:
-                break
-            is_far = True
-            current_wv = ftir_x_np[idx]
-            for selected_idx in selected_ftir_indices:
-                selected_wv = ftir_x_np[selected_idx]
-                if abs(current_wv - selected_wv) < min_wavenumber_distance:
-                    is_far = False
-                    break
-            if is_far:
-                selected_ftir_indices.append(idx)
-        ftir_top_indices = np.array(selected_ftir_indices)
-        
-        # 对MZ也做类似处理
-        sorted_mz_indices = np.argsort(mz_shap_difference)[::-1]
-        selected_mz_indices = []
-        min_mz_distance = 5.0 # 增大MZ最小间隔
-        mz_x_np = mz_x.cpu().numpy()
-        
-        for idx in sorted_mz_indices:
-            if len(selected_mz_indices) >= 20:
-                break
-            is_far = True
-            current_mz = mz_x_np[idx]
-            for selected_idx in selected_mz_indices:
-                selected_mz = mz_x_np[selected_idx]
-                if abs(current_mz - selected_mz) < min_mz_distance:
-                    is_far = False
-                    break
-            if is_far:
-                selected_mz_indices.append(idx)
-        mz_top_indices = np.array(selected_mz_indices)
+        # # SHAP分析函数
+        # ftir_shap_difference = perform_ftir_shap_analysis(
+        #     model, ftir_train, ftir_test, ftir_x, mz_train, mz_x, y_test, patient_indices_train, patient_indices_test
+        # )
+        # mz_shap_difference = perform_mz_shap_analysis(
+        #     model, mz_train, mz_test, mz_x, ftir_train, ftir_x, y_test,
+        #     patient_indices_train, patient_indices_test
+        # )
+        # # Spearman 相关性分析和热图
+        # ftir_all = np.vstack(
+        #     (ftir_train.cpu().numpy(), ftir_test.cpu().numpy()))
+        # mz_all = np.vstack((mz_train.cpu().numpy(), mz_test.cpu().numpy()))
+        # # 特征选择: 基于SHAP分析选择Top 20个特征，避免选择相邻的重复特征
+        # # 改进的非极大值抑制策略：基于实际波数/MZ值距离
+        # sorted_ftir_indices = np.argsort(ftir_shap_difference)[::-1]
+        # selected_ftir_indices = []
+        # min_wavenumber_distance = 1.0  # 增大最小波数间隔 (cm-1)
+        # ftir_x_np = ftir_x.cpu().numpy()
 
-        create_correlation_heatmap(
-            ftir_all,
-            mz_all,
-            ftir_x.cpu().numpy(),
-            mz_x.cpu().numpy(),
-            ftir_top_indices,
-            mz_top_indices,
-            save_path
-        )
+        # for idx in sorted_ftir_indices:
+        #     if len(selected_ftir_indices) >= 20:
+        #         break
+        #     is_far = True
+        #     current_wv = ftir_x_np[idx]
+        #     for selected_idx in selected_ftir_indices:
+        #         selected_wv = ftir_x_np[selected_idx]
+        #         if abs(current_wv - selected_wv) < min_wavenumber_distance:
+        #             is_far = False
+        #             break
+        #     if is_far:
+        #         selected_ftir_indices.append(idx)
+        # ftir_top_indices = np.array(selected_ftir_indices)
+
+        # # 对MZ也做类似处理
+        # sorted_mz_indices = np.argsort(mz_shap_difference)[::-1]
+        # selected_mz_indices = []
+        # min_mz_distance = 5.0  # 增大MZ最小间隔
+        # mz_x_np = mz_x.cpu().numpy()
+
+        # for idx in sorted_mz_indices:
+        #     if len(selected_mz_indices) >= 20:
+        #         break
+        #     is_far = True
+        #     current_mz = mz_x_np[idx]
+        #     for selected_idx in selected_mz_indices:
+        #         selected_mz = mz_x_np[selected_idx]
+        #         if abs(current_mz - selected_mz) < min_mz_distance:
+        #             is_far = False
+        #             break
+        #     if is_far:
+        #         selected_mz_indices.append(idx)
+        # mz_top_indices = np.array(selected_mz_indices)
+
+        # create_correlation_heatmap(
+        #     ftir_all,
+        #     mz_all,
+        #     ftir_x.cpu().numpy(),
+        #     mz_x.cpu().numpy(),
+        #     ftir_top_indices,
+        #     mz_top_indices,
+        #     save_path
+        # )
 
     elif model_name == "BiModalCMACF":
         model = BiModalCMACF(
@@ -1997,7 +2117,8 @@ for model_name, params in best_params_per_model.items():
             ftir_test.numpy(), mz_test.numpy()
         ])
         p = best_params_per_model.get(model_name, {})
-        model = LogRegClassifier(C=p.get('C', 0.1), max_iter=p.get('max_iter', 100))
+        model = LogRegClassifier(
+            C=p.get('C', 0.1), max_iter=p.get('max_iter', 100))
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -2014,7 +2135,8 @@ for model_name, params in best_params_per_model.items():
             ftir_test.numpy(), mz_test.numpy()
         ])
         p = best_params_per_model.get(model_name, {})
-        model = RFClassifier(n_estimators=p.get('n_estimators', 50), max_depth=p.get('max_depth', 2))
+        model = RFClassifier(n_estimators=p.get(
+            'n_estimators', 50), max_depth=p.get('max_depth', 2))
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -2050,7 +2172,8 @@ for model_name, params in best_params_per_model.items():
             ftir_test.numpy(), mz_test.numpy()
         ])
         p = best_params_per_model.get(model_name, {})
-        model = GBDTClassifier(n_estimators=p.get('n_estimators', 100), learning_rate=p.get('learning_rate', 0.1), max_depth=p.get('max_depth', 3))
+        model = GBDTClassifier(n_estimators=p.get('n_estimators', 100), learning_rate=p.get(
+            'learning_rate', 0.1), max_depth=p.get('max_depth', 3))
         model.fit(train_features_with_axis, y_train.numpy())
         preds = model.predict(test_features_with_axis)
         probs = model.predict_proba(test_features_with_axis)[
@@ -2192,6 +2315,7 @@ print("\n" + "="*80)
 print("开始进行统计分析")
 print("="*80)
 
+
 def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, seed=21):
     random.seed(seed)
     np.random.seed(seed)
@@ -2212,6 +2336,11 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
     aggregated_results = {
         'MultiModal': {'y_true': [], 'y_prob': [], 'y_pred': []}
     }
+    # Store aggregated SHAP results for MultiModal
+    aggregated_shap_results = {
+        'ftir_cancer': [], 'ftir_benign': [],
+        'mz_cancer': [], 'mz_benign': []
+    }
 
     for r in range(repeats):
         outer = StratifiedGroupKFold(
@@ -2229,8 +2358,10 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             unique_patients_te = np.unique(patients_all[te_idx].cpu().numpy())
             print(f"\n[重复 {r+1}/{repeats}, 折 {fold+1}/{n_splits}]")
             print(f"  总患者数: {len(unique_patients_all)}")
-            print(f"  外层训练集患者数: {len(unique_patients_tr)} (IDs: {unique_patients_tr})")
-            print(f"  外层测试集患者数: {len(unique_patients_te)} (IDs: {unique_patients_te})")
+            print(
+                f"  外层训练集患者数: {len(unique_patients_tr)} (IDs: {unique_patients_tr})")
+            print(
+                f"  外层测试集患者数: {len(unique_patients_te)} (IDs: {unique_patients_te})")
             inner = StratifiedGroupKFold(
                 n_splits=4, shuffle=True, random_state=7 + r)
             tr_sub_idx, val_sub_idx = next(
@@ -2240,7 +2371,8 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             y_tr_sub, y_val_sub = y_tr[tr_sub_idx], y_tr[val_sub_idx]
             groups_val_sub = groups_tr[val_sub_idx]
             unique_patients_val_sub = np.unique(groups_val_sub.cpu().numpy())
-            print(f"    验证集患者数: {len(unique_patients_val_sub)} (IDs: {unique_patients_val_sub})")
+            print(
+                f"    验证集患者数: {len(unique_patients_val_sub)} (IDs: {unique_patients_val_sub})")
             for m_name, _ in models_to_eval.items():
                 if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
                     tr_feat = np.hstack([
@@ -2251,30 +2383,34 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     ])
                     p = best_params.get(m_name, {})
                     if m_name == "SVM":
-                        clf = SVMClassifier(kernel=p.get('kernel', 'rbf'), C=p.get('C', 0.1))
+                        clf = SVMClassifier(kernel=p.get(
+                            'kernel', 'rbf'), C=p.get('C', 0.1))
                     elif m_name == "LogReg":
-                        clf = LogRegClassifier(C=p.get('C', 0.1), max_iter=p.get('max_iter', 100), solver=p.get('solver', 'lbfgs'), class_weight=p.get('class_weight', None))
+                        clf = LogRegClassifier(C=p.get('C', 0.1), max_iter=p.get('max_iter', 100), solver=p.get(
+                            'solver', 'lbfgs'), class_weight=p.get('class_weight', None))
                     elif m_name == "RandomForest":
                         clf = RFClassifier(
-                            n_estimators=p.get('n_estimators', 50), 
+                            n_estimators=p.get('n_estimators', 50),
                             max_depth=p.get('max_depth', 2),
                             min_samples_split=p.get('min_samples_split', 2),
                             min_samples_leaf=p.get('min_samples_leaf', 1)
                         )
                     elif m_name == "KNN":
                         n_samples = len(tr_feat)
-                        n_neighbors = min(p.get('n_neighbors', 5), max(1, n_samples - 1))
+                        n_neighbors = min(
+                            p.get('n_neighbors', 5), max(1, n_samples - 1))
                         clf = KNNClassifier(
                             n_neighbors=n_neighbors,
                             weights=p.get('weights', 'uniform'),
                             algorithm=p.get('algorithm', 'auto')
                         )
                     elif m_name == "GaussianNB":
-                        clf = NBClassifier(var_smoothing=p.get('var_smoothing', 1e-9))
+                        clf = NBClassifier(
+                            var_smoothing=p.get('var_smoothing', 1e-9))
                     else:
                         clf = GBDTClassifier(
-                            n_estimators=p.get('n_estimators', 100), 
-                            learning_rate=p.get('learning_rate', 0.1), 
+                            n_estimators=p.get('n_estimators', 100),
+                            learning_rate=p.get('learning_rate', 0.1),
                             max_depth=p.get('max_depth', 3),
                             min_samples_split=p.get('min_samples_split', 2),
                             subsample=p.get('subsample', 1.0),
@@ -2290,10 +2426,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     results[m_name].append(met)
                 else:
                     if m_name not in best_params:
-                        raise ValueError(f"Grid search result for {m_name} not found!")
+                        raise ValueError(
+                            f"Grid search result for {m_name} not found!")
                     p = best_params[m_name]
                     if m_name == "MultiModal":
-                        model = MultiModalModel(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = MultiModalModel(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "BiModalCMACF":
                         model = BiModalCMACF(
                             ftir_input_dim=ftir_tr_sub.shape[1], mz_input_dim=mz_tr_sub.shape[1])
@@ -2301,18 +2439,24 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         model = CMSTF(
                             ir_dim=ftir_tr_sub.shape[1], met_dim=mz_tr_sub.shape[1])
                     elif m_name == "ConcatFusion":
-                        model = ConcatFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = ConcatFusion(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "GateOnlyFusion":
-                        model = GateOnlyFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = GateOnlyFusion(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "CoAttnOnlyFusion":
-                        model = CoAttnOnlyFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = CoAttnOnlyFusion(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "SelfAttnFusion":
-                        model = SelfAttnFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = SelfAttnFusion(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "SelfAttnOnlyFusion":
-                        model = SelfAttnOnlyFusion(ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
+                        model = SelfAttnOnlyFusion(
+                            ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "FTIROnly":
                         model = SingleFTIRModel(input_dim=ftir_tr_sub.shape[1])
-                        writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
+                        writer = SummaryWriter(
+                            f'./runs/outer_{m_name}_{r}_{fold}')
                         trained_model, _, _, _, _ = train_single_modal_model(
                             model,
                             ftir_tr_sub, y_tr_sub,
@@ -2331,11 +2475,14 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         writer.close()
                         with torch.no_grad():
                             o_val = trained_model(ftir_val_sub, ftir_x)
-                            pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
-                        thr = select_optimal_threshold(y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
+                            pr_val = torch.softmax(o_val, dim=1)[
+                                :, 1].cpu().numpy()
+                        thr = select_optimal_threshold(
+                            y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
                         with torch.no_grad():
                             o_te = trained_model(ftir_te, ftir_x)
-                            pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
+                            pr_te = torch.softmax(o_te, dim=1)[
+                                :, 1].cpu().numpy()
                         pd_te = (pr_te >= thr).astype(int)
                         met = evaluate_model(trained_model, ftir_te, None, y_te, ftir_x, mz_x,
                                              preds=pd_te, probs=pr_te,
@@ -2345,7 +2492,8 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         continue
                     elif m_name == "MZOnly":
                         model = SingleMZModel(input_dim=mz_tr_sub.shape[1])
-                        writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
+                        writer = SummaryWriter(
+                            f'./runs/outer_{m_name}_{r}_{fold}')
                         trained_model, _, _, _, _ = train_single_modal_model(
                             model,
                             mz_tr_sub, y_tr_sub,
@@ -2364,11 +2512,14 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         writer.close()
                         with torch.no_grad():
                             o_val = trained_model(mz_val_sub, mz_x)
-                            pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
-                        thr = select_optimal_threshold(y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
+                            pr_val = torch.softmax(o_val, dim=1)[
+                                :, 1].cpu().numpy()
+                        thr = select_optimal_threshold(
+                            y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
                         with torch.no_grad():
                             o_te = trained_model(mz_te, mz_x)
-                            pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
+                            pr_te = torch.softmax(o_te, dim=1)[
+                                :, 1].cpu().numpy()
                         pd_te = (pr_te >= thr).astype(int)
                         met = evaluate_model(trained_model, None, mz_te, y_te, ftir_x, mz_x,
                                              preds=pd_te, probs=pr_te,
@@ -2381,7 +2532,8 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
 
                     # Determine if we should plot t-SNE for this model/fold
                     # Only plot for the last fold of the last repeat for the final model (MultiModal)
-                    plot_tsne_flag = (m_name == "MultiModal" and r == repeats - 1 and fold == n_splits - 1)
+                    plot_tsne_flag = (
+                        m_name == "MultiModal" and r == repeats - 1 and fold == n_splits - 1)
 
                     trained_model, _, _, _, _ = train_main_model(
                         model,
@@ -2412,14 +2564,63 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     pd_te = (pr_te >= thr).astype(int)
                     met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=pd_te, probs=pr_te,
-                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name, 
+                                         name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
                                          plot_tsne=plot_tsne_flag)
                     results[m_name].append(met)
-                    
+
+                    # >>>>>>>>>>>>>>>>>> 在这里插入可解释性分析 <<<<<<<<<<<<<<<<<<
+                    # 注意：这里的 ftir_tr, mz_tr 是当前外层循环的训练集
+                    #       ftir_te, mz_te, y_te 是当前外层循环的测试集
+                    #       patient_indices 需要从 patients_all 中切片得到
+
+                    # 1. 提取当前划分下的患者索引
+                    current_train_patients = patients_all[tr_idx]
+                    current_test_patients = patients_all[te_idx]
+
+                    # 2. 调用 SHAP 分析
+                    # 注意：perform_ftir_shap_analysis 函数需要原始的非标准化数据来获取正确的波数轴，
+                    # 但你的 ftir_all/mz_all 已经是标准化后的了。你可能需要传递原始的 ftir_x, mz_x。
                     if m_name == "MultiModal":
-                        aggregated_results['MultiModal']['y_true'].append(met['y_true'])
-                        aggregated_results['MultiModal']['y_prob'].append(met['y_prob'])
-                        aggregated_results['MultiModal']['y_pred'].append(met['y_pred'])
+                        ftir_shap_diff, ftir_cancer_shap, ftir_benign_shap, _, _ = perform_ftir_shap_analysis(
+                            trained_model,
+                            ftir_tr, ftir_te, ftir_x,
+                            mz_tr, mz_x, y_te,
+                            current_train_patients, current_test_patients,
+                            plot=False
+                        )
+                        mz_shap_diff, mz_cancer_shap, mz_benign_shap, _, _ = perform_mz_shap_analysis(
+                            trained_model,
+                            mz_tr, mz_te, mz_x,
+                            ftir_tr, ftir_x, y_te,
+                            current_train_patients, current_test_patients,
+                            plot=False
+                        )
+                        aggregated_shap_results['ftir_cancer'].append(
+                            ftir_cancer_shap)
+                        aggregated_shap_results['ftir_benign'].append(
+                            ftir_benign_shap)
+                        aggregated_shap_results['mz_cancer'].append(
+                            mz_cancer_shap)
+                        aggregated_shap_results['mz_benign'].append(
+                            mz_benign_shap)
+
+                        # 收集所有折的标准化数据用于后续聚合相关性分析
+                        if 'ftir_all' not in aggregated_shap_results:
+                            aggregated_shap_results['ftir_all'] = []
+                            aggregated_shap_results['mz_all'] = []
+                        
+                        aggregated_shap_results['ftir_all'].append(torch.cat([ftir_tr, ftir_te], dim=0).cpu().numpy())
+                        aggregated_shap_results['mz_all'].append(torch.cat([mz_tr, mz_te], dim=0).cpu().numpy())
+
+                    # >>>>>>>>>>>>>>>>>> 可解释性分析结束 <<<<<<<<<<<<<<<<<<
+
+                    if m_name == "MultiModal":
+                        aggregated_results['MultiModal']['y_true'].append(
+                            met['y_true'])
+                        aggregated_results['MultiModal']['y_prob'].append(
+                            met['y_prob'])
+                        aggregated_results['MultiModal']['y_pred'].append(
+                            met['y_pred'])
 
     # Plot aggregated CM and ROC for MultiModal
     if aggregated_results['MultiModal']['y_true']:
@@ -2430,6 +2631,70 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             save_path=save_path,
             method_name="MultiModal_Aggregated"
         )
+
+    # Plot aggregated SHAP for MultiModal
+    if aggregated_shap_results['ftir_cancer']:
+        print("\n生成聚合SHAP分析图...")
+        # FTIR
+        all_ftir_cancer = np.concatenate(
+            aggregated_shap_results['ftir_cancer'], axis=0)
+        all_ftir_benign = np.concatenate(
+            aggregated_shap_results['ftir_benign'], axis=0)
+        mean_abs_ftir_cancer = np.mean(np.abs(all_ftir_cancer), axis=0)
+        mean_abs_ftir_benign = np.mean(np.abs(all_ftir_benign), axis=0)
+        ftir_shap_diff = np.abs(mean_abs_ftir_cancer - mean_abs_ftir_benign)
+        
+        precomputed_ftir_shap = {
+            'mean_abs_cancer_shap': mean_abs_ftir_cancer,
+            'mean_abs_benign_shap': mean_abs_ftir_benign,
+            'shap_difference': ftir_shap_diff
+        }
+        
+        perform_ftir_shap_analysis(
+            model=None, 
+            ftir_train=None, 
+            ftir_test=None, 
+            ftir_x=ftir_x, 
+            mz_train=None, 
+            mz_x=None, 
+            y_test=None, 
+            patient_indices_train=None, 
+            patient_indices_test=None, 
+            plot=True, 
+            precomputed_shap=precomputed_ftir_shap,
+            save_dir=save_path
+        )
+        
+        # MZ
+        all_mz_cancer = np.concatenate(
+            aggregated_shap_results['mz_cancer'], axis=0)
+        all_mz_benign = np.concatenate(
+            aggregated_shap_results['mz_benign'], axis=0)
+        mean_abs_mz_cancer = np.mean(np.abs(all_mz_cancer), axis=0)
+        mean_abs_mz_benign = np.mean(np.abs(all_mz_benign), axis=0)
+        mz_shap_diff = np.abs(mean_abs_mz_cancer - mean_abs_mz_benign)
+        
+        precomputed_mz_shap = {
+            'mean_abs_cancer_shap': mean_abs_mz_cancer,
+            'mean_abs_benign_shap': mean_abs_mz_benign,
+            'shap_difference': mz_shap_diff
+        }
+        
+        perform_mz_shap_analysis(
+            model=None, 
+            mz_train=None, 
+            mz_test=None, 
+            mz_x=mz_x, 
+            ftir_train=None, 
+            ftir_x=None, 
+            y_test=None, 
+            patient_indices_train=None, 
+            patient_indices_test=None, 
+            plot=True, 
+            precomputed_shap=precomputed_mz_shap,
+            save_dir=save_path
+        )
+
 
     summary = {}
     for m, lst in results.items():
@@ -2446,9 +2711,10 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     std = float(np.std(vals, ddof=1 if vals.size > 1 else 0))
                     # Calculate 95% CI based on t-distribution or simple normal approximation
                     # Using 1.96 * std / sqrt(N) for CI of the mean
-                    ci_half = 1.96 * std / np.sqrt(vals.size) if vals.size > 1 else 0.0
+                    ci_half = 1.96 * std / \
+                        np.sqrt(vals.size) if vals.size > 1 else 0.0
                     s[metric] = {
-                        'mean': mean, 
+                        'mean': mean,
                         'std': std,
                         'ci_low': mean - ci_half,
                         'ci_high': mean + ci_half
@@ -2479,19 +2745,19 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
     print("\n" + "="*80)
     print("外部交叉验证统计分析")
     print("="*80)
-    
+
     # 1. 计算折间变异性和95%置信区间
     model_stats = {}
     for model_name, model_results in results.items():
         if model_results:
             # 使用你已有的calculate_fold_variability函数
             model_stats[model_name] = calculate_fold_variability(model_results)
-    
+
     # 2. 生成统计报告
     if model_stats:
         df_stats = generate_statistical_report(model_stats, save_path)
         print("统计报告已生成并保存")
-    
+
     # 3. 绘制折间变异性图
     try:
         # 创建适合外部CV的变异性数据格式
@@ -2499,24 +2765,26 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
         for model_name, model_results in results.items():
             if model_results:
                 outer_cv_fold_data[model_name] = model_results
-        
+
         if outer_cv_fold_data:
             plot_fold_variability(outer_cv_fold_data, save_path)
             print("外部CV折间变异性图已生成并保存")
     except Exception as e:
         print(f"绘制外部CV变异性图失败: {e}")
-    
+
     # 4. 打印详细的性能汇总（类似原来2135-2161行的功能）
     print("\n" + "="*80)
     print("外部交叉验证最终模型性能汇总")
     print("="*80)
-    
+
     for model_name, stats in model_stats.items():
         print(f"\n{model_name}:")
         if 'auc' in stats:
-            print(f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
+            print(
+                f"  AUC: {stats['auc']['format_str']} (95% CI: {stats['auc']['ci_format_str']})")
         if 'sensitivity' in stats:
-            print(f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
+            print(
+                f"  灵敏度: {stats['sensitivity']['format_str']} (95% CI: {stats['sensitivity']['ci_format_str']})")
         if 'accuracy' in stats:
             print(f"  准确率: {stats['accuracy']['format_str']}")
         if 'specificity' in stats:
@@ -2525,18 +2793,18 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             print(f"  精确率: {stats['precision']['format_str']}")
         if 'f1' in stats:
             print(f"  F1分数: {stats['f1']['format_str']}")
-    
+
     # 5. 添加模型间统计检验（原来2487-2548行的功能）
     print("\n" + "="*80)
     print("模型间性能比较的非参数检验")
     print("="*80)
-    
+
     model_names = list(model_stats.keys())
     if len(model_names) > 1:
         # 准备AUC数据进行检验
         auc_data = []
         valid_model_names = []
-        
+
         for model_name in model_names:
             if model_name in results and results[model_name]:
                 model_results = results[model_name]
@@ -2545,13 +2813,13 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                 if len(auc_values) > 0:
                     auc_data.append(auc_values)
                     valid_model_names.append(model_name)
-        
+
         if len(auc_data) > 1:
             # 对齐数据长度
             min_length = min(len(auc_list) for auc_list in auc_data)
             auc_data_aligned = [auc_list[:min_length] for auc_list in auc_data]
             auc_array = np.array(auc_data_aligned).T
-            
+
             # Friedman检验
             from scipy.stats import friedmanchisquare
             try:
@@ -2560,15 +2828,18 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                 print(f"  统计量: {friedman_stat:.4f}")
                 print(f"  P值: {friedman_p:.4f}")
                 print(f"  是否显著: {'是' if friedman_p < 0.05 else '否'}")
-                
+
                 if friedman_p < 0.05:
                     print(f"\n检测到显著差异，进行事后检验...")
                     # Nemenyi或Wilcoxon检验
                     try:
                         import scikit_posthocs as sp
-                        nemenyi_results = sp.posthoc_nemenyi_friedman(auc_array)
+                        nemenyi_results = sp.posthoc_nemenyi_friedman(
+                            auc_array)
                         print(f"\nNemenyi事后检验结果:")
                         print(nemenyi_results.round(4))
+                        nemenyi_results.to_csv(os.path.join(save_path, 'nemenyi_posthoc_test.csv'))
+                        print(f"Nemenyi事后检验结果已保存至: {os.path.join(save_path, 'nemenyi_posthoc_test.csv')}")
                     except ImportError:
                         print("警告: scikit-posthocs未安装，改用两两Wilcoxon比较")
                         from scipy.stats import wilcoxon
@@ -2580,17 +2851,19 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                                 try:
                                     stat, p_val = wilcoxon(data1, data2)
                                     sig_symbol = "***" if p_val < 0.05 else ""
-                                    print(f"  {model1} vs {model2}: p={p_val:.4f} {sig_symbol}")
+                                    print(
+                                        f"  {model1} vs {model2}: p={p_val:.4f} {sig_symbol}")
                                 except Exception as e:
-                                    print(f"  {model1} vs {model2}: 无法计算 - {str(e)}")
-                                    
+                                    print(
+                                        f"  {model1} vs {model2}: 无法计算 - {str(e)}")
+
             except Exception as e:
                 print(f"Friedman检验失败: {str(e)}")
         else:
             print("模型数量不足或数据不完整，无法进行统计检验")
     else:
         print("只有一个模型，无需进行模型间比较")
-    
+
     return results, summary
 
 
@@ -2599,7 +2872,7 @@ def generate_final_paper_results(results, summary, save_path):
     print("\n" + "="*80)
     print("论文最终模型性能指标（Repeated Outer CV）")
     print("="*80)
-    
+
     # 准备论文表格数据
     paper_data = []
     for model_name, stats in summary.items():
@@ -2610,20 +2883,21 @@ def generate_final_paper_results(results, summary, save_path):
                 row[f'{metric}_95CI'] = f"[{stats[metric]['ci_low']*100:.1f}%, {stats[metric]['ci_high']*100:.1f}%]"
                 row[f'{metric}_formatted'] = f"{stats[metric]['mean']*100:.2f}% [{stats[metric]['ci_low']*100:.1f}%, {stats[metric]['ci_high']*100:.1f}%]"
         paper_data.append(row)
-    
+
     df_paper = pd.DataFrame(paper_data)
     paper_path = os.path.join(save_path, 'paper_final_results.csv')
     df_paper.to_csv(paper_path, index=False)
-    
+
     print("\n表1. 模型性能比较（5次重复4折外部交叉验证）")
     # Show formatted columns for concise display
-    display_cols = ['Model'] + [c for c in df_paper.columns if c.endswith('_formatted')]
+    display_cols = ['Model'] + \
+        [c for c in df_paper.columns if c.endswith('_formatted')]
     if display_cols:
         print(df_paper[display_cols].to_string(index=False))
     else:
         print(df_paper.to_string(index=False))
     print(f"\n论文结果已保存至: {paper_path}")
-    
+
     return df_paper
 
 
