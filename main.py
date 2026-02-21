@@ -1,4 +1,5 @@
-from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability, select_optimal_threshold, plot_aggregated_cm_roc
+from evaluation import calculate_fold_variability, generate_statistical_report, perform_nonparametric_tests, plot_fold_variability, select_optimal_threshold, plot_aggregated_cm_roc, plot_tsne_features
+from sklearn.manifold import TSNE
 import random
 import os
 import itertools
@@ -2340,6 +2341,11 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
         'mz_cancer': [], 'mz_benign': []
     }
 
+    # Store best MultiModal model data for t-SNE
+    best_mm_val_auc = -1.0
+    best_mm_r_fold = (-1, -1)
+    best_mm_tsne_data = None
+
     for r in range(repeats):
         outer = StratifiedGroupKFold(
             n_splits=n_splits, shuffle=True, random_state=42 + r)
@@ -2433,9 +2439,6 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             f"Grid search result for {m_name} not found!")
                     p = best_params[m_name]
                     if m_name == "MultiModal":
-                        if 'best_mm_val_auc' not in locals():
-                            best_mm_val_auc = -1.0
-                            best_mm_r_fold = (-1, -1)
                         model = MultiModalModel(
                             ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "BiModalCMACF":
@@ -2560,8 +2563,19 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             best_mm_val_auc = val_auc
                             best_mm_r_fold = (r, fold)
                             print(f"    [新最佳] 验证集 AUC: {val_auc:.4f} (r={r}, fold={fold})")
-                    # 确定是否绘制 t-SNE
-                    plot_tsne_flag = (m_name == "MultiModal" and r == best_mm_r_fold[0] and fold == best_mm_r_fold[1]) 
+                            # Extract features for later t-SNE plotting
+                            with torch.no_grad():
+                                ftir_feat_t = trained_model.ftir_extractor(ftir_te, ftir_x)
+                                mz_feat_t = trained_model.mz_extractor(mz_te, mz_x)
+                                fused_feat_t = trained_model.fuser(ftir_feat_t, mz_feat_t)
+                                best_mm_tsne_data = {
+                                    'ftir_feat': ftir_feat_t.cpu().numpy(),
+                                    'mz_feat': mz_feat_t.cpu().numpy(),
+                                    'fused_feat': fused_feat_t.cpu().numpy(),
+                                    'y_true': y_te.cpu().numpy(),
+                                    'model_name': f"{m_name}_Best_r{r}_fold{fold}"
+                                }
+
                     with torch.no_grad():
                         o_val = trained_model(
                             ftir_val_sub, mz_val_sub, ftir_x, mz_x)
@@ -2576,7 +2590,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=pd_te, probs=pr_te,
                                          name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
-                                         plot_tsne=plot_tsne_flag)
+                                         plot_tsne=False)
                     results[m_name].append(met)
 
                     # >>>>>>>>>>>>>>>>>> 在这里插入可解释性分析 <<<<<<<<<<<<<<<<<<
@@ -2632,6 +2646,30 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             met['y_prob'])
                         aggregated_results['MultiModal']['y_pred'].append(
                             met['y_pred'])
+
+    # Plot t-SNE for the best MultiModal fold
+    if best_mm_tsne_data is not None:
+        print(f"\n绘制最佳折的 t-SNE (模型: {best_mm_tsne_data['model_name']})...")
+        ftir_feat = best_mm_tsne_data['ftir_feat']
+        mz_feat = best_mm_tsne_data['mz_feat']
+        fused_feat = best_mm_tsne_data['fused_feat']
+        y_true = best_mm_tsne_data['y_true']
+        
+        n_samples = len(y_true)
+        # 调整 perplexity，避免离散点问题
+        perplexity = min(30, n_samples - 1) if n_samples > 1 else 1
+        tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, 
+                   init='pca', learning_rate=100, n_iter=2000, metric='euclidean')
+                   
+        plot_tsne_features(
+            tsne=tsne,
+            ftir_feat=ftir_feat,
+            mz_feat=mz_feat,
+            fused_feat=fused_feat,
+            y_true=y_true,
+            save_path=save_path,
+            model_name=best_mm_tsne_data['model_name']
+        )
 
     # Plot aggregated CM and ROC for MultiModal
     if aggregated_results['MultiModal']['y_true']:

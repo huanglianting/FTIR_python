@@ -259,7 +259,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
             from sklearn.manifold import TSNE
             n_samples = len(y_true)
             # 对于小样本，perplexity 必须非常小，尝试更小的perplexity以聚集散点
-            perplexity = min(5, n_samples - 1) if n_samples > 1 else 1
+            perplexity = min(30, n_samples - 1) if n_samples > 1 else 1
             tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42, init='pca', learning_rate=100, n_iter=2000, metric='euclidean')
             # 可视化各层次特征
             plot_tsne_features(
