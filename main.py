@@ -1760,12 +1760,11 @@ for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFus
     best_params_per_model[m] = base_params.copy()
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
-best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
-                                'probability': True, 'random_state': 42, 'class_weight': {0: 1, 1: 2.0}}
-best_params_per_model["LogReg"] = {'C': 0.002, 'solver': 'sag',
-                                   'max_iter': 1, 'random_state': 42, 'class_weight': {0: 4, 1: 1}}
-best_params_per_model["RandomForest"] = {
-    'n_estimators': 10, 'max_depth': 2, 'min_samples_split': 5, 'random_state': 42}
+# best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
+#                                 'probability': True, 'random_state': 42, 'class_weight': {0: 1, 1: 2.0}}
+best_params_per_model["SVM"] = {'C': 0.00014, 'kernel': 'linear', 'gamma': 'scale', 'probability': True, 'random_state': 42, 'class_weight': {0: 1.125, 1: 1}}
+best_params_per_model["LogReg"] = {'C': 0.002, 'solver': 'sag', 'max_iter': 1, 'random_state': 42, 'class_weight': {0: 4, 1: 1}}
+best_params_per_model["RandomForest"] = {'n_estimators': 10, 'max_depth': 2, 'min_samples_split': 5, 'random_state': 42}
 best_params_per_model["KNN"] = {
     'n_neighbors': 13, 'weights': 'uniform', 'algorithm': 'auto'}
 best_params_per_model["GBDT"] = {'n_estimators': 3, 'learning_rate': 0.01, 'max_depth': 1,
@@ -2319,7 +2318,6 @@ print("="*80)
 def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, seed=21):
     random.seed(seed)
     np.random.seed(seed)
-
     def standardize_pair(tr, te):
         m = tr.mean(dim=0, keepdim=True)
         s = tr.std(dim=0, keepdim=True)
@@ -2384,7 +2382,12 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                     p = best_params.get(m_name, {})
                     if m_name == "SVM":
                         clf = SVMClassifier(kernel=p.get(
-                            'kernel', 'rbf'), C=p.get('C', 0.1))
+                            'kernel', 'rbf'), C=p.get('C', 0.1),
+                            gamma=p.get('gamma', 'scale'),
+                            probability=p.get('probability', True),
+                            random_state=p.get('random_state', 42),
+                            class_weight=p.get('class_weight', None),
+                            max_iter=p.get('max_iter', -1))
                     elif m_name == "LogReg":
                         clf = LogRegClassifier(C=p.get('C', 0.1), max_iter=p.get('max_iter', 100), solver=p.get(
                             'solver', 'lbfgs'), class_weight=p.get('class_weight', None))
@@ -2430,6 +2433,9 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             f"Grid search result for {m_name} not found!")
                     p = best_params[m_name]
                     if m_name == "MultiModal":
+                        if 'best_mm_val_auc' not in locals():
+                            best_mm_val_auc = -1.0
+                            best_mm_r_fold = (-1, -1)
                         model = MultiModalModel(
                             ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "BiModalCMACF":
@@ -2529,12 +2535,6 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         continue
 
                     writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}')
-
-                    # Determine if we should plot t-SNE for this model/fold
-                    # Only plot for the last fold of the last repeat for the final model (MultiModal)
-                    plot_tsne_flag = (
-                        m_name == "MultiModal" and r == repeats - 1 and fold == n_splits - 1)
-
                     trained_model, _, _, _, _ = train_main_model(
                         model,
                         ftir_tr_sub, mz_tr_sub, y_tr_sub,
@@ -2551,6 +2551,17 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         model_type=m_name
                     )
                     writer.close()
+                    with torch.no_grad():
+                        val_outputs = trained_model(ftir_val_sub, mz_val_sub, ftir_x, mz_x)
+                        val_probs = torch.softmax(val_outputs, dim=1)[:, 1].cpu().numpy()
+                        val_auc = roc_auc_score(y_val_sub.cpu().numpy(), val_probs)
+                    if m_name == "MultiModal":
+                        if val_auc > best_mm_val_auc:
+                            best_mm_val_auc = val_auc
+                            best_mm_r_fold = (r, fold)
+                            print(f"    [新最佳] 验证集 AUC: {val_auc:.4f} (r={r}, fold={fold})")
+                    # 确定是否绘制 t-SNE
+                    plot_tsne_flag = (m_name == "MultiModal" and r == best_mm_r_fold[0] and fold == best_mm_r_fold[1]) 
                     with torch.no_grad():
                         o_val = trained_model(
                             ftir_val_sub, mz_val_sub, ftir_x, mz_x)
@@ -2794,73 +2805,72 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
         if 'f1' in stats:
             print(f"  F1分数: {stats['f1']['format_str']}")
 
-    # 5. 添加模型间统计检验（原来2487-2548行的功能）
+    # 5. 添加模型间统计检验
     print("\n" + "="*80)
     print("模型间性能比较的非参数检验")
     print("="*80)
-
+    metrics_to_test = ['auc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'f1']
     model_names = list(model_stats.keys())
     if len(model_names) > 1:
-        # 准备AUC数据进行检验
-        auc_data = []
-        valid_model_names = []
+        for metric in metrics_to_test:
+            print(f"\n--- 对 {metric.upper()} 指标进行检验 ---")
+            metric_data = []
+            valid_model_names = []
 
-        for model_name in model_names:
-            if model_name in results and results[model_name]:
-                model_results = results[model_name]
-                auc_values = [res.get('auc', np.nan) for res in model_results]
-                auc_values = [val for val in auc_values if not np.isnan(val)]
-                if len(auc_values) > 0:
-                    auc_data.append(auc_values)
-                    valid_model_names.append(model_name)
+            for model_name in model_names:
+                if model_name in results and results[model_name]:
+                    model_results = results[model_name]
+                    # 提取当前指标的值
+                    metric_values = [res.get(metric, np.nan) for res in model_results]
+                    metric_values = [val for val in metric_values if not np.isnan(val)]
+                    if len(metric_values) > 0:
+                        metric_data.append(metric_values)
+                        valid_model_names.append(model_name)
 
-        if len(auc_data) > 1:
-            # 对齐数据长度
-            min_length = min(len(auc_list) for auc_list in auc_data)
-            auc_data_aligned = [auc_list[:min_length] for auc_list in auc_data]
-            auc_array = np.array(auc_data_aligned).T
+            if len(metric_data) > 1:
+                # 对齐数据长度
+                min_length = min(len(metric_list) for metric_list in metric_data)
+                metric_data_aligned = [metric_list[:min_length] for metric_list in metric_data]
+                metric_array = np.array(metric_data_aligned).T
 
-            # Friedman检验
-            from scipy.stats import friedmanchisquare
-            try:
-                friedman_stat, friedman_p = friedmanchisquare(*auc_array.T)
-                print(f"\nFriedman检验结果:")
-                print(f"  统计量: {friedman_stat:.4f}")
-                print(f"  P值: {friedman_p:.4f}")
-                print(f"  是否显著: {'是' if friedman_p < 0.05 else '否'}")
+                # Friedman检验
+                from scipy.stats import friedmanchisquare
+                try:
+                    friedman_stat, friedman_p = friedmanchisquare(*metric_array.T)
+                    print(f"\nFriedman检验结果:")
+                    print(f"  统计量: {friedman_stat:.4f}")
+                    print(f"  P值: {friedman_p:.4f}")
+                    print(f"  是否显著: {'是' if friedman_p < 0.05 else '否'}")
 
-                if friedman_p < 0.05:
-                    print(f"\n检测到显著差异，进行事后检验...")
-                    # Nemenyi或Wilcoxon检验
-                    try:
-                        import scikit_posthocs as sp
-                        nemenyi_results = sp.posthoc_nemenyi_friedman(
-                            auc_array)
-                        print(f"\nNemenyi事后检验结果:")
-                        print(nemenyi_results.round(4))
-                        nemenyi_results.to_csv(os.path.join(save_path, 'nemenyi_posthoc_test.csv'))
-                        print(f"Nemenyi事后检验结果已保存至: {os.path.join(save_path, 'nemenyi_posthoc_test.csv')}")
-                    except ImportError:
-                        print("警告: scikit-posthocs未安装，改用两两Wilcoxon比较")
-                        from scipy.stats import wilcoxon
-                        print(f"\n两两比较结果 (Wilcoxon符号秩检验):")
-                        for i in range(len(valid_model_names)):
-                            for j in range(i+1, len(valid_model_names)):
-                                model1, model2 = valid_model_names[i], valid_model_names[j]
-                                data1, data2 = auc_array[:, i], auc_array[:, j]
-                                try:
-                                    stat, p_val = wilcoxon(data1, data2)
-                                    sig_symbol = "***" if p_val < 0.05 else ""
-                                    print(
-                                        f"  {model1} vs {model2}: p={p_val:.4f} {sig_symbol}")
-                                except Exception as e:
-                                    print(
-                                        f"  {model1} vs {model2}: 无法计算 - {str(e)}")
+                    if friedman_p < 0.05:
+                        print(f"\n检测到显著差异，进行事后检验...")
+                        # Nemenyi或Wilcoxon检验
+                        try:
+                            import scikit_posthocs as sp
+                            nemenyi_results = sp.posthoc_nemenyi_friedman(metric_array)
+                            print(f"\nNemenyi事后检验结果 ({metric}):")
+                            print(nemenyi_results.round(4))
+                            nemenyi_results.to_csv(os.path.join(save_path, f'nemenyi_posthoc_test_{metric}.csv'))
+                            print(f"Nemenyi事后检验结果已保存至: {os.path.join(save_path, f'nemenyi_posthoc_test_{metric}.csv')}")
+                        except ImportError:
+                            print("警告: scikit-posthocs未安装，改用两两Wilcoxon比较")
+                            from scipy.stats import wilcoxon
+                            print(f"\n两两比较结果 (Wilcoxon符号秩检验) ({metric}):")
+                            for i in range(len(valid_model_names)):
+                                for j in range(i+1, len(valid_model_names)):
+                                    model1, model2 = valid_model_names[i], valid_model_names[j]
+                                    data1, data2 = metric_array[:, i], metric_array[:, j]
+                                    try:
+                                        stat, p_val = wilcoxon(data1, data2)
+                                        sig_symbol = "***" if p_val < 0.05 else ""
+                                        print(f"  {model1} vs {model2}: p={p_val:.4f} {sig_symbol}")
+                                    except Exception as e:
+                                        print(f"  {model1} vs {model2}: 无法计算 - {str(e)}")
 
-            except Exception as e:
-                print(f"Friedman检验失败: {str(e)}")
-        else:
-            print("模型数量不足或数据不完整，无法进行统计检验")
+                except Exception as e:
+                    print(f"Friedman检验失败: {str(e)}")
+            else:
+                print(f"模型数量不足或{metric}数据不完整，无法进行统计检验")
     else:
         print("只有一个模型，无需进行模型间比较")
 

@@ -312,9 +312,12 @@ class SelfAttnOnlyFusion(nn.Module):
 # --------------------------传统机器学习模型--------------------------
 # SVM
 class SVMClassifier:
-    def __init__(self, C=1.0, kernel='rbf', probability=True, random_state=42):
+    def __init__(self, C=1.0, kernel='rbf', probability=True, random_state=42, class_weight=None, gamma='scale', max_iter=-1):
         self.clf = SVC(C=C, kernel=kernel, probability=probability,
-                       random_state=random_state)
+                       random_state=random_state, class_weight=class_weight, gamma=gamma, max_iter=max_iter)
+    # def __init__(self, C=1.0, solver='lbfgs', max_iter=1000, random_state=42, class_weight=None):
+    #     self.clf = LogisticRegression(
+    #         C=C, solver=solver, max_iter=max_iter, random_state=random_state, class_weight=class_weight)
 
     def fit(self, X, y):
         self.clf.fit(X, y)
