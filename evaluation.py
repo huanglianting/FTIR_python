@@ -937,9 +937,18 @@ def plot_fold_variability(all_model_fold_results, save_path='./result'):
     return True
 
 
-def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result', method_name="Aggregated_MultiModal"):
+def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result', method_name="Aggregated_MultiModal", external_auc_mean=None, external_auc_ci=None):
     """
     绘制聚合的混淆矩阵和ROC曲线
+    
+    Args:
+        all_y_true: 真实标签列表
+        all_probs: 预测概率列表
+        all_preds: 预测类别列表
+        save_path: 保存路径
+        method_name: 方法名称
+        external_auc_mean: 外部计算的平均AUC（用于图例显示，保持与终端输出一致）
+        external_auc_ci: 外部计算的AUC置信区间 (low, high)
     """
     # 确保输入是numpy数组
     y_true = np.concatenate(all_y_true)
@@ -948,23 +957,30 @@ def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result
     
     # 计算AUC
     try:
-        auc = roc_auc_score(y_true, probs)
-        # Bootstrap CI for AUC
-        rng = np.random.RandomState(42)
-        indices = np.arange(len(y_true))
-        auc_values = []
-        for _ in range(1000):
-            sample_idx = rng.choice(indices, size=len(indices), replace=True)
-            if len(np.unique(y_true[sample_idx])) < 2:
-                continue
-            try:
-                auc_values.append(roc_auc_score(y_true[sample_idx], probs[sample_idx]))
-            except:
-                pass
-        if auc_values:
-            auc_ci = (np.percentile(auc_values, 2.5), np.percentile(auc_values, 97.5))
+        if external_auc_mean is not None:
+            auc = external_auc_mean
+            if external_auc_ci is not None:
+                auc_ci = external_auc_ci
+            else:
+                auc_ci = (auc, auc)
         else:
-            auc_ci = (auc, auc)
+            auc = roc_auc_score(y_true, probs)
+            # Bootstrap CI for AUC
+            rng = np.random.RandomState(42)
+            indices = np.arange(len(y_true))
+            auc_values = []
+            for _ in range(1000):
+                sample_idx = rng.choice(indices, size=len(indices), replace=True)
+                if len(np.unique(y_true[sample_idx])) < 2:
+                    continue
+                try:
+                    auc_values.append(roc_auc_score(y_true[sample_idx], probs[sample_idx]))
+                except:
+                    pass
+            if auc_values:
+                auc_ci = (np.percentile(auc_values, 2.5), np.percentile(auc_values, 97.5))
+            else:
+                auc_ci = (auc, auc)
     except:
         auc = 0.5
         auc_ci = (0.5, 0.5)
@@ -1051,9 +1067,7 @@ def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result
     # plt.subplots_adjust(left=0.12, bottom=0.12, right=0.75, top=0.9)
     # 设置图例
     plt.legend(
-        loc='center left', 
-        bbox_to_anchor=(1.02, 0.5),
-        borderaxespad=0., 
+        loc='lower right', 
         fontsize=LEGEND_SIZE, 
         frameon=True
     )

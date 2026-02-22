@@ -2792,7 +2792,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             aggregated_results['MultiModal']['y_prob'],
             aggregated_results['MultiModal']['y_pred'],
             save_path=save_path,
-            method_name="MultiModal_Aggregated"
+            method_name="MultiModal Aggregated"
         )
 
     # Plot aggregated SHAP for MultiModal
