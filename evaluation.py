@@ -782,8 +782,10 @@ def plot_cm_roc(y_true, preds, probs, auc, auc_ci, save_path, method_name='Model
 
     # 混淆矩阵热力图
     plt.subplot(1, 2, 1)
-    cm = confusion_matrix(y_true, preds)
-    cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
+    cm = confusion_matrix(y_true, preds, labels=[0, 1])
+    cm_sum = cm.sum(axis=1)[:, np.newaxis]
+    # 避免除以零
+    cm_percent = np.divide(cm.astype('float'), cm_sum, out=np.zeros_like(cm.astype('float')), where=cm_sum != 0) * 100
     ax1 = sns.heatmap(
         cm_percent,
         annot=True,
@@ -934,6 +936,7 @@ def plot_fold_variability(all_model_fold_results, save_path='./result'):
         plt.close()
     return True
 
+
 def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result', method_name="Aggregated_MultiModal"):
     """
     绘制聚合的混淆矩阵和ROC曲线
@@ -967,26 +970,106 @@ def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result
         auc_ci = (0.5, 0.5)
 
     # 1. 混淆矩阵
-    cm = confusion_matrix(y_true, preds)
-    plt.figure(figsize=(6, 5))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False)
-    plt.title(f'{method_name} Confusion Matrix')
-    plt.ylabel('True Label')
-    plt.xlabel('Predicted Label')
+    cm = confusion_matrix(y_true, preds, labels=[0, 1])
+    cm_sum = cm.sum(axis=1)[:, np.newaxis]
+    # 避免除以零：如果和为0，则结果设为0，否则正常除法
+    cm_percent = np.divide(cm.astype('float'), cm_sum, out=np.zeros_like(cm.astype('float')), where=cm_sum != 0) * 100
+    
+    plt.figure(figsize=(8, 6))
+    # 使用 annot 显示 "数量 (百分比%)"
+    annot_data = []
+    nrows, ncols = cm.shape
+    for i in range(nrows):
+        row_data = []
+        for j in range(ncols):
+            text = f"{cm[i, j]}\n({cm_percent[i, j]:.1f}%)"
+            row_data.append(text)
+        annot_data.append(row_data)
+    annot = np.array(annot_data)
+    
+    print("DEBUG: Aggregated CM Annotation Matrix:")
+    print(annot)
+            
+    ax = sns.heatmap(cm_percent, annot=False, fmt='', cmap='Blues', 
+                vmin=0, vmax=100,
+                linewidths=1.0, linecolor='black',
+                annot_kws={'size': XTICK_SIZE},
+                xticklabels=['Benign', 'Malignant'], yticklabels=['Benign', 'Malignant'])
+                
+    # 手动添加注释，确保显示
+    for i in range(nrows):
+        for j in range(ncols):
+            text = f"{cm[i, j]}\n({cm_percent[i, j]:.1f}%)"
+            # 根据背景颜色深浅选择字体颜色
+            text_color = "white" if cm_percent[i, j] > 50 else "black"
+            ax.text(j + 0.5, i + 0.5, text,
+                    ha="center", va="center", color=text_color, fontsize=XTICK_SIZE)
+                
+    plt.title(f'{method_name} Confusion Matrix', fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    plt.ylabel('True Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.xlabel('Predicted Label', fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    
+    ax.set_xticklabels(ax.get_xticklabels(), fontsize=XTICK_SIZE)
+    ax.set_yticklabels(ax.get_yticklabels(), fontsize=XTICK_SIZE)
+    
+    # 加粗边框
+    for _, spine in ax.spines.items():
+        spine.set_visible(True)
+        spine.set_linewidth(1.2)
+        spine.set_color('black')
+        
+    # 添加 colorbar 并设置边框
+    if ax.collections:
+        colorbar = ax.collections[0].colorbar
+        colorbar.outline.set_visible(True)
+        colorbar.outline.set_linewidth(1.2)
+        colorbar.outline.set_edgecolor('black')
+        
+    plt.tight_layout()
     plt.savefig(f'{save_path}/{method_name}_confusion_matrix.png', dpi=300, bbox_inches='tight')
     plt.close()
 
     # 2. ROC曲线
     fpr, tpr, _ = roc_curve(y_true, probs)
-    plt.figure(figsize=(6, 6))
-    plt.plot(fpr, tpr, label=f'{method_name} (AUC = {auc:.2f} [{auc_ci[0]:.2f}-{auc_ci[1]:.2f}])', linewidth=2)
-    plt.plot([0, 1], [0, 1], 'k--', linewidth=1)
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title(f'{method_name} ROC Curve')
-    plt.legend(loc="lower right")
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='#6495ED',
+             linewidth=PLOT_LINE_WIDTH,
+             label=f'{method_name} (AUC={auc:.3f} [{auc_ci[0]:.3f}-{auc_ci[1]:.3f}])')
+    plt.plot([0, 1], [0, 1], color='#b1b1b1', linestyle='--',
+             linewidth=PLOT_LINE_WIDTH, label='Random')
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('False Positive Rate',
+               fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.ylabel('True Positive Rate',
+               fontsize=AXIS_LABEL_SIZE, labelpad=LABEL_PAD)
+    plt.title(f'{method_name} ROC Curve',
+              fontsize=TITLE_SIZE, pad=TITLE_PAD)
+    plt.grid(False)
+    
+    # 调整布局
+    # plt.subplots_adjust(left=0.12, bottom=0.12, right=0.75, top=0.9)
+    # 设置图例
+    plt.legend(
+        loc='center left', 
+        bbox_to_anchor=(1.02, 0.5),
+        borderaxespad=0., 
+        fontsize=LEGEND_SIZE, 
+        frameon=True
+    )
+    
+    # plt.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0),
+    #            borderaxespad=0., fontsize=LEGEND_SIZE, frameon=True)
+    
+    # 设置坐标轴样式
+    ax = plt.gca()
+    for spine in ax.spines.values():
+        spine.set_color('black')
+        spine.set_linewidth(1.2)
+    ax.tick_params(axis='both', which='major',
+                   length=5, width=1, direction='out',
+                   labelsize=XTICK_SIZE)
+    plt.tight_layout()
     plt.savefig(f'{save_path}/{method_name}_roc_curve.png', dpi=300, bbox_inches='tight')
     plt.close()
     
