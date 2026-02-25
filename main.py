@@ -1780,7 +1780,7 @@ best_params_per_model["MultiModal"] = {'lr': 0.00085, 'weight_decay': 1e-4, 'bat
 for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
     best_params_per_model[m] = base_params.copy()
 # Override FTIROnly only (keep MultiModal unchanged)
-best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
+best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 120}
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
 # best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
@@ -2520,7 +2520,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             pr_val = torch.softmax(o_val, dim=1)[
                                 :, 1].cpu().numpy()
                         thr = select_optimal_threshold(
-                            y_val_sub.cpu().numpy(), pr_val, method="f1")
+                            y_val_sub.cpu().numpy(), pr_val, method="maxmin")
                         with torch.no_grad():
                             o_te = trained_model(ftir_te, ftir_x)
                             pr_te = torch.softmax(o_te, dim=1)[

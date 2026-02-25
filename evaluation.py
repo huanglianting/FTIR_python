@@ -298,6 +298,32 @@ def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=
                 best_f1 = f1
                 best_thr = thr
         return float(best_thr)
+    elif method == "maxmin":
+        # 在验证集上搜索使(Acc, Sens, Spec, F1)四项中的最小值最大的阈值
+        uniq = np.unique(probs)
+        candidates = np.linspace(0.0, 1.0, num=101)
+        # 合并去重
+        candidates = np.unique(np.concatenate((candidates, uniq)))
+        best_thr, best_score = 0.5, -1.0
+        for thr in candidates:
+            preds = (probs >= thr).astype(int)
+            acc = (preds == y_true).mean()
+            # 计算 sens/spec/f1，注意边界情况
+            tp = np.sum((preds == 1) & (y_true == 1))
+            tn = np.sum((preds == 0) & (y_true == 0))
+            fp = np.sum((preds == 1) & (y_true == 0))
+            fn = np.sum((preds == 0) & (y_true == 1))
+            sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+            try:
+                f1 = f1_score(y_true, preds, zero_division=0)
+            except Exception:
+                f1 = 0.0
+            min_metric = min(acc, sens, spec, f1)
+            if min_metric > best_score:
+                best_score = min_metric
+                best_thr = thr
+        return float(best_thr)
     elif method == "target_sensitivity":
         if target_sensitivity is None:
             target_sensitivity = 0.8
