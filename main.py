@@ -1780,7 +1780,9 @@ best_params_per_model["MultiModal"] = {'lr': 0.00085, 'weight_decay': 1e-4, 'bat
 for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
     best_params_per_model[m] = base_params.copy()
 # Override FTIROnly only (keep MultiModal unchanged)
-best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 120}
+# best_params_per_model["FTIROnly"] = {'variant': 'pls', 'pls_grid': [6, 8, 12, 16, 24], 'lr': 0.0004, 'weight_decay': 1e-5, 'batch_size': 16, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 140}
+    extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier
+best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
 # best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
@@ -2496,29 +2498,110 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         model = SelfAttnOnlyFusion(
                             ftir_tr_sub.shape[1], mz_tr_sub.shape[1])
                     elif m_name == "FTIROnly":
-                        model = SingleFTIRModel(input_dim=ftir_tr_sub.shape[1])
-                        writer = SummaryWriter(
-                            f'./runs/outer_{m_name}_{r}_{fold}')
-                        trained_model, _, _, _, _ = train_single_modal_model(
-                            model,
-                            ftir_tr_sub, y_tr_sub,
-                            ftir_val_sub, y_val_sub,
-                            ftir_x,
-                            epochs=100,
-                            batch_size=p['batch_size'],
-                            writer=writer,
-                            lr=p['lr'],
-                            weight_decay=p['weight_decay'],
-                            label_smoothing=p['label_smoothing'],
-                            scheduler_factor=p['scheduler_factor'],
-                            early_stop_patience=p['early_stop_patience'],
-                            model_type=m_name
-                        )
-                        writer.close()
-                        with torch.no_grad():
-                            o_val = trained_model(ftir_val_sub, ftir_x)
-                            pr_val = torch.softmax(o_val, dim=1)[
-                                :, 1].cpu().numpy()
+                        variant = p.get('variant', 'baseline')
+                        if variant in ['pls', 'pls_logreg']:
+                            comps_list = p.get('pls_grid', [6, 8, 12, 16, 24])
+                            best_combo = None
+                            best_combo_score = -1.0
+                            for n_comp in comps_list:
+                                tr_pls, val_pls, ftir_scaler_tmp, ftir_pls_tmp = extract_ftir_pls_pair(
+                                    ftir_tr_sub, y_tr_sub, ftir_val_sub, n_components=n_comp)
+                                if variant == 'pls':
+                                    model_tmp = SingleFTIRPLSModel(input_dim=tr_pls.shape[1])
+                                    writer = SummaryWriter(f'./runs/outer_{m_name}_{r}_{fold}_pls{n_comp}')
+                                    trained_tmp, _, _, _, _ = train_single_modal_model(
+                                        model_tmp,
+                                        tr_pls, y_tr_sub,
+                                        val_pls, y_val_sub,
+                                        ftir_x,
+                                        epochs=100,
+                                        batch_size=p['batch_size'],
+                                        writer=writer,
+                                        lr=p['lr'],
+                                        weight_decay=p['weight_decay'],
+                                        label_smoothing=p['label_smoothing'],
+                                        scheduler_factor=p['scheduler_factor'],
+                                        early_stop_patience=p['early_stop_patience'],
+                                        model_type=m_name
+                                    )
+                                    writer.close()
+                                    with torch.no_grad():
+                                        o_val = trained_tmp(val_pls, ftir_x)
+                                        pr_val_tmp = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
+                                    model_store = trained_tmp
+                                else:
+                                    # 使用Logistic Regression在PLS特征上
+                                    clf = LogRegClassifier(C=p.get('logreg_C', 1.0), max_iter=p.get('logreg_max_iter', 200))
+                                    clf.fit(tr_pls.numpy(), y_tr_sub.numpy())
+                                    pr_val_tmp = clf.predict_proba(val_pls.numpy())[:, 1]
+                                    model_store = clf
+                                yv = y_val_sub.cpu().numpy()
+                                cand_thrs = []
+                                cand_thrs.append(('maxmin', select_optimal_threshold(yv, pr_val_tmp, method="maxmin")))
+                                cand_thrs.append(('f1', select_optimal_threshold(yv, pr_val_tmp, method="f1")))
+                                cand_thrs.append(('balanced', select_optimal_threshold(yv, pr_val_tmp, method="balanced")))
+                                cand_thrs.append(('youden', select_optimal_threshold(yv, pr_val_tmp, method="youden")))
+                                cand_thrs.append(('constrained_f1@0.6', select_optimal_threshold(yv, pr_val_tmp, method="constrained_f1", target_specificity=0.6)))
+                                def eval_thr_local(th):
+                                    preds = (pr_val_tmp >= th).astype(int)
+                                    acc = (preds == yv).mean()
+                                    tp = ((preds == 1) & (yv == 1)).sum()
+                                    tn = ((preds == 0) & (yv == 0)).sum()
+                                    fp = ((preds == 1) & (yv == 0)).sum()
+                                    fn = ((preds == 0) & (yv == 1)).sum()
+                                    sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+                                    spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+                                    from sklearn.metrics import f1_score as _f1
+                                    f1v = _f1(yv, preds, zero_division=0)
+                                    return min(acc, sens, spec, f1v)
+                                # 选择此 n_comp 的最佳阈值分数
+                                scores = [eval_thr_local(th) for _, th in cand_thrs]
+                                combo_score = max(scores)
+                                if combo_score > best_combo_score:
+                                    best_combo_score = combo_score
+                                    best_combo = {
+                                        'n_comp': n_comp,
+                                        'model': model_store,
+                                        'scaler': ftir_scaler_tmp,
+                                        'pls': ftir_pls_tmp
+                                    }
+                            # 使用最优组合
+                            trained_model = best_combo['model']  # torch model or sklearn clf
+                            ftir_scaler = best_combo['scaler']
+                            ftir_pls = best_combo['pls']
+                            # 重新计算对应 n_comp 的验证概率用于阈值（可复用上面逻辑简化）
+                            tr_pls, val_pls, _, _ = extract_ftir_pls_pair(
+                                ftir_tr_sub, y_tr_sub, ftir_val_sub, n_components=best_combo['n_comp'])
+                            if variant == 'pls':
+                                with torch.no_grad():
+                                    o_val = trained_model(val_pls, ftir_x)
+                                    pr_val = torch.softmax(o_val, dim=1)[:, 1].cpu().numpy()
+                            else:
+                                pr_val = trained_model.predict_proba(val_pls.numpy())[:, 1]
+                        else:
+                            model = SingleFTIRModel(input_dim=ftir_tr_sub.shape[1])
+                            writer = SummaryWriter(
+                                f'./runs/outer_{m_name}_{r}_{fold}')
+                            trained_model, _, _, _, _ = train_single_modal_model(
+                                model,
+                                ftir_tr_sub, y_tr_sub,
+                                ftir_val_sub, y_val_sub,
+                                ftir_x,
+                                epochs=100,
+                                batch_size=p['batch_size'],
+                                writer=writer,
+                                lr=p['lr'],
+                                weight_decay=p['weight_decay'],
+                                label_smoothing=p['label_smoothing'],
+                                scheduler_factor=p['scheduler_factor'],
+                                early_stop_patience=p['early_stop_patience'],
+                                model_type=m_name
+                            )
+                            writer.close()
+                            with torch.no_grad():
+                                o_val = trained_model(ftir_val_sub, ftir_x)
+                                pr_val = torch.softmax(o_val, dim=1)[
+                                    :, 1].cpu().numpy()
                         yv = y_val_sub.cpu().numpy()
                         # 多候选阈值：maxmin / f1 / balanced / youden / constrained_f1(特异性>=0.6)
                         cand_thrs = []
@@ -2527,6 +2610,11 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         cand_thrs.append(('balanced', select_optimal_threshold(yv, pr_val, method="balanced")))
                         cand_thrs.append(('youden', select_optimal_threshold(yv, pr_val, method="youden")))
                         cand_thrs.append(('constrained_f1@0.6', select_optimal_threshold(yv, pr_val, method="constrained_f1", target_specificity=0.6)))
+                        cand_thrs.append(('constrained_f1@0.65', select_optimal_threshold(yv, pr_val, method="constrained_f1", target_specificity=0.65)))
+                        cand_thrs.append(('constrained_f1@0.7', select_optimal_threshold(yv, pr_val, method="constrained_f1", target_specificity=0.7)))
+                        cand_thrs.append(('target_sens@0.6', select_optimal_threshold(yv, pr_val, method="target_sensitivity", target_sensitivity=0.6)))
+                        cand_thrs.append(('target_sens@0.7', select_optimal_threshold(yv, pr_val, method="target_sensitivity", target_sensitivity=0.7)))
+                        cand_thrs.append(('distance_optimal', select_optimal_threshold(yv, pr_val, method="distance_optimal")))
                         # 选择使四项指标的最小值最大的阈值（追求整体≥50%）
                         def eval_thr(th):
                             preds = (pr_val >= th).astype(int)
@@ -2548,15 +2636,33 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                                 best_score = score
                                 best_thr = th
                         thr = float(best_thr)
-                        with torch.no_grad():
-                            o_te = trained_model(ftir_te, ftir_x)
-                            pr_te = torch.softmax(o_te, dim=1)[
-                                :, 1].cpu().numpy()
+                        if variant in ['pls', 'pls_logreg']:
+                            ftir_te_scaled = ftir_scaler.transform(ftir_te.numpy())
+                            ftir_te_pls = ftir_pls.transform(ftir_te_scaled)
+                            if ftir_te_pls.ndim == 1:
+                                ftir_te_pls = ftir_te_pls.reshape(-1, 1)
+                            if variant == 'pls':
+                                ftir_te_pls_t = torch.tensor(ftir_te_pls, dtype=torch.float32)
+                                with torch.no_grad():
+                                    o_te = trained_model(ftir_te_pls_t, ftir_x)
+                                    pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
+                            else:
+                                pr_te = trained_model.predict_proba(ftir_te_pls)[:, 1]
+                        else:
+                            with torch.no_grad():
+                                o_te = trained_model(ftir_te, ftir_x)
+                                pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
                         pd_te = (pr_te >= thr).astype(int)
-                        met = evaluate_model(trained_model, ftir_te, None, y_te, ftir_x, mz_x,
-                                             preds=pd_te, probs=pr_te,
-                                             name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
-                                             plot_tsne=False)
+                        if variant == 'pls_logreg':
+                            met = evaluate_model(trained_model, ftir_te, None, y_te, ftir_x, mz_x,
+                                                 preds=pd_te, probs=pr_te,
+                                                 name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
+                                                 plot_tsne=False, is_svm=True)
+                        else:
+                            met = evaluate_model(trained_model, ftir_te, None, y_te, ftir_x, mz_x,
+                                                 preds=pd_te, probs=pr_te,
+                                                 name=f"{m_name}_outer{r}_fold{fold}", model_type=m_name,
+                                                 plot_tsne=False)
                         results[m_name].append(met)
                         continue
                     elif m_name == "MZOnly":
