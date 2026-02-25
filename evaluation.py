@@ -274,7 +274,7 @@ def evaluate_model(model, ftir_test, mz_test, y_test, ftir_axis, mz_axis,
     return result_dict
 
 
-def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=None):
+def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=None, target_specificity=None):
     y_true = np.asarray(y_true)
     probs = np.asarray(probs)
     if method == "youden":
@@ -348,6 +348,8 @@ def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=
     
     elif method == "constrained_f1":
         # 在保证特异度>=60%的前提下优化F1
+        if target_specificity is None:
+            target_specificity = 0.85
         precisions, recalls, thresholds = precision_recall_curve(y_true, probs)
         f1_scores = 2 * (precisions * recalls) / (precisions + recalls)
         
@@ -360,7 +362,7 @@ def select_optimal_threshold(y_true, probs, method="youden", target_sensitivity=
             tn, fp, fn, tp = confusion_matrix(y_true, predictions).ravel()
             specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
             
-            if specificity >= 0.85:  # 保证至少85%特异度
+            if specificity >= target_specificity:  # 保证至少指定特异度
                 valid_thresholds.append(threshold)
                 valid_f1_scores.append(f1_scores[i])
         

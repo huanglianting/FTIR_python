@@ -2519,8 +2519,35 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             o_val = trained_model(ftir_val_sub, ftir_x)
                             pr_val = torch.softmax(o_val, dim=1)[
                                 :, 1].cpu().numpy()
-                        thr = select_optimal_threshold(
-                            y_val_sub.cpu().numpy(), pr_val, method="maxmin")
+                        yv = y_val_sub.cpu().numpy()
+                        # 多候选阈值：maxmin / f1 / balanced / youden / constrained_f1(特异性>=0.6)
+                        cand_thrs = []
+                        cand_thrs.append(('maxmin', select_optimal_threshold(yv, pr_val, method="maxmin")))
+                        cand_thrs.append(('f1', select_optimal_threshold(yv, pr_val, method="f1")))
+                        cand_thrs.append(('balanced', select_optimal_threshold(yv, pr_val, method="balanced")))
+                        cand_thrs.append(('youden', select_optimal_threshold(yv, pr_val, method="youden")))
+                        cand_thrs.append(('constrained_f1@0.6', select_optimal_threshold(yv, pr_val, method="constrained_f1", target_specificity=0.6)))
+                        # 选择使四项指标的最小值最大的阈值（追求整体≥50%）
+                        def eval_thr(th):
+                            preds = (pr_val >= th).astype(int)
+                            acc = (preds == yv).mean()
+                            tp = ((preds == 1) & (yv == 1)).sum()
+                            tn = ((preds == 0) & (yv == 0)).sum()
+                            fp = ((preds == 1) & (yv == 0)).sum()
+                            fn = ((preds == 0) & (yv == 1)).sum()
+                            sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+                            spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+                            from sklearn.metrics import f1_score as _f1
+                            f1v = _f1(yv, preds, zero_division=0)
+                            return min(acc, sens, spec, f1v), (acc, sens, spec, f1v)
+                        best_thr = 0.5
+                        best_score = -1.0
+                        for name, th in cand_thrs:
+                            score, _ = eval_thr(th)
+                            if score > best_score:
+                                best_score = score
+                                best_thr = th
+                        thr = float(best_thr)
                         with torch.no_grad():
                             o_te = trained_model(ftir_te, ftir_x)
                             pr_te = torch.softmax(o_te, dim=1)[
