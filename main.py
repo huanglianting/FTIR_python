@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from data_preprocessing import preprocess_data
 from sklearn.model_selection import StratifiedGroupKFold
@@ -96,6 +96,8 @@ def set_seed(seed):
     torch.set_num_threads(1)
     # shap.random.seed(seed)
 
+GLOBAL_SEED = 7
+set_seed(4)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=4, help='Random seed')
@@ -1771,11 +1773,14 @@ print("Applying optimized parameters for paper submission...")
 # MultiModal: Tuned for High Specificity/Precision (96%+), Lower LR, Higher Weight Decay to encourage specificity
 base_params = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8,
                'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
-best_params_per_model["MultiModal"] = base_params
+best_params_per_model["MultiModal"] = {'lr': 0.00085, 'weight_decay': 1e-4, 'batch_size': 4, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 60}
+# best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters
-for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
+for m in ["MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
     best_params_per_model[m] = base_params.copy()
+best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
+# best_params_per_model["FTIROnly"] = {'variant': 'best', 'arch': 'transformer', 'lr': 0.0003, 'weight_decay': 1e-5, 'batch_size': 16, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
 # best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
@@ -1806,6 +1811,7 @@ y_train_final, y_val_final = y_train[train_idx], y_train[val_idx]
 # for model_name, model_class in models_to_evaluate.items():
 for model_name, params in best_params_per_model.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
+    set_seed(GLOBAL_SEED)
     if model_name == "MultiModal":
         model = MultiModalModel(
             ftir_input_dim=ftir_train_final.shape[1], mz_input_dim=mz_train_final.shape[1])
@@ -2398,6 +2404,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             print(
                 f"    验证集患者数: {len(unique_patients_val_sub)} (IDs: {unique_patients_val_sub})")
             for m_name, _ in models_to_eval.items():
+                set_seed(GLOBAL_SEED)
                 if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
                     tr_feat = np.hstack([
                         ftir_tr.numpy(), mz_tr.numpy()
