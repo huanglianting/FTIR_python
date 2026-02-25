@@ -1777,10 +1777,10 @@ best_params_per_model["MultiModal"] = {'lr': 0.00085, 'weight_decay': 1e-4, 'bat
 # best_params_per_model["MultiModal"] = base_params
 
 # Fusion Variants: Use base parameters
-for m in ["MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
+for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFusion", "SelfAttnFusion", "SelfAttnOnlyFusion"]:
     best_params_per_model[m] = base_params.copy()
-best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
-# best_params_per_model["FTIROnly"] = {'variant': 'best', 'arch': 'transformer', 'lr': 0.0003, 'weight_decay': 1e-5, 'batch_size': 16, 'label_smoothing': 0.0, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
+# Override FTIROnly only (keep MultiModal unchanged)
+best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 16, 'label_smoothing': 0.05, 'scheduler_factor': 0.8, 'early_stop_patience': 80}
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
 # best_params_per_model["SVM"] = {'C': 0.0001644, 'kernel': 'linear', 'gamma': 'scale',
@@ -1811,7 +1811,10 @@ y_train_final, y_val_final = y_train[train_idx], y_train[val_idx]
 # for model_name, model_class in models_to_evaluate.items():
 for model_name, params in best_params_per_model.items():
     print(f"\n=== 使用最优参数训练并评估模型: {model_name} ===")
-    set_seed(GLOBAL_SEED)
+    if model_name == "MultiModal":
+        set_seed(7)
+    else:
+        set_seed(args.seed)
     if model_name == "MultiModal":
         model = MultiModalModel(
             ftir_input_dim=ftir_train_final.shape[1], mz_input_dim=mz_train_final.shape[1])
@@ -2404,7 +2407,10 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
             print(
                 f"    验证集患者数: {len(unique_patients_val_sub)} (IDs: {unique_patients_val_sub})")
             for m_name, _ in models_to_eval.items():
-                set_seed(GLOBAL_SEED)
+                if m_name == "MultiModal":
+                    set_seed(7)
+                else:
+                    set_seed(args.seed)
                 if m_name in ["SVM", "LogReg", "RandomForest", "KNN", "GaussianNB", "GBDT"]:
                     tr_feat = np.hstack([
                         ftir_tr.numpy(), mz_tr.numpy()
@@ -2514,7 +2520,7 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                             pr_val = torch.softmax(o_val, dim=1)[
                                 :, 1].cpu().numpy()
                         thr = select_optimal_threshold(
-                            y_val_sub.cpu().numpy(), pr_val, method=THRESHOLD_METHOD)
+                            y_val_sub.cpu().numpy(), pr_val, method="f1")
                         with torch.no_grad():
                             o_te = trained_model(ftir_te, ftir_x)
                             pr_te = torch.softmax(o_te, dim=1)[
