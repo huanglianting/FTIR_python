@@ -1,56 +1,47 @@
+# Multimodal Diagnostic Network
+This repository implements a **multimodal diagnostic framework** for distinguishing between benign and malignant states by integrating **Fourier Transform Infrared (FTIR) spectroscopy** and **Mass Spectrometry (MS)** data. The project is designed for rigorous scientific evaluation, featuring a robust nested cross-validation pipeline, comprehensive statistical analysis, and advanced model interpretability.
 
-# 注：每个绘图函数需要到的数据都在每个绘图函数内部 开头 或 结尾（仅shap和相关性分析在结尾）保存了，请查看具体函数实现。
+## 📌 Key Features
+- **Multimodal Fusion**: A novel hybrid fusion network combining gated fusion and cross-modal attention.
+- **Rigorous Evaluation**: 5-times repeated 4-fold **Stratified Group Cross-Validation** to ensure patient-level independence and result stability.
+- **Comprehensive Baselines**: Includes classical ML models (SVM, Random Forest) and deep learning baselines (MFCNN, CMSTF, CMACF).
+- **Advanced Interpretability**: Uses **SHAP (SHapley Additive exPlanations)** to identify critical wavenumbers and m/z values that drive the model's decisions.
+- **Full Reproducibility**: All intermediate results and plotting data are saved, enabling complete regeneration of all figures and tables without retraining.
 
-# data_preprocessing.py
-- **Fig.1(a)**: `良恶性的 FTIR 原始光谱`
-  - 在def preprocess_data中调用，该函数用于预处理ftir和mz
-  - 具体函数定义在 plot_spectrum_with_marked_peaks.py
-  - fig, ax = plt.subplots(figsize=(7, 4))
+## 📂 Project Structure
+FTIR_python/
+├── README.md                   # Project description document
+├── main.py                     # Main training and evaluation pipeline (including nested cross-validation)
+├── evaluation.py               # Model evaluation, metric calculation, statistical tests and visualization
+├── Multi_Single_modal.py       # Multi-modal/single-modal model definitions (including ablation experiments and comparison models)
+├── data_preprocessing.py       # Data loading, alignment, preprocessing and splitting
+├── ftir_process.py             # FTIR spectrum-specific preprocessing (smoothing, derivatives, etc.)
+├── plot_spectrum_with_marked_peaks.py  # Spectrum visualization tool with marked peaks
+└── result/                     # Default result output directory (including model performance, SHAP, t-SNE, etc.)
 
-- **Fig.1(b)**: `良恶性的 mz 强度百分比`
-  - def plot_intensity_comparison
-  - fig, ax = plt.subplots(figsize=(7, 4))
+## 🧪 Usage
+### Environment Dependencies
+Ensure the following Python libraries are installed:
+```bash
+numpy pandas scikit-learn torch matplotlib seaborn scipy shap
+```
+### Data Preparation
+Organize FTIR `.mat` files and mass spectrometry (MS) `.xlsx` files according to the requirements in `data_preprocessing.py`.
+### Run the Main Program
+Execute `main.py` to start the complete pipeline of nested cross-validation, model training, evaluation, and statistical analysis:
+```bash
+python main.py
+```
+### Result Output
+All results will be automatically saved to the `./result` directory, including:
+- Model performance statistical report (`statistical_report.txt`)
+- Visualization charts (ROC curves, confusion matrices, t-SNE plots, SHAP heatmaps, etc.)
+- Intermediate data files (support result reproducibility)
 
-
-# evaluation.py
-- **Fig.4**: `混淆矩阵和ROC曲线`
-  - def plot_cm_roc
-  - plt.figure(figsize=(16, 7))
-
-- **Fig.5**: `t-SNE`
-  - def plot_tsne_features
-  - plt.figure(figsize=(15, 5))
-
-
-# main.py
-- **Fig.3**: `loss 和 accuracy 曲线`
-  - 1262-1325行
-  - plt.figure(figsize=(12, 5))
-
-- **Fig.6**: `FTIR SHAP热力图`
-  - def perform_ftir_shap_analysis
-  - plt.figure(figsize=(15, 8))  
-  
-- **Fig.7**: `MZ SHAP热力图`
-  - def perform_mz_shap_analysis
-  - plt.figure(figsize=(15, 8))  
-
-- **Fig.8**: `特征相关性热力图`
-  - def create_correlation_heatmap
-  - plt.figure(figsize=(12, 10)) 
-
-
-# 其他
-- **Fig.2**: `网络架构图`
-  - 见PPT
-
-
-# Multi_Single_modal.py
-- 单模态、多模态、各种消融实验的模块定义
-
-# ftir_process.py
-- 用于读取数据、TR转AB、过滤到指纹区、求二阶导等FTIR光谱预处理
-
-# plot_spectrum_with_marked_peaks.py
-- 绘制良恶性的 FTIR 原始光谱
-
+## 📊 Output Examples
+- **Performance Metrics**: Accuracy, AUC, Sensitivity, Specificity, F1-score, and their 95% confidence intervals
+- **Statistical Tests**: Friedman test + Nemenyi post-hoc test / Wilcoxon signed-rank test
+- **Interpretability Analysis**:
+  - SHAP difference heatmaps
+  - Spearman correlation heatmap
+  - t-SNE feature space visualization

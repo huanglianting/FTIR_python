@@ -97,10 +97,10 @@ def set_seed(seed):
     # shap.random.seed(seed)
 
 GLOBAL_SEED = 7
-set_seed(4)
+set_seed(7)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--seed', type=int, default=4, help='Random seed')
+parser.add_argument('--seed', type=int, default=7, help='Random seed')
 parser.add_argument('--mz_pca_components', type=int, default=20,
                     help='Number of PCA components for MZ data')
 parser.add_argument('--early_stop_patience', type=int,
