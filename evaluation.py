@@ -1116,3 +1116,15 @@ def plot_aggregated_cm_roc(all_y_true, all_probs, all_preds, save_path='./result
     plt.close()
     
     print(f"聚合ROC和混淆矩阵已保存至 {save_path}")
+
+    aggregated_data = {
+        'y_true': y_true,
+        'y_prob': probs,
+        'y_pred': preds,
+        'auc': auc,
+        'auc_ci': auc_ci,
+        'confusion_matrix': cm,
+        'confusion_matrix_percent': cm_percent
+    }
+    np.save(os.path.join(save_path, f'{method_name}_aggregated_plot_data.npy'), aggregated_data)
+    print(f"聚合绘图数据已保存至: {os.path.join(save_path, f'{method_name}_aggregated_plot_data.npy')}")

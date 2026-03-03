@@ -1781,7 +1781,6 @@ for m in ["FTIROnly", "MZOnly", "ConcatFusion", "GateOnlyFusion", "CoAttnOnlyFus
     best_params_per_model[m] = base_params.copy()
 # Override FTIROnly only (keep MultiModal unchanged)
 # best_params_per_model["FTIROnly"] = {'variant': 'pls', 'pls_grid': [6, 8, 12, 16, 24], 'lr': 0.0004, 'weight_decay': 1e-5, 'batch_size': 16, 'label_smoothing': 0.1, 'scheduler_factor': 0.5, 'early_stop_patience': 140}
-    extract_pls_features, extract_raw_fusion_pls_features, LogRegClassifier, RFClassifier, KNNClassifier, NBClassifier, GBDTClassifier
 best_params_per_model["FTIROnly"] = {'lr': 0.0005, 'weight_decay': 1e-4, 'batch_size': 8, 'label_smoothing': 0.0, 'scheduler_factor': 0.5, 'early_stop_patience': 30}
 
 # ML Models: Detuned/Standard defaults (aiming for >60% performance but < MultiModal)
@@ -2776,17 +2775,6 @@ def run_repeated_outer_cv(models_to_eval, best_params, repeats=5, n_splits=4, se
                         o_te = trained_model(ftir_te, mz_te, ftir_x, mz_x)
                         pr_te = torch.softmax(o_te, dim=1)[:, 1].cpu().numpy()
                     pd_te = (pr_te >= thr).astype(int)
-                    # DEBUG: Check class distribution and confusion matrix
-                    # y_te_np = y_te.cpu().numpy()
-                    # print(f"DEBUG: y_te unique: {np.unique(y_te_np)}")
-                    # print(f"DEBUG: y_te counts: {np.bincount(y_te_np)}")
-                    # print(f"DEBUG: pd_te unique: {np.unique(pd_te)}")
-                    # try:
-                    #     from sklearn.metrics import confusion_matrix
-                    #     cm_debug = confusion_matrix(y_te_np, pd_te, labels=[0, 1])
-                    #     print(f"DEBUG: Confusion Matrix:\n{cm_debug}")
-                    # except Exception as e:
-                    #     print(f"DEBUG: CM Error: {e}")
 
                     met = evaluate_model(trained_model, ftir_te, mz_te, y_te, ftir_x, mz_x,
                                          preds=pd_te, probs=pr_te,
